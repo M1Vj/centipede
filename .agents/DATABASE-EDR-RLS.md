@@ -662,6 +662,10 @@ subscribe to changes and update the UI accordingly.
   tables to support accurate time tracking and competition pause/resume
   history.  Documented soft‑delete policies, Supabase Auth sync
   trigger, grading function and Realtime subscriptions. |
+| 2026‑03‑11 | Added local Supabase CLI project scaffolding plus an
+  initial migration for `profiles` and `organizer_applications`,
+  including the auth sync trigger, helper functions and foundational
+  RLS policies used by the authentication flow. |
 
 Whenever the database schema is modified or RLS policies are updated,
 append a new row detailing what changed and why.  Maintain this log to
