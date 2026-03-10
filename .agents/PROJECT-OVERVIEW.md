@@ -44,9 +44,9 @@ modes.  KaTeX renders mathematical notation in problems and solutions.
 **Important note:** the project is initialized from the official
 [Next.js + Supabase template](https://vercel.com/templates/next.js/supabase).  All
 subsequent work should build upon this scaffold rather than starting from
-scratch.  Environment variables (`NEXT_PUBLIC_SUPABASE_URL` and
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`) must be configured in `.env.local` for
-local development.
+scratch.  Environment variables (`NEXT_PUBLIC_SUPABASE_URL` and either
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
+must be configured in `.env.local` for local development.
 
 ## Design System
 
