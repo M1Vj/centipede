@@ -1,0 +1,120 @@
+"use client";
+
+import { useState } from "react";
+import { CircleAlert } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/providers/auth-provider";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { getSupabaseClient } from "@/lib/supabaseClient";
+import type { AuthProfile } from "@/lib/auth/profile";
+
+type ProfileCompletionFormProps = {
+  profile: AuthProfile | null;
+  userId: string;
+};
+
+export function ProfileCompletionForm({
+  profile,
+  userId,
+}: ProfileCompletionFormProps) {
+  const router = useRouter();
+  const { refreshProfile } = useAuth();
+  const [fullName, setFullName] = useState(profile?.full_name ?? "");
+  const [school, setSchool] = useState(profile?.school ?? "");
+  const [gradeLevel, setGradeLevel] = useState(profile?.grade_level ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    setIsSaving(true);
+
+    try {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          full_name: fullName.trim(),
+          school: school.trim(),
+          grade_level: gradeLevel.trim(),
+        })
+        .eq("id", userId);
+
+      if (error) {
+        throw error;
+      }
+
+      await refreshProfile();
+      router.push("/");
+      router.refresh();
+    } catch (nextError: unknown) {
+      setError(nextError instanceof Error ? nextError.message : "Unable to save profile.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Card className="border-border/70 bg-background/90 shadow-lg">
+      <CardHeader>
+        <CardTitle className="text-2xl">Complete your profile</CardTitle>
+        <CardDescription>
+          Tell Mathwiz Arena who you are before entering protected areas.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="grid gap-2">
+            <Label htmlFor="full_name">Full name</Label>
+            <Input
+              id="full_name"
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="school">School</Label>
+            <Input
+              id="school"
+              value={school}
+              onChange={(event) => setSchool(event.target.value)}
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="grade_level">Grade level</Label>
+            <Input
+              id="grade_level"
+              value={gradeLevel}
+              onChange={(event) => setGradeLevel(event.target.value)}
+              required
+            />
+          </div>
+
+          {error ? (
+            <Alert variant="destructive">
+              <CircleAlert className="size-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <Button type="submit" className="w-full" disabled={isSaving}>
+            {isSaving ? "Saving profile..." : "Save profile"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}

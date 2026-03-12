@@ -16,8 +16,9 @@ before accessing the platform.
 
 ## Requirements
 
-* `lib/supabase.ts` must initialise the Supabase client with your
-  environment variables.
+* `lib/supabaseClient.ts` must initialise the browser Supabase client
+  with your environment variables, while the existing SSR helpers keep
+  request-time auth in sync on the server.
 * The `profiles` table and RLS rules exist (see database design).  A
   trigger or function should insert a row into `profiles` when a new
   Supabase user registers.
@@ -33,12 +34,9 @@ before accessing the platform.
    research to design a robust authentication layer.
 
 1. **Create the Supabase client helper.**  In `/lib`, add
-   `supabaseClient.ts`:
-   ```ts
-   import { createBrowserSupabaseClient } from '@supabase/auth-helpers-nextjs'
-   export const supabase = createBrowserSupabaseClient()
-   ```
-   This helper can be imported across pages.
+   `supabaseClient.ts` using the current `@supabase/ssr` browser client
+   instead of the deprecated auth helpers package.  This helper can be
+   imported across client components and forms.
 2. **Auth context/provider.**  Create a context (e.g. `AuthProvider`) that
    wraps the app and exposes the `user` object and login/logout
    functions using Supabase’s `onAuthStateChange`.  This allows you to
@@ -56,8 +54,8 @@ before accessing the platform.
 4. **Build the login page.**  Under `app/(auth)/login/page.tsx`:
    * Provide Google and email/password login.
    * Before logging in with email/password, call
-     `supabase.auth.signOut()` to terminate any existing session for
-     the account (single‑session enforcement).  Then call
+     `supabase.auth.signOut({ scope: 'local' })` to terminate any
+     existing local session before calling
      `supabase.auth.signInWithPassword({ email, password })`.
    * Catch errors and display them using Shadcn’s `<Alert />`.
 5. **Profile completion page.**  Create
@@ -76,8 +74,9 @@ before accessing the platform.
    `supabase.auth.signOut()` for signing out.
 8. **Testing.**  Run `npm run dev` and manually register and log in
    using both Google and email/password.  Verify that the `profiles`
-   table is populated and that logging in from a second device logs
-   out the first session.
+   table is populated and that the Supabase project has single-session
+   auth enforcement enabled so logging in from a second device logs out
+   the first session.
 9. **Commit & push.**  Once the flows work, commit your changes and
    open a PR into `develop`.
 
