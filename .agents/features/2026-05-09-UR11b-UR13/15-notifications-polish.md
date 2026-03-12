@@ -1,4 +1,4 @@
-# 14 – Notifications & Polish
+# 15 – Notifications & Polish
 
 ## Mission
 
@@ -11,7 +11,7 @@ and general application refinement prior to release.
 
 * **Source branch:** `develop`
 * **Target branch:** `feature/notifications-polish`
-* **Requirements:** 13‑leaderboard‑history
+* **Requirements:** 14‑leaderboard‑history
 * **Assigned to:** Mabansag, Vj (with assistance from Abenoja, Jaaseia Gian R.)
 
 ## Requirements
@@ -106,5 +106,5 @@ Recommended commit titles:
 * The notification system is complete, configurable and reliable.
 * All pages are visually consistent, accessible and performant.
 * Minor bugs identified during development are resolved.
-* Checklist item `14-notifications-polish` can be marked complete
+* Checklist item `15-notifications-polish` can be marked complete
   after merge.

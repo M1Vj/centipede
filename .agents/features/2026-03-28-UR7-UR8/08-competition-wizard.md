@@ -1,4 +1,4 @@
-# 07 – Competition Creation Wizard
+# 08 – Competition Creation Wizard
 
 ## Mission
 
@@ -12,7 +12,7 @@ organizers to review and publish the competition.
 
 * **Source branch:** `develop`
 * **Target branch:** `feature/competition-wizard`
-* **Requirements:** 05‑problem-bank, 06‑scoring-system
+* **Requirements:** 06‑problem-bank, 07‑scoring-system
 * **Assigned to:** Mabansag, Vj
 
 ## Requirements
@@ -106,5 +106,5 @@ Recommended commit titles:
 * All required fields and configurations are validated.
 * Competitions are persisted in the database and visible in the
   dashboard.
-* Checklist item `07-competition-wizard` can be marked complete after
+* Checklist item `08-competition-wizard` can be marked complete after
   merge.

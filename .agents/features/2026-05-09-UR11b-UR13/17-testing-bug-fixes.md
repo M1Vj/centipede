@@ -1,4 +1,4 @@
-# 16 – Testing & Bug Fixes
+# 17 – Testing & Bug Fixes
 
 ## Mission
 
@@ -12,7 +12,7 @@ standards.
 
 * **Source branch:** `develop`
 * **Target branch:** `feature/testing-bug-fixes`
-* **Requirements:** All previous features (01–15) must be merged and
+* **Requirements:** All previous features (01–16) must be merged and
   functional.
 * **Assigned to:** Abenoja, Jaaseia Gian R.; Celeres, Anthony; Mabansag, Vj
 
@@ -105,5 +105,5 @@ Recommended commit titles:
 * Documentation reflects the final state of the project.
 * The platform is ready for deployment with confidence in its
   stability and quality.
-* Checklist item `16-testing-bug-fixes` can be marked complete after
+* Checklist item `17-testing-bug-fixes` can be marked complete after
   merge.

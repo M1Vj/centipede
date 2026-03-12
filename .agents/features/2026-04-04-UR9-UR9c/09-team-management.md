@@ -1,4 +1,4 @@
-# 08 – Team Management
+# 09 – Team Management
 
 ## Mission
 
@@ -12,7 +12,7 @@ UR9b and UR9c.
 
 * **Source branch:** `develop`
 * **Target branch:** `feature/team-management`
-* **Requirements:** 07‑competition‑wizard
+* **Requirements:** 08‑competition‑wizard
 * **Assigned to:** Mabansag, Vj
 
 ## Requirements
@@ -116,5 +116,5 @@ Recommended commit titles:
   acceptance/decline, roster edits and leadership transfer.
 * Notifications fire appropriately on invites and leadership changes.
 * RLS policies restrict team operations to authorized users.
-* Checklist item `08-team-management` can be marked complete after
+* Checklist item `09-team-management` can be marked complete after
   merge.

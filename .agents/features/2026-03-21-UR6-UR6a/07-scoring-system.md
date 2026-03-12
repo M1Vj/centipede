@@ -1,4 +1,4 @@
-# 06 – Scoring System & Rules
+# 07 – Scoring System & Rules
 
 ## Mission
 
@@ -12,7 +12,7 @@ grading of multiple attempts for open competitions.
 
 * **Source branch:** `develop`
 * **Target branch:** `feature/scoring-system`
-* **Requirements:** 05‑problem-bank (problems exist)
+* **Requirements:** 06‑problem-bank (problems exist)
 * **Assigned to:** Mabansag, Vj
 
 ## Requirements
@@ -104,5 +104,5 @@ Recommended commit titles:
 * Attempts are graded server‑side using `grade_attempt` and reflect the
   selected rules.
 * Tests ensure correctness across edge cases and multiple attempts.
-* Checklist item `06-scoring-system` can be marked complete after
+* Checklist item `07-scoring-system` can be marked complete after
   merge.

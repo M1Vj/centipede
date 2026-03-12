@@ -6,7 +6,7 @@ export default function Page() {
     <AuthShell
       eyebrow="Register"
       title="Create your Mathwiz Arena account"
-      description="The foundation branch keeps registration simple while the next authentication branch adds profile completion, Google OAuth, and role-aware routing."
+      description="Register with Google or email, then complete your profile so the platform can route you into the right competition experience."
     >
       <div className="w-full max-w-md">
         <SignUpForm />

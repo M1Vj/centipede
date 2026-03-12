@@ -1,4 +1,4 @@
-# 10 – Competition Arena
+# 11 – Competition Arena
 
 ## Mission
 
@@ -14,7 +14,7 @@ status flagging) and UR14c (mathematical input).
 
 * **Source branch:** `develop`
 * **Target branch:** `feature/arena`
-* **Requirements:** 09‑competition‑search
+* **Requirements:** 10‑competition‑search
 * **Assigned to:** Mabansag, Vj
 
 ## Requirements
@@ -146,4 +146,4 @@ Recommended commit titles:
 * Attempts persist across disconnects and enforce penalties for focus
   loss.
 * Mathletes can solve problems, mark statuses and see remaining time.
-* Checklist item `10-arena` can be marked complete after merge.
+* Checklist item `11-arena` can be marked complete after merge.

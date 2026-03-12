@@ -80,6 +80,12 @@ file and the previous repository.  Key characteristics include:
 * **Animations:**  Subtle animations (e.g. slide‑in, fade‑in, accordion
   expansion) are defined in `globals.css` to make state changes
   clear without distracting users.
+* **Interaction Feedback:**  Shared UI feedback patterns should exist
+  across the application: top‑of‑page loading indicators during route
+  changes, pending states for buttons and form submissions, reusable
+  loading/empty/error data states, and confirmation dialogs for
+  destructive actions.  These patterns must be accessible, visually
+  consistent, and responsive on mobile and desktop.
 
 * **Mathematical Input:**  To make entering equations easy for users who
   are not familiar with raw LaTeX, the platform integrates a
