@@ -1,7 +1,13 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { CircleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { isProfileComplete, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
+import { getSupabaseClient } from "@/lib/supabaseClient";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,9 +18,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 
 export function LoginForm({
   className,
@@ -26,22 +29,75 @@ export function LoginForm({
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const supabase = createClient();
+  const redirectAfterLogin = async (userId: string) => {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from("profiles")
+      .select(PROFILE_SELECT_FIELDS)
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    router.push(isProfileComplete(data) ? "/" : "/profile/complete");
+    router.refresh();
+  };
+
+  const handleGoogle = async () => {
+    const supabase = getSupabaseClient();
     setIsLoading(true);
     setError(null);
 
     try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/confirm?next=/profile/complete`,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+    } catch (nextError: unknown) {
+      setError(
+        nextError instanceof Error ? nextError.message : "Unable to start Google login.",
+      );
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const supabase = getSupabaseClient();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      if (error) throw error;
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push("/protected");
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+
+      if (error) {
+        throw error;
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error("Login succeeded but no user session was returned.");
+      }
+
+      await redirectAfterLogin(user.id);
+    } catch (nextError: unknown) {
+      setError(nextError instanceof Error ? nextError.message : "An error occurred");
     } finally {
       setIsLoading(false);
     }
@@ -53,10 +109,22 @@ export function LoginForm({
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            Sign in with Google or use your email and password.
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-6 grid gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => void handleGoogle()}
+              disabled={isLoading}
+            >
+              Continue with Google
+            </Button>
+          </div>
+
           <form onSubmit={handleLogin}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
@@ -67,7 +135,7 @@ export function LoginForm({
                   placeholder="m@example.com"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                 />
               </div>
               <div className="grid gap-2">
@@ -85,12 +153,17 @@ export function LoginForm({
                   type="password"
                   required
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(event) => setPassword(event.target.value)}
                 />
               </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
+              {error ? (
+                <Alert variant="destructive">
+                  <CircleAlert className="size-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
+                {isLoading ? "Logging in..." : "Login with email"}
               </Button>
             </div>
             <div className="mt-4 text-center text-sm">

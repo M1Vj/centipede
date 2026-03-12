@@ -4,6 +4,15 @@ export type ProfileCompletionFields = {
   grade_level?: string | null;
 };
 
+export type AuthProfile = ProfileCompletionFields & {
+  id: string;
+  email: string;
+  role: string;
+};
+
+export const PROFILE_SELECT_FIELDS =
+  "id, email, full_name, school, grade_level, role";
+
 function hasContent(value: string | null | undefined) {
   return Boolean(value?.trim());
 }

@@ -8,16 +8,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { isProfileComplete, type ProfileCompletionFields } from "@/lib/auth/profile";
+import {
+  isProfileComplete,
+  PROFILE_SELECT_FIELDS,
+  type AuthProfile,
+} from "@/lib/auth/profile";
 import { hasEnvVars } from "@/lib/supabase/env";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-
-type AuthProfile = ProfileCompletionFields & {
-  id: string;
-  email: string;
-  role: string;
-};
 
 type AuthContextValue = {
   session: Session | null;
@@ -35,7 +33,7 @@ async function fetchProfile(userId: string) {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, school, grade_level, role")
+    .select(PROFILE_SELECT_FIELDS)
     .eq("id", userId)
     .maybeSingle();
 
