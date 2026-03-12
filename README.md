@@ -39,3 +39,32 @@ Known Issues:
 - Tech Stack:
   - Frontend: Next.js
   - Backend/DB: Supabase (PostgreSQL)
+
+## Local Supabase Setup
+
+The repository now includes a local Supabase scaffold under `supabase/` and a
+local `.env.local` template.
+
+1. Open `.env.local` and replace the placeholders with your real project values
+   from Supabase.
+2. If you want a local Supabase stack instead of a hosted project, start Docker
+   and run `npm run supabase:start`.
+3. Apply the local schema from the migrations with `npm run supabase:db:reset`.
+4. When the local stack is running, inspect local keys with `npm run supabase:status`.
+5. Generate TypeScript database types with `npm run supabase:types`.
+
+### Minimum Required Environment Variables
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+Optional fallback for older Supabase projects:
+
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+### What Is Included
+
+- Supabase CLI config in `supabase/config.toml`
+- Initial migration for auth-linked profiles and organizer applications
+- Seed file placeholder for local development
+- npm scripts for common Supabase CLI workflows

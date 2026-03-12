@@ -49,7 +49,8 @@ features.
    git checkout -b feature/foundation
    ```
 3. **Set up environment variables.**  Copy `.env.example` to
-   `.env.local` and set `NEXT_PUBLIC_SUPABASE_URL` and
+   `.env.local` and set `NEXT_PUBLIC_SUPABASE_URL` and either
+   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or
    `NEXT_PUBLIC_SUPABASE_ANON_KEY` to your Supabase project’s values.
 4. **Configure Tailwind and Shadcn UI.**  Ensure `tailwind.config.ts`
    defines dark mode and uses the content globs from `/app`, `/pages`,

@@ -1,4 +1,7 @@
+import { AuthShell } from "@/components/auth-shell";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 import { Suspense } from "react";
 
 async function ErrorContent({
@@ -29,8 +32,12 @@ export default function Page({
   searchParams: Promise<{ error: string }>;
 }) {
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
+    <AuthShell
+      eyebrow="Auth Error"
+      title="The authentication flow needs attention"
+      description="The shell stays readable even when Supabase redirects back with an error or an expired verification token."
+    >
+      <div className="w-full max-w-md">
         <div className="flex flex-col gap-6">
           <Card>
             <CardHeader>
@@ -42,10 +49,13 @@ export default function Page({
               <Suspense>
                 <ErrorContent searchParams={searchParams} />
               </Suspense>
+              <Button asChild variant="outline" className="mt-4 w-full">
+                <Link href="/auth/login">Return to login</Link>
+              </Button>
             </CardContent>
           </Card>
         </div>
       </div>
-    </div>
+    </AuthShell>
   );
 }
