@@ -1,4 +1,4 @@
-# 11 – Anti‑Cheat & Monitoring
+# 12 – Anti‑Cheat & Monitoring
 
 ## Mission
 
@@ -12,7 +12,7 @@ logs to organizers.
 
 * **Source branch:** `develop`
 * **Target branch:** `feature/anti-cheat`
-* **Requirements:** 10‑arena
+* **Requirements:** 11‑arena
 * **Assigned to:** Mabansag, Vj
 
 ## Requirements
@@ -118,4 +118,4 @@ Recommended commit titles:
   arena.
 * Organizers have a live monitoring interface with the ability to
   pause/resume competitions and review logs.
-* Checklist item `11-anti-cheat` can be marked complete after merge.
+* Checklist item `12-anti-cheat` can be marked complete after merge.

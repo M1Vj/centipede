@@ -1,4 +1,4 @@
-# 12 – Review, Submission & Answer Key
+# 13 – Review, Submission & Answer Key
 
 ## Mission
 
@@ -12,7 +12,7 @@ feature addresses UR14d (answer review) and UR14e (answer key display).
 
 * **Source branch:** `develop`
 * **Target branch:** `feature/review-submission`
-* **Requirements:** 10‑arena, 11‑anti‑cheat, 06‑scoring‑system
+* **Requirements:** 11‑arena, 12‑anti‑cheat, 07‑scoring‑system
 * **Assigned to:** Mabansag, Vj
 
 ## Requirements
@@ -114,5 +114,5 @@ Recommended commit titles:
 * Mathletes cannot modify answers after submission; scores update via
   the grading function.
 * Disputes can be filed and trigger recalculations when resolved.
-* Checklist item `12-review-submission` can be marked complete after
+* Checklist item `13-review-submission` can be marked complete after
   merge.

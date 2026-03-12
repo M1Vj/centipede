@@ -1,4 +1,4 @@
-# 09 – Competition Search, Registration & Calendar
+# 10 – Competition Search, Registration & Calendar
 
 ## Mission
 
@@ -14,7 +14,7 @@ feature covers UR10 (competition search), UR11 (participation), UR11a
 
 * **Source branch:** `develop`
 * **Target branch:** `feature/competition-search`
-* **Requirements:** 07‑competition‑wizard, 08‑team‑management
+* **Requirements:** 08‑competition‑wizard, 09‑team‑management
 * **Assigned to:** Mabansag, Vj and Abenoja, Jaaseia Gian R.
 
 ## Requirements
@@ -140,5 +140,5 @@ Recommended commit titles:
   time.
 * All user interfaces adapt to individual vs team and scheduled vs
   open competitions.
-* Checklist item `09-competition-search` can be marked complete after
+* Checklist item `10-competition-search` can be marked complete after
   merge.

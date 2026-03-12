@@ -1,4 +1,4 @@
-# 03 – Admin User Management
+# 04 – Admin User Management
 
 ## Mission
 
@@ -99,5 +99,5 @@ Recommended commit titles:
   organizer resources and system logs.
 * RLS policies prevent non‑admin users from accessing admin pages.
 * Audit logs capture all critical admin actions.
-* Checklist item `03-admin-user-management` can be checked after
+* Checklist item `04-admin-user-management` can be checked after
   merge.

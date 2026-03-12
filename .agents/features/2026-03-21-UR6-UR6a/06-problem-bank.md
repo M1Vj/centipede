@@ -1,4 +1,4 @@
-# 05 – Problem Bank Management
+# 06 – Problem Bank Management
 
 ## Mission
 
@@ -12,7 +12,7 @@ items are removed from draft banks.
 
 * **Source branch:** `develop`
 * **Target branch:** `feature/problem-bank`
-* **Requirements:** 04‑organizer-registration (organizers can log in)
+* **Requirements:** 05‑organizer-registration (organizers can log in)
 * **Assigned to:** Mabansag, Vj
 
 ## Requirements
@@ -109,5 +109,5 @@ Recommended commit titles:
   user‑friendly interface.
 * Soft deletes protect published competitions from accidental changes.
 * All CRUD operations are covered by tests and verified manually.
-* Checklist item `05-problem-bank` can be marked complete after
+* Checklist item `06-problem-bank` can be marked complete after
   merge.

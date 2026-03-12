@@ -8,20 +8,21 @@ a short note or commit hash.
 ```markdown
 - [ ] 01-foundation
 - [ ] 02-authentication
-- [ ] 03-admin-user-management
-- [ ] 04-organizer-registration
-- [ ] 05-problem-bank
-- [ ] 06-scoring-system
-- [ ] 07-competition-wizard
-- [ ] 08-team-management
-- [ ] 09-competition-search
-- [ ] 10-arena
-- [ ] 11-anti-cheat
-- [ ] 12-review-submission
-- [ ] 13-leaderboard-history
-- [ ] 14-notifications-polish
-- [ ] 15-participant-monitoring
-- [ ] 16-testing-bug-fixes
+- [ ] 03-interaction-feedback
+- [ ] 04-admin-user-management
+- [ ] 05-organizer-registration
+- [ ] 06-problem-bank
+- [ ] 07-scoring-system
+- [ ] 08-competition-wizard
+- [ ] 09-team-management
+- [ ] 10-competition-search
+- [ ] 11-arena
+- [ ] 12-anti-cheat
+- [ ] 13-review-submission
+- [ ] 14-leaderboard-history
+- [ ] 15-notifications-polish
+- [ ] 16-participant-monitoring
+- [ ] 17-testing-bug-fixes
 ```
 
 > **Note:** Always update this checklist after merging a feature.  If

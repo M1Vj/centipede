@@ -1,4 +1,4 @@
-# 15 – Participant Monitoring
+# 16 – Participant Monitoring
 
 ## Mission
 
@@ -13,7 +13,7 @@ monitoring features.
 
 * **Source branch:** `develop`
 * **Target branch:** `feature/participant-monitoring`
-* **Requirements:** 11‑anti‑cheat, 07‑competition‑wizard, 08‑team‑management
+* **Requirements:** 12‑anti‑cheat, 08‑competition‑wizard, 09‑team‑management
 * **Assigned to:** Mabansag, Vj
 
 ## Requirements
@@ -113,5 +113,5 @@ Recommended commit titles:
 * Announcements, pause/resume and extension controls work smoothly and
   update all clients via Realtime.
 * Event logs are persisted and display an accurate timeline.
-* Checklist item `15-participant-monitoring` can be marked complete
+* Checklist item `16-participant-monitoring` can be marked complete
   after merge.

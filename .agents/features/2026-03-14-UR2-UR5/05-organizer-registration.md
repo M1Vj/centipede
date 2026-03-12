@@ -1,4 +1,4 @@
-# 04 – Organizer Registration & Eligibility
+# 05 – Organizer Registration & Eligibility
 
 ## Mission
 
@@ -18,7 +18,7 @@ dashboards.
 ## Requirements
 
 * `organizer_applications` table is defined (see database schema).
-* Admin dashboard is ready to review applications (03‑admin-user-management).
+* Admin dashboard is ready to review applications (04‑admin-user-management).
 
 ## Atomic Steps
 0. **Research form libraries and file uploads.**  Begin by
@@ -91,5 +91,5 @@ Recommended commit titles:
 * Admins can approve or reject applications and trigger role
   upgrades.
 * Email notifications keep applicants informed of progress.
-* Checklist item `04-organizer-registration` can be checked after
+* Checklist item `05-organizer-registration` can be checked after
   merge.

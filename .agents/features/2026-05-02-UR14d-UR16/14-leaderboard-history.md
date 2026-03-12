@@ -1,4 +1,4 @@
-# 13 – Leaderboard & History Archive
+# 14 – Leaderboard & History Archive
 
 ## Mission
 
@@ -11,7 +11,7 @@ UR15 (leaderboard display) and UR16 (history archive).
 
 * **Source branch:** `develop`
 * **Target branch:** `feature/leaderboard-history`
-* **Requirements:** 12‑review‑submission, 11‑anti‑cheat
+* **Requirements:** 13‑review‑submission, 12‑anti‑cheat
 * **Assigned to:** Abenoja, Jaaseia Gian R.
 
 ## Requirements
@@ -114,5 +114,5 @@ Recommended commit titles:
 * Leaderboards and history archives are accessible and accurate.
 * Publishing results triggers notifications and updates the UI.
 * Export functionality works for organizers.
-* Checklist item `13-leaderboard-history` can be marked complete after
+* Checklist item `14-leaderboard-history` can be marked complete after
   merge.
