@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import Link from "next/link";
+import { ProgressLink } from "@/components/ui/progress-link";
 
 export default function Page() {
   return (
@@ -31,7 +31,7 @@ export default function Page() {
                 confirm your account before signing in.
               </p>
               <Button asChild variant="outline" className="mt-4 w-full">
-                <Link href="/auth/login">Back to login</Link>
+                <ProgressLink href="/auth/login">Back to login</ProgressLink>
               </Button>
             </CardContent>
           </Card>

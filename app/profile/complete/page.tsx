@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/auth-shell";
 import { ProfileCompletionForm } from "@/components/profile-completion-form";
-import { Card, CardContent } from "@/components/ui/card";
+import { FormSkeleton } from "@/components/ui/feedback-skeletons";
 import {
   isProfileComplete,
   PROFILE_SELECT_FIELDS,
@@ -15,6 +15,7 @@ async function getProfileCompletionContext() {
   if (!hasEnvVars) {
     return {
       userId: "",
+      userEmail: "",
       profile: null,
     };
   }
@@ -44,12 +45,13 @@ async function getProfileCompletionContext() {
 
   return {
     userId: user.id,
+    userEmail: user.email ?? "",
     profile,
   };
 }
 
 async function ProfileCompletionContent() {
-  const { userId, profile } = await getProfileCompletionContext();
+  const { userId, userEmail, profile } = await getProfileCompletionContext();
 
   return (
     <AuthShell
@@ -58,7 +60,7 @@ async function ProfileCompletionContent() {
       description="A complete profile unlocks protected routes and gives the platform the context it needs for registrations, team management, and future role-based experiences."
     >
       <div className="w-full max-w-md">
-        <ProfileCompletionForm userId={userId} profile={profile} />
+        <ProfileCompletionForm userId={userId} userEmail={userEmail} profile={profile} />
       </div>
     </AuthShell>
   );
@@ -72,15 +74,7 @@ function ProfileCompletionFallback() {
       description="A complete profile unlocks protected routes and gives the platform the context it needs for registrations, team management, and future role-based experiences."
     >
       <div className="w-full max-w-md">
-        <Card className="border-border/70 bg-background/90 shadow-lg">
-          <CardContent className="space-y-4 p-6">
-            <div className="h-5 w-40 rounded-full bg-muted" />
-            <div className="h-11 rounded-xl bg-muted" />
-            <div className="h-11 rounded-xl bg-muted" />
-            <div className="h-11 rounded-xl bg-muted" />
-            <div className="h-10 rounded-xl bg-muted" />
-          </CardContent>
-        </Card>
+        <FormSkeleton fields={3} />
       </div>
     </AuthShell>
   );

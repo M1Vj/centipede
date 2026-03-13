@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useFeedbackRouter } from "@/hooks/use-feedback-router";
+import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,33 +12,47 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { FormStatusMessage } from "@/components/ui/feedback-states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { CircleAlert } from "lucide-react";
+import { getErrorMessage } from "@/lib/errors";
 
 export function UpdatePasswordForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<{
+    message: string | null;
+    type: "error" | "pending";
+  }>({
+    message: null,
+    type: "pending",
+  });
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+  const feedbackRouter = useFeedbackRouter();
+  const { statusId, statusRef } = useFormStatusRegion(status.message);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     const supabase = createClient();
     setIsLoading(true);
-    setError(null);
+    setStatus({
+      message: "Saving your new password...",
+      type: "pending",
+    });
 
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push("/protected");
+      feedbackRouter.push("/protected");
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+      setStatus({
+        message: getErrorMessage(error, "An error occurred"),
+        type: "error",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -52,22 +68,33 @@ export function UpdatePasswordForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleForgotPassword}>
+          <form
+            onSubmit={handleForgotPassword}
+            aria-busy={isLoading}
+            aria-describedby={status.message ? statusId : undefined}
+          >
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
                 <Label htmlFor="password">New password</Label>
                 <Input
                   id="password"
                   type="password"
+                  autoComplete="new-password"
                   placeholder="New password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Saving..." : "Save new password"}
+              <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
+                <FormStatusMessage
+                  status={status.type}
+                  message={status.message}
+                  icon={status.type === "error" ? CircleAlert : undefined}
+                />
+              </div>
+              <Button type="submit" className="w-full" pending={isLoading} pendingText="Saving...">
+                Save new password
               </Button>
             </div>
           </form>

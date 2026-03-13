@@ -16,7 +16,7 @@ import {
   Trophy,
   Users2,
 } from "lucide-react";
-import Link from "next/link";
+import { ProgressLink } from "@/components/ui/progress-link";
 
 const platformHighlights = [
   {
@@ -81,13 +81,13 @@ export default function Home() {
                 size="lg"
                 className="shadow-[0_18px_40px_-20px_hsl(var(--primary)/0.85)]"
               >
-                <Link href="/auth/sign-up">
+                <ProgressLink href="/auth/sign-up">
                   Register now
                   <ArrowRight className="size-4" />
-                </Link>
+                </ProgressLink>
               </Button>
               <Button asChild size="lg" variant="outline" className="bg-background/70">
-                <Link href="/auth/login">Open login</Link>
+                <ProgressLink href="/auth/login">Open login</ProgressLink>
               </Button>
             </div>
 

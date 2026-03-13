@@ -2,10 +2,11 @@ import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -38,17 +39,47 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  pending?: boolean;
+  pendingIndicator?: React.ReactNode;
+  pendingText?: React.ReactNode;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  (
+    {
+      children,
+      className,
+      disabled,
+      pending = false,
+      pendingIndicator,
+      pendingText,
+      size,
+      variant,
+      asChild = false,
+      ...props
+    },
+    ref,
+  ) => {
     const Comp = asChild ? Slot : "button";
+    const isDisabled = disabled || pending;
+    const content = asChild ? children : (
+      <>
+        {pending ? pendingIndicator ?? <Spinner /> : null}
+        {pending ? pendingText ?? children : children}
+      </>
+    );
+
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
+        aria-busy={pending || undefined}
+        aria-disabled={isDisabled || undefined}
+        disabled={asChild ? undefined : isDisabled}
         {...props}
-      />
+      >
+        {content}
+      </Comp>
     );
   },
 );

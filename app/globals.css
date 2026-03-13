@@ -133,6 +133,11 @@
   .float-slow {
     animation: float 14s ease-in-out infinite;
   }
+
+  .route-progress-active {
+    width: 72%;
+    animation: route-progress 1.2s ease-in-out infinite alternate;
+  }
 }
 
 @keyframes fade-up {
@@ -158,9 +163,20 @@
   }
 }
 
+@keyframes route-progress {
+  from {
+    transform: translateX(-55%);
+  }
+
+  to {
+    transform: translateX(18%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .content-fade,
-  .float-slow {
+  .float-slow,
+  .route-progress-active {
     animation: none;
   }
 }

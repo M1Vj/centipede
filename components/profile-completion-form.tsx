@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { CircleAlert } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useFeedbackRouter } from "@/hooks/use-feedback-router";
+import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import { Button } from "@/components/ui/button";
+import { FormStatusMessage } from "@/components/ui/feedback-states";
 import {
   Card,
   CardContent,
@@ -15,51 +16,68 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { saveProfile } from "@/lib/auth/profile-write";
+import { getErrorMessage } from "@/lib/errors";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import type { AuthProfile } from "@/lib/auth/profile";
 
 type ProfileCompletionFormProps = {
   profile: AuthProfile | null;
+  userEmail: string;
   userId: string;
 };
 
 export function ProfileCompletionForm({
   profile,
+  userEmail,
   userId,
 }: ProfileCompletionFormProps) {
-  const router = useRouter();
+  const feedbackRouter = useFeedbackRouter();
   const { refreshProfile } = useAuth();
   const [fullName, setFullName] = useState(profile?.full_name ?? "");
   const [school, setSchool] = useState(profile?.school ?? "");
   const [gradeLevel, setGradeLevel] = useState(profile?.grade_level ?? "");
-  const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [status, setStatus] = useState<{
+    message: string | null;
+    type: "error" | "pending";
+  }>({
+    message: null,
+    type: "pending",
+  });
+  const { statusId, statusRef } = useFormStatusRegion(status.message);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError(null);
+
+    if (isSaving) {
+      return;
+    }
+
     setIsSaving(true);
+    setStatus({
+      message: "Saving your profile...",
+      type: "pending",
+    });
 
     try {
       const supabase = getSupabaseClient();
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: fullName.trim(),
-          school: school.trim(),
-          grade_level: gradeLevel.trim(),
-        })
-        .eq("id", userId);
-
-      if (error) {
-        throw error;
-      }
+      await saveProfile({
+        client: supabase,
+        userId,
+        email: userEmail,
+        fullName,
+        school,
+        gradeLevel,
+      });
 
       await refreshProfile();
-      router.push("/");
-      router.refresh();
+      feedbackRouter.push("/");
     } catch (nextError: unknown) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to save profile.");
+      setStatus({
+        message: getErrorMessage(nextError, "Unable to save profile."),
+        type: "error",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -74,11 +92,17 @@ export function ProfileCompletionForm({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-5"
+          aria-busy={isSaving}
+          aria-describedby={status.message ? statusId : undefined}
+        >
           <div className="grid gap-2">
             <Label htmlFor="full_name">Full name</Label>
             <Input
               id="full_name"
+              autoComplete="name"
               value={fullName}
               onChange={(event) => setFullName(event.target.value)}
               required
@@ -88,6 +112,7 @@ export function ProfileCompletionForm({
             <Label htmlFor="school">School</Label>
             <Input
               id="school"
+              autoComplete="organization"
               value={school}
               onChange={(event) => setSchool(event.target.value)}
               required
@@ -103,15 +128,16 @@ export function ProfileCompletionForm({
             />
           </div>
 
-          {error ? (
-            <Alert variant="destructive">
-              <CircleAlert className="size-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
+          <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
+            <FormStatusMessage
+              status={status.type}
+              message={status.message}
+              icon={status.type === "error" ? CircleAlert : undefined}
+            />
+          </div>
 
-          <Button type="submit" className="w-full" disabled={isSaving}>
-            {isSaving ? "Saving profile..." : "Save profile"}
+          <Button type="submit" className="w-full" pending={isSaving} pendingText="Saving profile...">
+            Save profile
           </Button>
         </form>
       </CardContent>

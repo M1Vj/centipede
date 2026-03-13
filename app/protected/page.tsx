@@ -15,6 +15,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  CardSkeletonList,
+  DetailSectionSkeleton,
+} from "@/components/ui/feedback-skeletons";
 import { ShieldCheck, Trophy, Users2 } from "lucide-react";
 
 async function getWorkspaceContext() {
@@ -135,22 +139,8 @@ function ProtectedPageFallback() {
   return (
     <section className="shell py-14 md:py-20">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
-        <Card className="surface-card overflow-hidden border-border/60">
-          <CardContent className="space-y-4 p-6">
-            <div className="h-5 w-40 rounded-full bg-muted" />
-            <div className="h-12 w-4/5 rounded-2xl bg-muted" />
-            <div className="h-24 rounded-[1.5rem] bg-muted" />
-          </CardContent>
-        </Card>
-        <div className="grid gap-6">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <Card key={index} className="border-border/60 bg-background/70 shadow-sm">
-              <CardContent className="p-5">
-                <div className="h-20 rounded-2xl bg-muted" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <DetailSectionSkeleton lines={3} />
+        <CardSkeletonList count={3} />
       </div>
     </section>
   );
