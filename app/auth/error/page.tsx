@@ -1,7 +1,7 @@
 import { AuthShell } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import Link from "next/link";
+import { ProgressLink } from "@/components/ui/progress-link";
 import { Suspense } from "react";
 
 async function ErrorContent({
@@ -50,7 +50,7 @@ export default function Page({
                 <ErrorContent searchParams={searchParams} />
               </Suspense>
               <Button asChild variant="outline" className="mt-4 w-full">
-                <Link href="/auth/login">Return to login</Link>
+                <ProgressLink href="/auth/login">Return to login</ProgressLink>
               </Button>
             </CardContent>
           </Card>

@@ -1,13 +1,14 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSupabaseClient } from "@/lib/supabaseClient";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useFeedbackRouter } from "@/hooks/use-feedback-router";
+import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import { Button } from "@/components/ui/button";
+import { FormStatusMessage } from "@/components/ui/feedback-states";
+import { ProgressLink } from "@/components/ui/progress-link";
 import {
   Card,
   CardContent,
@@ -25,16 +26,25 @@ export function SignUpForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+  const [pendingAction, setPendingAction] = useState<"email" | "google" | null>(null);
+  const [status, setStatus] = useState<{
+    message: string | null;
+    type: "error" | "pending" | "success";
+  }>({
+    message: null,
+    type: "pending",
+  });
+  const feedbackRouter = useFeedbackRouter();
+  const { statusId, statusRef } = useFormStatusRegion(status.message);
+  const isLoading = pendingAction !== null;
 
   const handleGoogle = async () => {
     const supabase = getSupabaseClient();
-    setIsLoading(true);
-    setError(null);
-    setMessage(null);
+    setPendingAction("google");
+    setStatus({
+      message: "Connecting you to Google registration...",
+      type: "pending",
+    });
 
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -48,25 +58,32 @@ export function SignUpForm({
         throw error;
       }
     } catch (nextError: unknown) {
-      setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "Unable to start Google registration.",
-      );
-      setIsLoading(false);
+      setStatus({
+        message:
+          nextError instanceof Error
+            ? nextError.message
+            : "Unable to start Google registration.",
+        type: "error",
+      });
+      setPendingAction(null);
     }
   };
 
   const handleSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const supabase = getSupabaseClient();
-    setIsLoading(true);
-    setError(null);
-    setMessage(null);
+    setPendingAction("email");
+    setStatus({
+      message: "Creating your account...",
+      type: "pending",
+    });
 
     if (password !== repeatPassword) {
-      setError("Passwords do not match");
-      setIsLoading(false);
+      setStatus({
+        message: "Passwords do not match",
+        type: "error",
+      });
+      setPendingAction(null);
       return;
     }
 
@@ -88,16 +105,21 @@ export function SignUpForm({
       } = await supabase.auth.getSession();
 
       if (session?.user) {
-        router.push("/profile/complete");
-        router.refresh();
+        feedbackRouter.push("/profile/complete");
         return;
       }
 
-      setMessage("Check your email to confirm your account, then finish your profile.");
+      setStatus({
+        message: "Check your email to confirm your account, then finish your profile.",
+        type: "success",
+      });
     } catch (nextError: unknown) {
-      setError(nextError instanceof Error ? nextError.message : "An error occurred");
+      setStatus({
+        message: nextError instanceof Error ? nextError.message : "An error occurred",
+        type: "error",
+      });
     } finally {
-      setIsLoading(false);
+      setPendingAction(null);
     }
   };
 
@@ -117,19 +139,26 @@ export function SignUpForm({
               variant="outline"
               className="w-full"
               onClick={() => void handleGoogle()}
-              disabled={isLoading}
+              pending={pendingAction === "google"}
+              pendingText="Connecting to Google..."
+              disabled={pendingAction === "email"}
             >
               Continue with Google
             </Button>
           </div>
 
-          <form onSubmit={handleSignUp}>
+          <form
+            onSubmit={handleSignUp}
+            aria-busy={isLoading}
+            aria-describedby={status.message ? statusId : undefined}
+          >
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
+                  autoComplete="email"
                   placeholder="m@example.com"
                   required
                   value={email}
@@ -141,6 +170,7 @@ export function SignUpForm({
                 <Input
                   id="password"
                   type="password"
+                  autoComplete="new-password"
                   required
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
@@ -151,31 +181,34 @@ export function SignUpForm({
                 <Input
                   id="repeat-password"
                   type="password"
+                  autoComplete="new-password"
                   required
                   value={repeatPassword}
                   onChange={(event) => setRepeatPassword(event.target.value)}
                 />
               </div>
-              {error ? (
-                <Alert variant="destructive">
-                  <CircleAlert className="size-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              ) : null}
-              {message ? (
-                <Alert>
-                  <AlertDescription>{message}</AlertDescription>
-                </Alert>
-              ) : null}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Creating an account..." : "Create account"}
+              <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
+                <FormStatusMessage
+                  status={status.type}
+                  message={status.message}
+                  icon={status.type === "error" ? CircleAlert : undefined}
+                />
+              </div>
+              <Button
+                type="submit"
+                className="w-full"
+                pending={pendingAction === "email"}
+                pendingText="Creating an account..."
+                disabled={pendingAction === "google"}
+              >
+                Create account
               </Button>
             </div>
             <div className="mt-4 text-center text-sm">
               Already have an account?{" "}
-              <Link href="/auth/login" className="underline underline-offset-4">
+              <ProgressLink href="/auth/login" className="underline underline-offset-4">
                 Log in
-              </Link>
+              </ProgressLink>
             </div>
           </form>
         </CardContent>

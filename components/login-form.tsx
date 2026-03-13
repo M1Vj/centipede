@@ -1,14 +1,15 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isProfileComplete, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
 import { getSupabaseClient } from "@/lib/supabaseClient";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useFeedbackRouter } from "@/hooks/use-feedback-router";
+import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import { Button } from "@/components/ui/button";
+import { FormStatusMessage } from "@/components/ui/feedback-states";
+import { ProgressLink } from "@/components/ui/progress-link";
 import {
   Card,
   CardContent,
@@ -25,9 +26,17 @@ export function LoginForm({
 }: React.ComponentPropsWithoutRef<"div">) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+  const [pendingAction, setPendingAction] = useState<"email" | "google" | null>(null);
+  const [status, setStatus] = useState<{
+    message: string | null;
+    type: "error" | "pending";
+  }>({
+    message: null,
+    type: "pending",
+  });
+  const feedbackRouter = useFeedbackRouter();
+  const { statusId, statusRef } = useFormStatusRegion(status.message);
+  const isLoading = pendingAction !== null;
 
   const redirectAfterLogin = async (userId: string) => {
     const supabase = getSupabaseClient();
@@ -41,14 +50,16 @@ export function LoginForm({
       throw error;
     }
 
-    router.push(isProfileComplete(data) ? "/" : "/profile/complete");
-    router.refresh();
+    feedbackRouter.push(isProfileComplete(data) ? "/" : "/profile/complete");
   };
 
   const handleGoogle = async () => {
     const supabase = getSupabaseClient();
-    setIsLoading(true);
-    setError(null);
+    setPendingAction("google");
+    setStatus({
+      message: "Connecting you to Google sign-in...",
+      type: "pending",
+    });
 
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -62,18 +73,25 @@ export function LoginForm({
         throw error;
       }
     } catch (nextError: unknown) {
-      setError(
-        nextError instanceof Error ? nextError.message : "Unable to start Google login.",
-      );
-      setIsLoading(false);
+      setStatus({
+        message:
+          nextError instanceof Error
+            ? nextError.message
+            : "Unable to start Google login.",
+        type: "error",
+      });
+      setPendingAction(null);
     }
   };
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const supabase = getSupabaseClient();
-    setIsLoading(true);
-    setError(null);
+    setPendingAction("email");
+    setStatus({
+      message: "Signing you in with email and password...",
+      type: "pending",
+    });
 
     try {
       await supabase.auth.signOut({ scope: "local" });
@@ -97,9 +115,12 @@ export function LoginForm({
 
       await redirectAfterLogin(user.id);
     } catch (nextError: unknown) {
-      setError(nextError instanceof Error ? nextError.message : "An error occurred");
+      setStatus({
+        message: nextError instanceof Error ? nextError.message : "An error occurred",
+        type: "error",
+      });
     } finally {
-      setIsLoading(false);
+      setPendingAction(null);
     }
   };
 
@@ -119,19 +140,26 @@ export function LoginForm({
               variant="outline"
               className="w-full"
               onClick={() => void handleGoogle()}
-              disabled={isLoading}
+              pending={pendingAction === "google"}
+              pendingText="Connecting to Google..."
+              disabled={pendingAction === "email"}
             >
               Continue with Google
             </Button>
           </div>
 
-          <form onSubmit={handleLogin}>
+          <form
+            onSubmit={handleLogin}
+            aria-busy={isLoading}
+            aria-describedby={status.message ? statusId : undefined}
+          >
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
+                  autoComplete="username"
                   placeholder="m@example.com"
                   required
                   value={email}
@@ -141,39 +169,47 @@ export function LoginForm({
               <div className="grid gap-2">
                 <div className="flex items-center">
                   <Label htmlFor="password">Password</Label>
-                  <Link
+                  <ProgressLink
                     href="/auth/forgot-password"
                     className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
                   >
                     Forgot your password?
-                  </Link>
+                  </ProgressLink>
                 </div>
                 <Input
                   id="password"
                   type="password"
+                  autoComplete="current-password"
                   required
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                 />
               </div>
-              {error ? (
-                <Alert variant="destructive">
-                  <CircleAlert className="size-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              ) : null}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login with email"}
+              <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
+                <FormStatusMessage
+                  status={status.type}
+                  message={status.message}
+                  icon={status.type === "error" ? CircleAlert : undefined}
+                />
+              </div>
+              <Button
+                type="submit"
+                className="w-full"
+                pending={pendingAction === "email"}
+                pendingText="Logging in..."
+                disabled={pendingAction === "google"}
+              >
+                Login with email
               </Button>
             </div>
             <div className="mt-4 text-center text-sm">
               Don&apos;t have an account?{" "}
-              <Link
+              <ProgressLink
                 href="/auth/sign-up"
                 className="underline underline-offset-4"
               >
                 Sign up
-              </Link>
+              </ProgressLink>
             </div>
           </form>
         </CardContent>

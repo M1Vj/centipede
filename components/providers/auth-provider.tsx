@@ -15,6 +15,7 @@ import {
 } from "@/lib/auth/profile";
 import { hasEnvVars } from "@/lib/supabase/env";
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import { useFeedbackRouter } from "@/hooks/use-feedback-router";
 import { useRouter } from "next/navigation";
 
 type AuthContextValue = {
@@ -46,6 +47,7 @@ async function fetchProfile(userId: string) {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const feedbackRouter = useFeedbackRouter();
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<AuthProfile | null>(null);
@@ -68,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signOut() {
     if (!hasEnvVars) {
-      router.push("/auth/login");
+      feedbackRouter.push("/auth/login");
       return;
     }
 
@@ -77,8 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setUser(null);
     setProfile(null);
-    router.push("/auth/login");
-    router.refresh();
+    feedbackRouter.push("/auth/login");
   }
 
   useEffect(() => {
