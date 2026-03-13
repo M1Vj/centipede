@@ -17,6 +17,7 @@ import { useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
 import { ProgressLink } from "@/components/ui/progress-link";
+import { getErrorMessage } from "@/lib/errors";
 
 export function ForgotPasswordForm({
   className,
@@ -54,7 +55,7 @@ export function ForgotPasswordForm({
       });
     } catch (error: unknown) {
       setStatus({
-        message: error instanceof Error ? error.message : "An error occurred",
+        message: getErrorMessage(error, "An error occurred"),
         type: "error",
       });
     } finally {

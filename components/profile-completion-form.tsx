@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { saveProfile } from "@/lib/auth/profile-write";
+import { getErrorMessage } from "@/lib/errors";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import type { AuthProfile } from "@/lib/auth/profile";
 
@@ -74,10 +75,7 @@ export function ProfileCompletionForm({
       feedbackRouter.push("/");
     } catch (nextError: unknown) {
       setStatus({
-        message:
-          nextError instanceof Error
-            ? nextError.message
-            : "Unable to save profile.",
+        message: getErrorMessage(nextError, "Unable to save profile."),
         type: "error",
       });
     } finally {

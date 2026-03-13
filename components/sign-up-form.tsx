@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getErrorMessage } from "@/lib/errors";
 
 export function SignUpForm({
   className,
@@ -59,10 +60,7 @@ export function SignUpForm({
       }
     } catch (nextError: unknown) {
       setStatus({
-        message:
-          nextError instanceof Error
-            ? nextError.message
-            : "Unable to start Google registration.",
+        message: getErrorMessage(nextError, "Unable to start Google registration."),
         type: "error",
       });
       setPendingAction(null);
@@ -92,7 +90,7 @@ export function SignUpForm({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/profile/complete`,
+          emailRedirectTo: `${window.location.origin}/auth/email-confirmed?next=/profile/complete`,
         },
       });
 
@@ -115,7 +113,7 @@ export function SignUpForm({
       });
     } catch (nextError: unknown) {
       setStatus({
-        message: nextError instanceof Error ? nextError.message : "An error occurred",
+        message: getErrorMessage(nextError, "An error occurred"),
         type: "error",
       });
     } finally {

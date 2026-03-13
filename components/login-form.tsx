@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getErrorMessage } from "@/lib/errors";
 
 export function LoginForm({
   className,
@@ -74,10 +75,7 @@ export function LoginForm({
       }
     } catch (nextError: unknown) {
       setStatus({
-        message:
-          nextError instanceof Error
-            ? nextError.message
-            : "Unable to start Google login.",
+        message: getErrorMessage(nextError, "Unable to start Google login."),
         type: "error",
       });
       setPendingAction(null);
@@ -116,7 +114,7 @@ export function LoginForm({
       await redirectAfterLogin(user.id);
     } catch (nextError: unknown) {
       setStatus({
-        message: nextError instanceof Error ? nextError.message : "An error occurred",
+        message: getErrorMessage(nextError, "An error occurred"),
         type: "error",
       });
     } finally {
