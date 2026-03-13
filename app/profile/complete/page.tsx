@@ -15,6 +15,7 @@ async function getProfileCompletionContext() {
   if (!hasEnvVars) {
     return {
       userId: "",
+      userEmail: "",
       profile: null,
     };
   }
@@ -44,12 +45,13 @@ async function getProfileCompletionContext() {
 
   return {
     userId: user.id,
+    userEmail: user.email ?? "",
     profile,
   };
 }
 
 async function ProfileCompletionContent() {
-  const { userId, profile } = await getProfileCompletionContext();
+  const { userId, userEmail, profile } = await getProfileCompletionContext();
 
   return (
     <AuthShell
@@ -58,7 +60,7 @@ async function ProfileCompletionContent() {
       description="A complete profile unlocks protected routes and gives the platform the context it needs for registrations, team management, and future role-based experiences."
     >
       <div className="w-full max-w-md">
-        <ProfileCompletionForm userId={userId} profile={profile} />
+        <ProfileCompletionForm userId={userId} userEmail={userEmail} profile={profile} />
       </div>
     </AuthShell>
   );

@@ -16,16 +16,19 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { saveProfile } from "@/lib/auth/profile-write";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import type { AuthProfile } from "@/lib/auth/profile";
 
 type ProfileCompletionFormProps = {
   profile: AuthProfile | null;
+  userEmail: string;
   userId: string;
 };
 
 export function ProfileCompletionForm({
   profile,
+  userEmail,
   userId,
 }: ProfileCompletionFormProps) {
   const feedbackRouter = useFeedbackRouter();
@@ -45,6 +48,11 @@ export function ProfileCompletionForm({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (isSaving) {
+      return;
+    }
+
     setIsSaving(true);
     setStatus({
       message: "Saving your profile...",
@@ -53,18 +61,14 @@ export function ProfileCompletionForm({
 
     try {
       const supabase = getSupabaseClient();
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: fullName.trim(),
-          school: school.trim(),
-          grade_level: gradeLevel.trim(),
-        })
-        .eq("id", userId);
-
-      if (error) {
-        throw error;
-      }
+      await saveProfile({
+        client: supabase,
+        userId,
+        email: userEmail,
+        fullName,
+        school,
+        gradeLevel,
+      });
 
       await refreshProfile();
       feedbackRouter.push("/");
