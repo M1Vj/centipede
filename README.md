@@ -9,7 +9,23 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 
 | Release Code | Date Released |
 | ------------ | ------------- |
+| CP.010.002   | 2026-03-14    |
 | CP.010.001   | 2026-02-28    |
+
+---
+
+## CP.010.002 Release Notes (reverse chronological order)
+
+- Added the foundation UI layer with the landing page, protected layout, and standardized authentication page shells.
+- Added local Supabase project scaffolding, environment normalization, config alignment, starter migration, seed placeholder, and setup commands for local development.
+- Implemented Supabase client wiring and authentication flows for sign-up, login, email confirmation, password recovery, and password updates.
+- Enforced protected-route access and profile-completion requirements for authenticated users.
+- Added shared interaction feedback primitives, including reusable buttons, dialogs, skeletons, spinners, and a global route loading indicator.
+- Stabilized authentication completion flows by exchanging OAuth callback codes for sessions, allowing profile self-insert/upsert, and tightening related test coverage.
+
+Known Issues:
+
+- None at this time.
 
 ---
 
