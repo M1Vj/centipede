@@ -9,7 +9,23 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 
 | Release Code | Date Released |
 | ------------ | ------------- |
+| CP.010.002   | 2026-03-14    |
 | CP.010.001   | 2026-02-28    |
+
+---
+
+## CP.010.002 Release Notes (reverse chronological order)
+
+- Added the foundation UI layer with the landing page, protected layout, and standardized authentication page shells.
+- Added local Supabase project scaffolding, environment normalization, config alignment, starter migration, seed placeholder, and setup commands for local development.
+- Implemented Supabase client wiring and authentication flows for sign-up, login, email confirmation, password recovery, and password updates.
+- Enforced protected-route access and profile-completion requirements for authenticated users.
+- Added shared interaction feedback primitives, including reusable buttons, dialogs, skeletons, spinners, and a global route loading indicator.
+- Stabilized authentication completion flows by exchanging OAuth callback codes for sessions, allowing profile self-insert/upsert, and tightening related test coverage.
+
+Known Issues:
+
+- None at this time.
 
 ---
 
@@ -39,3 +55,32 @@ Known Issues:
 - Tech Stack:
   - Frontend: Next.js
   - Backend/DB: Supabase (PostgreSQL)
+
+## Local Supabase Setup
+
+The repository now includes a local Supabase scaffold under `supabase/` and a
+local `.env.local` template.
+
+1. Open `.env.local` and replace the placeholders with your real project values
+   from Supabase.
+2. If you want a local Supabase stack instead of a hosted project, start Docker
+   and run `npm run supabase:start`.
+3. Apply the local schema from the migrations with `npm run supabase:db:reset`.
+4. When the local stack is running, inspect local keys with `npm run supabase:status`.
+5. Generate TypeScript database types with `npm run supabase:types`.
+
+### Minimum Required Environment Variables
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+Optional fallback for older Supabase projects:
+
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+### What Is Included
+
+- Supabase CLI config in `supabase/config.toml`
+- Initial migration for auth-linked profiles and organizer applications
+- Seed file placeholder for local development
+- npm scripts for common Supabase CLI workflows
