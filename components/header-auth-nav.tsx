@@ -35,9 +35,11 @@ export function HeaderAuthNav() {
   return (
     <>
       <nav className="flex flex-wrap items-center justify-end gap-2">
-      <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-        <ProgressLink href="/">Home</ProgressLink>
-      </Button>
+      {!user && (
+        <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+          <ProgressLink href="/">Home</ProgressLink>
+        </Button>
+      )}
 
       {isLoading ? (
         <div className="flex items-center gap-3">
@@ -46,7 +48,7 @@ export function HeaderAuthNav() {
         </div>
       ) : user ? (
         <>
-          <div className="rounded-full border border-border/70 bg-background/80 px-4 py-2 text-sm text-foreground">
+          <div className="hidden rounded-full border border-border/70 bg-background/80 px-4 py-2 text-sm text-foreground sm:block">
             {getDisplayLabel(
               profile?.full_name,
               user.user_metadata.full_name ?? user.email ?? undefined,
