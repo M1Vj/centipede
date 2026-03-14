@@ -45,13 +45,23 @@ async function fetchProfile(userId: string) {
   return data;
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ 
+  children,
+  initialUser = null,
+  initialSession = null,
+  initialProfile = null,
+}: { 
+  children: ReactNode;
+  initialUser?: User | null;
+  initialSession?: Session | null;
+  initialProfile?: AuthProfile | null;
+}) {
   const router = useRouter();
   const feedbackRouter = useFeedbackRouter();
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<AuthProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(initialSession);
+  const [user, setUser] = useState<User | null>(initialUser);
+  const [profile, setProfile] = useState<AuthProfile | null>(initialProfile);
+  const [isLoading, setIsLoading] = useState(!initialUser);
 
   async function syncProfile(nextUser: User | null) {
     if (!nextUser || !hasEnvVars) {
@@ -92,6 +102,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
 
     async function bootstrap() {
+      // If we already have initial state, we can skip the initial bootstrap fetch
+      if (initialUser && initialProfile) {
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       const {
         data: { session: nextSession },
@@ -115,16 +131,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      setIsLoading(true);
+      const nextUser = nextSession?.user ?? null;
+      
+      // Prevent flickering: Only set loading if the user has actually changed
+      // or if we're in a completely fresh state.
+      if (nextUser?.id !== user?.id) {
+        setSession(nextSession);
+        setUser(nextUser);
+        setIsLoading(true);
 
-      void syncProfile(nextSession?.user ?? null).finally(() => {
-        if (isMounted) {
-          setIsLoading(false);
-          router.refresh();
-        }
-      });
+        void syncProfile(nextUser).finally(() => {
+          if (isMounted) {
+            setIsLoading(false);
+            router.refresh();
+          }
+        });
+      } else {
+        // Just sync session/user if they are the same (e.g. token refresh)
+        setSession(nextSession);
+        setUser(nextUser);
+      }
     });
 
     return () => {
