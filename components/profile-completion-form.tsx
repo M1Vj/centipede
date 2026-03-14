@@ -72,7 +72,15 @@ export function ProfileCompletionForm({
       });
 
       await refreshProfile();
-      feedbackRouter.push("/");
+      
+      // Role-based redirection after profile completion
+      if (profile?.role === "admin") {
+        feedbackRouter.push("/admin");
+      } else if (profile?.role === "organizer") {
+        feedbackRouter.push("/organizer");
+      } else {
+        feedbackRouter.push("/");
+      }
     } catch (nextError: unknown) {
       setStatus({
         message: getErrorMessage(nextError, "Unable to save profile."),

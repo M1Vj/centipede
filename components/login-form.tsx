@@ -41,7 +41,7 @@ export function LoginForm({
 
   const redirectAfterLogin = async (userId: string) => {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
+    const { data: profile, error } = await supabase
       .from("profiles")
       .select(PROFILE_SELECT_FIELDS)
       .eq("id", userId)
@@ -51,7 +51,19 @@ export function LoginForm({
       throw error;
     }
 
-    feedbackRouter.push(isProfileComplete(data) ? "/" : "/profile/complete");
+    if (!profile || !isProfileComplete(profile)) {
+      feedbackRouter.push("/profile/complete");
+      return;
+    }
+
+    // Role-based redirection
+    if (profile.role === "admin") {
+      feedbackRouter.push("/admin");
+    } else if (profile.role === "organizer") {
+      feedbackRouter.push("/organizer");
+    } else {
+      feedbackRouter.push("/");
+    }
   };
 
   const handleGoogle = async () => {
@@ -67,6 +79,9 @@ export function LoginForm({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/confirm?next=/profile/complete`,
+          queryParams: {
+            prompt: "select_account",
+          },
         },
       });
 
