@@ -9,7 +9,7 @@ a short note or commit hash.
 - [ ] 01-foundation
 - [ ] 02-authentication
 - [ ] 03-interaction-feedback
-- [ ] 04-admin-user-management
+- [x] 04-admin-user-management (Implemented redirection, UI refinements, and performance fixes)
 - [ ] 05-organizer-registration
 - [ ] 06-problem-bank
 - [ ] 07-scoring-system
