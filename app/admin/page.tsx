@@ -114,7 +114,7 @@ export default function AdminDashboardPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">System Overview</h1>
         <p className="mt-2 text-muted-foreground">
-          Welcome back to the Mathwiz Arena admin portal. Here's a summary of platform health.
+          Welcome back to the Mathwiz Arena admin portal. Here&apos;s a summary of platform health.
         </p>
       </div>
 

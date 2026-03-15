@@ -3,8 +3,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { History, User, Info, Clock, ExternalLink } from "lucide-react";
@@ -122,18 +120,20 @@ export default function AdminLogsPage() {
 }
 
 // Minimal Button internal implementation to avoid too many imports for now or resolve correctly
-function Button({ children, variant, size, className, ...props }: any) {
-  const variants: any = {
+function Button({ children, variant, size, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) {
+  const variants: Record<string, string> = {
     ghost: "bg-transparent hover:bg-muted text-muted-foreground",
     outline: "border border-input bg-background hover:bg-muted hover:text-accent-foreground shadow-sm",
     default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
   };
-  const sizes: any = {
+  const sizes: Record<string, string> = {
     icon: "h-10 w-10 p-0",
     sm: "h-8 px-3 text-xs"
   };
+  const variantClass = variant ? variants[variant] : "";
+  const sizeClass = size ? sizes[size] : "";
   return (
-    <button className={`inline-flex items-center justify-center rounded-md font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${variants[variant] || ""} ${sizes[size] || ""} ${className || ""}`} {...props}>
+    <button className={`inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 ${variantClass} ${sizeClass} ${className}`} {...props}>
       {children}
     </button>
   );

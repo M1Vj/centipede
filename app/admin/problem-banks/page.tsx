@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Library, User, ArrowRight, Layers } from "lucide-react";
+import { Library, User, ArrowRight } from "lucide-react";
 import { ProgressLink } from "@/components/ui/progress-link";
 
 async function BanksList() {
@@ -40,7 +40,7 @@ async function BanksList() {
 
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {banks.map((bank: any) => (
+      {banks.map((bank) => (
         <Card key={bank.id} className="surface-card border-border/60 overflow-hidden flex flex-col">
           <CardHeader className="pb-4">
             <div className="flex items-start justify-between gap-4">

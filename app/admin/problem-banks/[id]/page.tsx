@@ -103,7 +103,7 @@ async function ProblemBankContent({ params }: { params: Promise<{ id: string }> 
           <h2 className="text-xl font-bold tracking-tight">Included Problems ({bank.problems?.length || 0})</h2>
           {bank.problems && bank.problems.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2">
-              {bank.problems.map((problem: any) => (
+              {bank.problems.map((problem: { id: string; type: string; difficulty: string; content: string; tags: string[] | null }) => (
                 <Card key={problem.id} className="border-border/50 bg-background/50 hover:border-border/80 transition-colors">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-2">

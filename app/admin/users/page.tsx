@@ -1,11 +1,5 @@
 import { Suspense } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { User, Shield, ShieldAlert, Mail, Calendar, Trash2, Ban } from "lucide-react";

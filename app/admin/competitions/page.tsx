@@ -38,7 +38,7 @@ async function CompetitionsList() {
 
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {competitions.map((comp: any) => (
+      {competitions.map((comp) => (
         <Card key={comp.id} className="surface-card border-border/60 overflow-hidden flex flex-col">
           <CardHeader className="pb-4">
             <div className="flex items-start justify-between gap-4">
