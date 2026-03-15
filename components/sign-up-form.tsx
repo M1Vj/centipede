@@ -48,13 +48,13 @@ export function SignUpForm({
     });
 
     try {
-      // Clear any existing local session to prevent account conflicts
-      await supabase.auth.signOut({ scope: "local" });
-
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/confirm?next=/profile/complete`,
+          queryParams: {
+            prompt: "select_account",
+          },
         },
       });
 
