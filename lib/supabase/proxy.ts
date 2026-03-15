@@ -105,9 +105,9 @@ export async function updateSession(request: NextRequest) {
         hasCompletedProfile = isProfileComplete(profile);
         role = profile?.role || null;
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       clearTimeout(timeoutHandle!);
-      console.error("[Middleware] Profile fetch failure:", err.message);
+      console.error("[Middleware] Profile fetch failure:", err instanceof Error ? err.message : String(err));
     }
   }
 
