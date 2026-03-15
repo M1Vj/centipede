@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
-import { useFeedbackRouter } from "@/hooks/use-feedback-router";
+
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import { Button } from "@/components/ui/button";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
@@ -31,7 +31,7 @@ export function ProfileCompletionForm({
   userEmail,
   userId,
 }: ProfileCompletionFormProps) {
-  const feedbackRouter = useFeedbackRouter();
+
   const { refreshProfile } = useAuth();
   const [fullName, setFullName] = useState(profile?.full_name ?? "");
   const [school, setSchool] = useState(profile?.school ?? "");
@@ -73,7 +73,7 @@ export function ProfileCompletionForm({
           gradeLevel,
         }),
         timeoutPromise,
-      ])) as { success: boolean; profile: any };
+      ])) as { success: boolean; profile: AuthProfile };
 
       console.log("[ProfileForm] Server Action resolved:", result);
 

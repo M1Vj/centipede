@@ -1,17 +1,26 @@
 import { describe, expect, test, vi } from "vitest";
 import { saveProfile } from "@/lib/auth/profile-write";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(),
+}));
 
 describe("saveProfile", () => {
   test("upserts the profile row so first-time users can complete onboarding", async () => {
-    const upsert = vi.fn().mockResolvedValue({ error: null });
+    const upsert = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: { id: "user-123", role: "mathlete" }, error: null }),
+    });
     const client = {
       from: vi.fn(() => ({
         upsert,
       })),
     };
 
+    vi.mocked(createAdminClient).mockReturnValue(client as any);
+
     await saveProfile({
-      client,
       userId: "user-123",
       email: "mathlete@gmail.com",
       fullName: "  VJ Mabansag ",
@@ -27,6 +36,7 @@ describe("saveProfile", () => {
         full_name: "VJ Mabansag",
         school: "Mathwiz Academy",
         grade_level: "10",
+        updated_at: expect.any(String),
       },
       {
         onConflict: "id",
@@ -38,13 +48,16 @@ describe("saveProfile", () => {
     const error = new Error("row level security blocked update");
     const client = {
       from: vi.fn(() => ({
-        upsert: vi.fn().mockResolvedValue({ error }),
+        upsert: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: null, error }),
       })),
     };
 
+    vi.mocked(createAdminClient).mockReturnValue(client as any);
+
     await expect(
       saveProfile({
-        client,
         userId: "user-123",
         email: "mathlete@gmail.com",
         fullName: "VJ Mabansag",
