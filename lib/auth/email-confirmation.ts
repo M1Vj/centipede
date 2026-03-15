@@ -1,11 +1,9 @@
 type EmailConfirmationClient = {
   auth: {
-    getSession: () => Promise<{
+    getUser: () => Promise<{
       data: {
-        session: {
-          user?: {
-            id: string;
-          } | null;
+        user: {
+          id: string;
         } | null;
       };
       error: Error | null;
@@ -23,13 +21,13 @@ export async function resolveEmailConfirmationRedirect({
   next,
 }: ResolveEmailConfirmationRedirectParams) {
   const safeNext = next?.startsWith("/") ? next : "/";
-  const { data, error } = await client.auth.getSession();
+  const { data, error } = await client.auth.getUser();
 
   if (error) {
     throw error;
   }
 
-  if (!data.session?.user) {
+  if (!data.user) {
     throw new Error("We couldn't finish signing you in from the email link.");
   }
 

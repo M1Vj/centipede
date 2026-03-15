@@ -124,8 +124,12 @@ site_url = "http://localhost:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
 	"http://127.0.0.1:3000",
-	"http://localhost:3000/protected",
-	"http://127.0.0.1:3000/protected",
+	"http://localhost:3000/mathlete",
+	"http://127.0.0.1:3000/mathlete",
+	"http://localhost:3000/organizer",
+	"http://127.0.0.1:3000/organizer",
+	"http://localhost:3000/admin",
+	"http://127.0.0.1:3000/admin",
 	"http://localhost:3000/auth/update-password",
 	"http://127.0.0.1:3000/auth/update-password"
 ]

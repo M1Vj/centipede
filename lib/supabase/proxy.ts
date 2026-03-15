@@ -9,9 +9,25 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
-  // If the env vars are not set, skip proxy check. You can remove this
-  // once you setup the project.
-  if (!hasEnvVars) {
+  // Perform early short-circuit for static assets and public non-auth routes
+  // to avoid unnecessary Supabase client creation or database hits.
+  const path = request.nextUrl.pathname;
+  if (
+    path.startsWith("/_next") ||
+    path.startsWith("/favicon.ico") ||
+    path === "/robots.txt" ||
+    path === "/sitemap.xml" ||
+    path === "/manifest.json" ||
+    path.endsWith(".svg") ||
+    path.endsWith(".png") ||
+    path.endsWith(".jpg") ||
+    path.endsWith(".jpeg")
+  ) {
+    return supabaseResponse;
+  }
+
+  // Skip proxy for auth sign-out route to prevent redundant checks or redirect loops
+  if (path === "/auth/sign-out" || !hasEnvVars) {
     return supabaseResponse;
   }
 
@@ -44,34 +60,73 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
 
-  let hasCompletedProfile = false;
+  if (authError && authError.message !== "Auth session missing!") {
+    // We log real errors (malformed tokens, network issues) but ignore 
+    // the "missing session" message which is expected for logged-out users.
+    console.error("[Middleware] Auth getUser error:", authError.message);
+  }
 
-  if (user) {
-    const { data: profile, error } = await supabase
+  const resolvedUser = authError ? null : user;
+
+  let hasCompletedProfile = false;
+  let role: string | null = null;
+
+  if (resolvedUser) {
+    // Use a race to ensure slow or cold DB starts don't block the middleware indefinitely.
+    const profilePromise = supabase
       .from("profiles")
       .select(PROFILE_SELECT_FIELDS)
-      .eq("id", user.id)
+      .eq("id", resolvedUser.id)
       .maybeSingle();
 
-    if (error) {
-      throw error;
-    }
+    let timeoutHandle: ReturnType<typeof setTimeout>;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(
+        () => reject(new Error("Profile fetch timeout")),
+        1500,
+      );
+    });
 
-    hasCompletedProfile = isProfileComplete(profile);
+    try {
+      const { data: profile, error } = await Promise.race([
+        profilePromise,
+        timeoutPromise,
+      ]);
+      clearTimeout(timeoutHandle!);
+
+      if (error) {
+        // Uncaught throws in middleware crash the request. We log and fallback
+        // to treating the user as having an incomplete profile for safety.
+        console.error("[Middleware] Profile fetch error:", error.message);
+      } else {
+        hasCompletedProfile = isProfileComplete(profile);
+        role = profile?.role || null;
+      }
+    } catch (err: any) {
+      clearTimeout(timeoutHandle!);
+      console.error("[Middleware] Profile fetch failure:", err.message);
+    }
   }
 
   const redirectPath = getAuthRedirect({
-    pathname: request.nextUrl.pathname,
-    isAuthenticated: Boolean(user),
+    pathname: path,
+    isAuthenticated: Boolean(resolvedUser),
     hasCompletedProfile,
+    role,
   });
 
   if (redirectPath && redirectPath !== request.nextUrl.pathname) {
     const url = request.nextUrl.clone();
     url.pathname = redirectPath;
-    url.search = "";
+    
+    // Only clear auth-specific sensitive parameters instead of wiping all search context.
+    // This allows legitimate params like ?next= or ?error= to persist.
+    url.searchParams.delete("code");
+    url.searchParams.delete("token");
+    url.searchParams.delete("type");
 
     const redirectResponse = NextResponse.redirect(url);
     supabaseResponse.cookies.getAll().forEach((cookie) => {
