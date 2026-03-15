@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { saveProfile } from "@/lib/auth/profile-write";
 import { getErrorMessage } from "@/lib/errors";
-import { getSupabaseClient } from "@/lib/supabaseClient";
 import type { AuthProfile } from "@/lib/auth/profile";
 
 type ProfileCompletionFormProps = {
@@ -59,29 +58,43 @@ export function ProfileCompletionForm({
       message: "Saving your profile...",
       type: "pending",
     });
-
     try {
-      const supabase = getSupabaseClient();
-      await saveProfile({
-        client: supabase,
-        userId,
-        email: userEmail,
-        fullName,
-        school,
-        gradeLevel,
-      });
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Request timed out")), 15000)
+      );
 
-      await refreshProfile();
-      
-      // Role-based redirection after profile completion
-      if (profile?.role === "admin") {
-        feedbackRouter.push("/admin");
-      } else if (profile?.role === "organizer") {
-        feedbackRouter.push("/organizer");
-      } else {
-        feedbackRouter.push("/");
-      }
+      console.log("[ProfileForm] Calling Server Action saveProfile...");
+      const result = (await Promise.race([
+        saveProfile({
+          userId,
+          email: userEmail,
+          fullName,
+          school,
+          gradeLevel,
+        }),
+        timeoutPromise,
+      ])) as { success: boolean; profile: any };
+
+      console.log("[ProfileForm] Server Action resolved:", result);
+
+      // 1. Determine target based on the result from the Server Action
+      const freshRole = result.profile?.role || profile?.role || "mathlete";
+      const target =
+        freshRole === "admin"
+          ? "/admin"
+          : freshRole === "organizer"
+          ? "/organizer"
+          : "/mathlete";
+
+      console.log("[ProfileForm] Redirecting to:", target);
+
+      // 2. Refresh local state in the background (best effort)
+      void refreshProfile();
+
+      // 3. HARD REDIRECT to bypass any client-side routing/state issues
+      window.location.replace(target);
     } catch (nextError: unknown) {
+      console.error("[ProfileForm] Caught error:", nextError);
       setStatus({
         message: getErrorMessage(nextError, "Unable to save profile."),
         type: "error",

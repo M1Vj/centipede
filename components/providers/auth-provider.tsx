@@ -64,17 +64,27 @@ export function AuthProvider({
   const [isLoading, setIsLoading] = useState(!initialUser);
 
   async function syncProfile(nextUser: User | null) {
+    console.log("[AuthProvider] syncProfile starting for user:", nextUser?.id);
     if (!nextUser || !hasEnvVars) {
+      console.log("[AuthProvider] No user or env, clearing profile.");
       setProfile(null);
       return null;
     }
 
-    const nextProfile = await fetchProfile(nextUser.id);
-    setProfile(nextProfile);
-    return nextProfile;
+    try {
+      console.log("[AuthProvider] Fetching profile from DB...");
+      const nextProfile = await fetchProfile(nextUser.id);
+      console.log("[AuthProvider] Profile fetched:", nextProfile);
+      setProfile(nextProfile);
+      return nextProfile;
+    } catch (error) {
+      console.error("[AuthProvider] Profile fetch error:", error);
+      throw error;
+    }
   }
 
   async function refreshProfile() {
+    console.log("[AuthProvider] refreshProfile triggered.");
     return syncProfile(user);
   }
 

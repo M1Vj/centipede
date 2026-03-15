@@ -89,10 +89,7 @@ export function SignUpForm({
     }
 
     try {
-      // Clear any existing local session to prevent account conflicts
-      await supabase.auth.signOut({ scope: "local" });
-
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -104,11 +101,8 @@ export function SignUpForm({
         throw error;
       }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
+      // If the user is automatically signed in (e.g. email confirmation disabled), redirect.
+      if (data.user && data.session) {
         feedbackRouter.push("/profile/complete");
         return;
       }
