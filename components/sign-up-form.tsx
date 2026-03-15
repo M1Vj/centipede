@@ -48,6 +48,9 @@ export function SignUpForm({
     });
 
     try {
+      // Clear any existing local session to prevent account conflicts
+      await supabase.auth.signOut({ scope: "local" });
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -86,6 +89,9 @@ export function SignUpForm({
     }
 
     try {
+      // Clear any existing local session to prevent account conflicts
+      await supabase.auth.signOut({ scope: "local" });
+
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -99,10 +105,10 @@ export function SignUpForm({
       }
 
       const {
-        data: { session },
-      } = await supabase.auth.getSession();
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      if (session?.user) {
+      if (user) {
         feedbackRouter.push("/profile/complete");
         return;
       }

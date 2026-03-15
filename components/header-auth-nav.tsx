@@ -25,8 +25,9 @@ export function HeaderAuthNav() {
     setIsSigningOut(true);
 
     try {
-      await signOut();
+      // Close the dialog early to provide immediate feedback
       setIsConfirmOpen(false);
+      await signOut();
     } finally {
       setIsSigningOut(false);
     }

@@ -40,9 +40,9 @@ async function AuthHydrator({
 }) {
   const supabase = await createClient();
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const user = session?.user ?? null;
+    data: { user },
+  } = await supabase.auth.getUser();
+  const session = null; // We prioritize the verified user object over the session in SSR
 
   let profile: AuthProfile | null = null;
   if (user) {

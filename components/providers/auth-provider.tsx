@@ -45,12 +45,12 @@ async function fetchProfile(userId: string) {
   return data;
 }
 
-export function AuthProvider({ 
+export function AuthProvider({
   children,
   initialUser = null,
   initialSession = null,
   initialProfile = null,
-}: { 
+}: {
   children: ReactNode;
   initialUser?: User | null;
   initialSession?: Session | null;
@@ -84,12 +84,26 @@ export function AuthProvider({
       return;
     }
 
-    const supabase = getSupabaseClient();
-    await supabase.auth.signOut();
-    setSession(null);
-    setUser(null);
-    setProfile(null);
-    feedbackRouter.push("/auth/login");
+    try {
+      // 1. Sign out on the client first for immediate UI update.
+      // We don't await this strictly to speed up the redirect, but we want it to start.
+      const supabase = getSupabaseClient();
+      void supabase.auth.signOut();
+
+      // 2. Clear local state immediately to avoid stale data during navigation.
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+
+      // 3. Perform a full page replacement to the server sign-out route.
+      // window.location.replace is safer for sign-out as it removes the authenticated
+      // page from history, preventing users from "going back" to a protected route.
+      window.location.replace("/auth/sign-out");
+    } catch (error) {
+      console.error("Sign out error:", error);
+      // Fallback: Force a hard redirect to the login page
+      window.location.replace("/auth/login");
+    }
   }
 
   useEffect(() => {
@@ -110,16 +124,20 @@ export function AuthProvider({
 
       setIsLoading(true);
       const {
-        data: { session: nextSession },
-      } = await supabase.auth.getSession();
+        data: { user: nextUser },
+      } = await supabase.auth.getUser();
 
       if (!isMounted) {
         return;
       }
 
+      setUser(nextUser);
+      // We don't have the full session here from getUser, but we can fetch it if needed
+      // However, for profile sync, just the user is enough.
+      const { data: { session: nextSession } } = await supabase.auth.getSession();
       setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      await syncProfile(nextSession?.user ?? null);
+
+      await syncProfile(nextUser);
 
       if (isMounted) {
         setIsLoading(false);
@@ -130,9 +148,11 @@ export function AuthProvider({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      const nextUser = nextSession?.user ?? null;
-      
+    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+      // Re-verify the user with getUser() to satisfy security recommendations
+      const { data: { user: verifiedUser } } = await supabase.auth.getUser();
+      const nextUser = verifiedUser ?? nextSession?.user ?? null;
+
       // Prevent flickering: Only set loading if the user has actually changed
       // or if we're in a completely fresh state.
       if (nextUser?.id !== user?.id) {
@@ -157,7 +177,7 @@ export function AuthProvider({
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [router]);
+  }, [router, initialUser, initialProfile, user?.id]);
 
   return (
     <AuthContext.Provider
