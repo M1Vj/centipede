@@ -5,12 +5,10 @@ describe("resolveEmailConfirmationRedirect", () => {
   test("returns the requested in-app destination when the session is ready", async () => {
     const client = {
       auth: {
-        getSession: vi.fn().mockResolvedValue({
+        getUser: vi.fn().mockResolvedValue({
           data: {
-            session: {
-              user: {
-                id: "user-123",
-              },
+            user: {
+              id: "user-123",
             },
           },
           error: null,
@@ -29,12 +27,10 @@ describe("resolveEmailConfirmationRedirect", () => {
   test("falls back to home when the next destination is unsafe", async () => {
     const client = {
       auth: {
-        getSession: vi.fn().mockResolvedValue({
+        getUser: vi.fn().mockResolvedValue({
           data: {
-            session: {
-              user: {
-                id: "user-123",
-              },
+            user: {
+              id: "user-123",
             },
           },
           error: null,
@@ -53,9 +49,9 @@ describe("resolveEmailConfirmationRedirect", () => {
   test("throws when the email confirmation link did not establish a session", async () => {
     const client = {
       auth: {
-        getSession: vi.fn().mockResolvedValue({
+        getUser: vi.fn().mockResolvedValue({
           data: {
-            session: null,
+            user: null,
           },
           error: null,
         }),

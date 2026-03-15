@@ -5,7 +5,7 @@ describe("shouldTrackNavigation", () => {
   test("tracks plain internal navigations to a different route", () => {
     expect(
       shouldTrackNavigation({
-        href: "/protected",
+        href: "/mathlete",
         currentPathname: "/",
         currentSearch: "",
         button: 0,
@@ -23,7 +23,7 @@ describe("shouldTrackNavigation", () => {
   test("skips modified clicks, downloads, and same-page navigations", () => {
     expect(
       shouldTrackNavigation({
-        href: "/protected",
+        href: "/mathlete",
         currentPathname: "/",
         currentSearch: "",
         button: 0,
