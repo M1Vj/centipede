@@ -1,5 +1,10 @@
 import { Suspense } from "react";
-import { createAdminClient, approveOrganizerApplication, rejectOrganizerApplication } from "@/lib/supabase/admin";
+import {
+  createAdminClient,
+  approveOrganizerApplication,
+  rejectOrganizerApplication,
+} from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,9 +19,10 @@ async function ApplicationsList() {
     .from("organizer_applications")
     .select(`
       *,
-      profiles!organizer_applications_user_id_fkey (full_name, email)
+      profiles:profile_id (full_name, email, organization)
     `)
-    .order("created_at", { ascending: false });
+    .eq("status", "pending")
+    .order("submitted_at", { ascending: false });
 
   if (error) {
     return <div className="p-4 text-destructive bg-destructive/5 rounded-xl border border-destructive/20 font-medium">Failed to load applications.</div>;
@@ -31,10 +37,14 @@ async function ApplicationsList() {
     );
   }
 
-  async function handleApprove(applicationId: string, userId: string) {
+  async function handleApprove(applicationId: string, profileId: string) {
     "use server";
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     try {
-      await approveOrganizerApplication(applicationId, userId);
+      await approveOrganizerApplication(applicationId, profileId, user?.id);
     } catch (err) {
       console.error("Failed to approve application:", err);
     }
@@ -43,10 +53,14 @@ async function ApplicationsList() {
 
   async function handleReject(formData: FormData) {
     "use server";
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     const appId = formData.get("applicationId") as string;
     const reason = formData.get("reason") as string || "Administrative rejection";
     try {
-      await rejectOrganizerApplication(appId, reason);
+      await rejectOrganizerApplication(appId, reason, user?.id);
     } catch (err) {
       console.error("Failed to reject application:", err);
     }
@@ -65,7 +79,7 @@ async function ApplicationsList() {
                     {app.status.toUpperCase()}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    Applied on {new Date(app.created_at).toLocaleDateString()}
+                    Applied on {new Date(app.submitted_at).toLocaleDateString()}
                   </span>
                 </div>
               </div>
@@ -81,21 +95,21 @@ async function ApplicationsList() {
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Building className="size-4 text-muted-foreground" />
-                  <span className="font-medium">{app.organization || "No Organization"}</span>
+                  <span className="font-medium">{app.profiles?.organization || "No Organization"}</span>
                 </div>
               </div>
 
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-primary/70 mb-2">Organizer Bio / Purpose</p>
                 <p className="text-sm text-muted-foreground leading-relaxed italic border-l-2 border-primary/20 pl-4 py-1">
-                  {app.bio || "No bio provided."}
+                  {app.statement || "No statement provided."}
                 </p>
               </div>
             </div>
 
             {app.status === "pending" && (
               <div className="bg-muted/30 border-t md:border-t-0 md:border-l flex flex-col items-center justify-center p-6 gap-3 min-w-[200px]">
-                <form action={handleApprove.bind(null, app.id, app.user_id)} className="w-full">
+                <form action={handleApprove.bind(null, app.id, app.profile_id)} className="w-full">
                   <Button type="submit" variant="default" className="w-full gap-2 shadow-sm">
                     <Check className="size-4" />
                     Approve
