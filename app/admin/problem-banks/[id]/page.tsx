@@ -40,8 +40,12 @@ async function ProblemBankContent({ params }: { params: Promise<{ id: string }> 
 
   async function handleDelete() {
     "use server";
+    const authClient = await createClient();
+    const {
+      data: { user },
+    } = await authClient.auth.getUser();
     try {
-      await deleteProblemBank(id);
+      await deleteProblemBank(id, user?.id);
     } catch (err) {
       console.error("Failed to delete problem bank:", err);
     }

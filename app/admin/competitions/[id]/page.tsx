@@ -38,8 +38,12 @@ async function CompetitionContent({ params }: { params: Promise<{ id: string }> 
 
   async function handleTogglePause() {
     "use server";
+    const authClient = await createClient();
+    const {
+      data: { user },
+    } = await authClient.auth.getUser();
     try {
-      await toggleCompetitionPause(id, !competition.is_paused);
+      await toggleCompetitionPause(id, !competition.is_paused, user?.id);
     } catch (err) {
       console.error("Failed to toggle competition pause:", err);
     }
@@ -48,8 +52,12 @@ async function CompetitionContent({ params }: { params: Promise<{ id: string }> 
 
   async function handleDelete() {
     "use server";
+    const authClient = await createClient();
+    const {
+      data: { user },
+    } = await authClient.auth.getUser();
     try {
-      await deleteCompetition(id);
+      await deleteCompetition(id, user?.id);
     } catch (err) {
       console.error("Failed to delete competition:", err);
     }
