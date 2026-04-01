@@ -8,10 +8,11 @@ export type AuthProfile = ProfileCompletionFields & {
   id: string;
   email: string;
   role: string;
+  is_active: boolean;
 };
 
 export const PROFILE_SELECT_FIELDS =
-  "id, email, full_name, school, grade_level, role";
+  "id, email, full_name, school, grade_level, role, is_active";
 
 function hasContent(value: string | null | undefined) {
   return Boolean(value?.trim());

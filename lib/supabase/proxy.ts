@@ -73,6 +73,7 @@ export async function updateSession(request: NextRequest) {
 
   let hasCompletedProfile = false;
   let role: string | null = null;
+  let isActive = true;
 
   if (resolvedUser) {
     // Use a race to ensure slow or cold DB starts don't block the middleware indefinitely.
@@ -104,11 +105,25 @@ export async function updateSession(request: NextRequest) {
       } else {
         hasCompletedProfile = isProfileComplete(profile);
         role = profile?.role || null;
+        isActive = profile?.is_active !== false;
       }
     } catch (err: unknown) {
       clearTimeout(timeoutHandle!);
       console.error("[Middleware] Profile fetch failure:", err instanceof Error ? err.message : String(err));
     }
+  }
+
+  if (resolvedUser && !isActive && path !== "/auth/suspended") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/suspended";
+    url.search = "";
+
+    const redirectResponse = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie);
+    });
+
+    return redirectResponse;
   }
 
   const redirectPath = getAuthRedirect({

@@ -7,6 +7,7 @@ const AUTH_ROUTE_PREFIXES = [
   "/auth/sign-out",
   "/auth/sign-up",
   "/auth/sign-up-success",
+  "/auth/suspended",
   "/auth/update-password",
 ];
 
@@ -41,6 +42,10 @@ export function getAuthRedirect({
   hasCompletedProfile,
   role,
 }: AuthRedirectArgs) {
+  if (pathname === "/auth/suspended") {
+    return null;
+  }
+
   if (!isAuthenticated) {
     return isPublicRoute(pathname) ? null : "/auth/login";
   }

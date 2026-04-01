@@ -25,6 +25,10 @@ export async function GET(request: NextRequest) {
         .maybeSingle();
       
       const authProfile = profile as AuthProfile | null;
+      if (authProfile && authProfile.is_active === false) {
+        await supabase.auth.signOut();
+        redirect("/auth/suspended");
+      }
       const redirectPath = getAuthRedirect({
         pathname: "/auth/confirm",
         isAuthenticated: true,

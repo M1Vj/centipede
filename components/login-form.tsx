@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { CircleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ export function LoginForm({
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pendingAction, setPendingAction] = useState<"email" | "google" | null>(null);
@@ -50,6 +52,16 @@ export function LoginForm({
     }
   }, [user]);
 
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam === "suspended") {
+      setStatus({
+        message: "Your account is suspended. Please contact support.",
+        type: "error",
+      });
+    }
+  }, [searchParams]);
+
   const redirectAfterLogin = async (userId: string) => {
     const supabase = getSupabaseClient();
     const { data: profile, error } = await supabase
@@ -60,6 +72,12 @@ export function LoginForm({
 
     if (error) {
       throw error;
+    }
+
+    if (profile && profile.is_active === false) {
+      await supabase.auth.signOut();
+      feedbackRouter.push("/auth/suspended");
+      return;
     }
 
     if (!profile || !isProfileComplete(profile)) {
