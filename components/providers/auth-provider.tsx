@@ -26,7 +26,7 @@ type AuthContextValue = {
   isLoading: boolean;
   hasCompletedProfile: boolean;
   refreshProfile: () => Promise<AuthProfile | null>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -63,7 +63,8 @@ export function AuthProvider({
   const [session, setSession] = useState<Session | null>(initialSession);
   const [user, setUser] = useState<User | null>(initialUser);
   const [profile, setProfile] = useState<AuthProfile | null>(initialProfile);
-  const [isLoading, setIsLoading] = useState(!initialUser);
+  const [isLoading, setIsLoading] = useState(false);
+  const currentUserIdRef = useRef<string | undefined>(initialUser?.id);
 
   async function syncProfile(nextUser: User | null) {
     console.log("[AuthProvider] syncProfile starting for user:", nextUser?.id);
@@ -90,7 +91,7 @@ export function AuthProvider({
     return syncProfile(user);
   }
 
-  function signOut() {
+  async function signOut() {
     if (!hasEnvVars) {
       feedbackRouter.push("/auth/login");
       return;
@@ -98,65 +99,49 @@ export function AuthProvider({
 
     isSigningOutRef.current = true;
 
+    // Optimistically update the UI to avoid the late-reload header issue
     setSession(null);
     setUser(null);
     setProfile(null);
 
-    // Navigate to the sign-out page which handles server-side session clearing
-    // and shows a loading UI. Avoid calling supabase.auth.signOut() here to
-    // prevent lock contention with the server action.
-    window.location.replace("/auth/sign-out");
+    try {
+      // Call the backend signout route to ensure HTTP-only cookies and server session are properly cleared
+      await fetch("/auth/sign-out", {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error("[AuthProvider] Sign out error:", error);
+    } finally {
+      // Smooth client-side transition instead of hard full page reload
+      router.refresh();
+      feedbackRouter.push("/");
+
+      // Hold the signOut promise (and thus the loading modal) open briefly 
+      // to let the Next.js client-side router finish navigating to `/`. 
+      // This prevents the user from seeing the current page briefly re-rendering
+      // in an unauthenticated state before the transition completes.
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      isSigningOutRef.current = false;
+    }
   }
 
   useEffect(() => {
     if (!hasEnvVars) {
-      setIsLoading(false);
       return;
     }
 
     const supabase = getSupabaseClient();
     let isMounted = true;
 
-    async function bootstrap() {
-      // If we already have initial state, we can skip the initial bootstrap fetch
-      if (initialUser && initialProfile) {
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-      const {
-        data: { user: nextUser },
-      } = await supabase.auth.getUser();
-
-      if (!isMounted) {
-        return;
-      }
-
-      setUser(nextUser);
-      // We don't have the full session here from getUser, but we can fetch it if needed
-      // However, for profile sync, just the user is enough.
-      const { data: { session: nextSession } } = await supabase.auth.getSession();
-      setSession(nextSession);
-
-      await syncProfile(nextUser);
-
-      if (isMounted) {
-        setIsLoading(false);
-      }
-    }
-
-    void bootstrap();
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
       if (isSigningOutRef.current) return;
 
-      const { data: { user: verifiedUser } } = await supabase.auth.getUser();
-      const nextUser = verifiedUser ?? nextSession?.user ?? null;
+      const nextUser = nextSession?.user ?? null;
 
-      if (nextUser?.id !== user?.id) {
+      if (nextUser?.id !== currentUserIdRef.current) {
+        currentUserIdRef.current = nextUser?.id;
         setSession(nextSession);
         setUser(nextUser);
         setIsLoading(true);
@@ -164,7 +149,6 @@ export function AuthProvider({
         void syncProfile(nextUser).finally(() => {
           if (isMounted) {
             setIsLoading(false);
-            router.refresh();
           }
         });
       } else {
@@ -177,7 +161,7 @@ export function AuthProvider({
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [router, initialUser, initialProfile, user?.id]);
+  }, [router]);
 
   return (
     <AuthContext.Provider
