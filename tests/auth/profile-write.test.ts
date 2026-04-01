@@ -18,7 +18,7 @@ describe("saveProfile", () => {
       })),
     };
 
-    vi.mocked(createAdminClient).mockReturnValue(client as any);
+    vi.mocked(createAdminClient).mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
 
     await saveProfile({
       userId: "user-123",
@@ -54,7 +54,7 @@ describe("saveProfile", () => {
       })),
     };
 
-    vi.mocked(createAdminClient).mockReturnValue(client as any);
+    vi.mocked(createAdminClient).mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
 
     await expect(
       saveProfile({
