@@ -21,16 +21,10 @@ export function HeaderAuthNav() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     setIsSigningOut(true);
-
-    try {
-      // Close the dialog early to provide immediate feedback
-      setIsConfirmOpen(false);
-      await signOut();
-    } finally {
-      setIsSigningOut(false);
-    }
+    setIsConfirmOpen(false);
+    signOut();
   };
 
   return (

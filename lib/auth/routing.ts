@@ -1,8 +1,10 @@
 const AUTH_ROUTE_PREFIXES = [
   "/auth/confirm",
+  "/auth/email-confirmed",
   "/auth/error",
   "/auth/forgot-password",
   "/auth/login",
+  "/auth/sign-out",
   "/auth/sign-up",
   "/auth/sign-up-success",
   "/auth/update-password",

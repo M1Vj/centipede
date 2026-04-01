@@ -93,7 +93,7 @@ export function SignUpForm({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/email-confirmed?next=/profile/complete`,
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/auth/email-confirmed`,
         },
       });
 

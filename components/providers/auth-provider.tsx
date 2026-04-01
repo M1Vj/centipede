@@ -5,6 +5,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -25,7 +26,7 @@ type AuthContextValue = {
   isLoading: boolean;
   hasCompletedProfile: boolean;
   refreshProfile: () => Promise<AuthProfile | null>;
-  signOut: () => Promise<void>;
+  signOut: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -58,6 +59,7 @@ export function AuthProvider({
 }) {
   const router = useRouter();
   const feedbackRouter = useFeedbackRouter();
+  const isSigningOutRef = useRef(false);
   const [session, setSession] = useState<Session | null>(initialSession);
   const [user, setUser] = useState<User | null>(initialUser);
   const [profile, setProfile] = useState<AuthProfile | null>(initialProfile);
@@ -88,32 +90,22 @@ export function AuthProvider({
     return syncProfile(user);
   }
 
-  async function signOut() {
+  function signOut() {
     if (!hasEnvVars) {
       feedbackRouter.push("/auth/login");
       return;
     }
 
-    try {
-      // 1. Sign out on the client first for immediate UI update.
-      // We don't await this strictly to speed up the redirect, but we want it to start.
-      const supabase = getSupabaseClient();
-      void supabase.auth.signOut();
+    isSigningOutRef.current = true;
 
-      // 2. Clear local state immediately to avoid stale data during navigation.
-      setSession(null);
-      setUser(null);
-      setProfile(null);
+    setSession(null);
+    setUser(null);
+    setProfile(null);
 
-      // 3. Perform a full page replacement to the server sign-out route.
-      // window.location.replace is safer for sign-out as it removes the authenticated
-      // page from history, preventing users from "going back" to a protected route.
-      window.location.replace("/auth/sign-out");
-    } catch (error) {
-      console.error("Sign out error:", error);
-      // Fallback: Force a hard redirect to the login page
-      window.location.replace("/auth/login");
-    }
+    // Navigate to the sign-out page which handles server-side session clearing
+    // and shows a loading UI. Avoid calling supabase.auth.signOut() here to
+    // prevent lock contention with the server action.
+    window.location.replace("/auth/sign-out");
   }
 
   useEffect(() => {
@@ -159,12 +151,11 @@ export function AuthProvider({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      // Re-verify the user with getUser() to satisfy security recommendations
+      if (isSigningOutRef.current) return;
+
       const { data: { user: verifiedUser } } = await supabase.auth.getUser();
       const nextUser = verifiedUser ?? nextSession?.user ?? null;
 
-      // Prevent flickering: Only set loading if the user has actually changed
-      // or if we're in a completely fresh state.
       if (nextUser?.id !== user?.id) {
         setSession(nextSession);
         setUser(nextUser);
@@ -177,7 +168,6 @@ export function AuthProvider({
           }
         });
       } else {
-        // Just sync session/user if they are the same (e.g. token refresh)
         setSession(nextSession);
         setUser(nextUser);
       }

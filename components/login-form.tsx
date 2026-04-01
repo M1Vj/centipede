@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isProfileComplete, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { useFeedbackRouter } from "@/hooks/use-feedback-router";
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
+import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
 import { ProgressLink } from "@/components/ui/progress-link";
@@ -25,6 +26,7 @@ export function LoginForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
+  const { user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pendingAction, setPendingAction] = useState<"email" | "google" | null>(null);
@@ -38,6 +40,13 @@ export function LoginForm({
   const feedbackRouter = useFeedbackRouter();
   const { statusId, statusRef } = useFormStatusRegion(status.message);
   const isLoading = pendingAction !== null;
+
+  useEffect(() => {
+    if (!user) {
+      setPendingAction(null);
+      setStatus({ message: null, type: "pending" });
+    }
+  }, [user]);
 
   const redirectAfterLogin = async (userId: string) => {
     const supabase = getSupabaseClient();
@@ -107,8 +116,6 @@ export function LoginForm({
     });
 
     try {
-      await supabase.auth.signOut({ scope: "local" });
-
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -128,10 +135,11 @@ export function LoginForm({
 
       await redirectAfterLogin(user.id);
     } catch (nextError: unknown) {
-      setStatus({
-        message: getErrorMessage(nextError, "An error occurred"),
-        type: "error",
-      });
+      const raw = getErrorMessage(nextError, "An error occurred during login.");
+      const message = raw === "Invalid login credentials"
+        ? "Invalid email or password. If you don\u2019t have an account, please sign up first."
+        : raw;
+      setStatus({ message, type: "error" });
     } finally {
       setPendingAction(null);
     }
