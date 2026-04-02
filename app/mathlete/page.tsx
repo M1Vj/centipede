@@ -52,6 +52,22 @@ async function getWorkspaceContext() {
     redirect("/profile/complete");
   }
 
+  if (profile?.is_active === false) {
+    redirect("/auth/suspended");
+  }
+
+  if (profile?.role !== "mathlete") {
+    if (profile?.role === "admin") {
+      redirect("/admin");
+    }
+
+    if (profile?.role === "organizer") {
+      redirect("/organizer");
+    }
+
+    redirect("/");
+  }
+
   return {
     userEmail: user.email ?? "signed-in user",
     profile,
