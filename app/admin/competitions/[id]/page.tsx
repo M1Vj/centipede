@@ -9,10 +9,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trash2, Trophy, Pause, Play, Calendar, Users, Timer } from "lucide-react";
+import { ArrowLeft, Trophy, Pause, Play, Calendar, Users, Timer } from "lucide-react";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { DetailSectionSkeleton } from "@/components/ui/feedback-skeletons";
+import { CompetitionActions } from "@/app/admin/competitions/[id]/competition-actions";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -88,27 +88,11 @@ async function CompetitionContent({ params }: { params: Promise<{ id: string }> 
         </ProgressLink>
 
         <div className="flex gap-3">
-          <form action={handleTogglePause}>
-            <Button variant="outline" size="sm" className="gap-2">
-              {competition.is_paused ? (
-                <>
-                  <Play className="size-4" />
-                  Resume
-                </>
-              ) : (
-                <>
-                  <Pause className="size-4" />
-                  Force Pause
-                </>
-              )}
-            </Button>
-          </form>
-          <form action={handleDelete}>
-            <Button variant="destructive" size="sm" className="gap-2">
-              <Trash2 className="size-4" />
-              Delete Competition
-            </Button>
-          </form>
+          <CompetitionActions
+            deleteAction={handleDelete}
+            isPaused={competition.is_paused}
+            togglePauseAction={handleTogglePause}
+          />
         </div>
       </div>
 

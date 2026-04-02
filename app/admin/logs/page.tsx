@@ -6,11 +6,12 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { History, User, Info, Clock, ShieldAlert } from "lucide-react";
+import { RefreshButton } from "@/app/admin/logs/refresh-button";
 
 async function AuditLogsList() {
   const admin = createAdminClient();
   if (!admin) return <div className="p-12 text-center rounded-2xl border border-dashed border-border/60 bg-muted/20 text-muted-foreground font-medium">Reading system audit stream...</div>;
-  
+
   const [eventsResult, auditResult] = await Promise.all([
     admin
       .from("competition_events")
@@ -72,47 +73,46 @@ async function AuditLogsList() {
         <Card key={`${log.type}-${log.id}`} className="border-border/60 bg-background/50 overflow-hidden">
           <CardContent className="p-0">
             <div className="flex items-center gap-4 p-4">
-               <div
-                 className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 ${
-                   log.type === "admin"
-                     ? "bg-rose-500/10 text-rose-600"
-                     : log.badge === "PUBLISHED"
-                       ? "bg-green-500/10 text-green-600"
-                       : log.badge === "PAUSED"
-                         ? "bg-amber-500/10 text-amber-600"
-                         : log.badge === "RESUMED"
-                           ? "bg-blue-500/10 text-blue-600"
-                           : "bg-primary/10 text-primary"
-                 }`}
-               >
-                 {log.type === "admin" ? (
-                   <ShieldAlert className="size-5" />
-                 ) : (
-                   <Info className="size-5" />
-                 )}
-               </div>
-               
-               <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                     <p className="text-sm font-semibold truncate leading-none">
-                        {log.title}
-                     </p>
-                     <Badge variant="outline" className="text-[10px] font-bold shrink-0">
-                        {log.badge}
-                     </Badge>
+              <div
+                className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 ${log.type === "admin"
+                  ? "bg-rose-500/10 text-rose-600"
+                  : log.badge === "PUBLISHED"
+                    ? "bg-green-500/10 text-green-600"
+                    : log.badge === "PAUSED"
+                      ? "bg-amber-500/10 text-amber-600"
+                      : log.badge === "RESUMED"
+                        ? "bg-blue-500/10 text-blue-600"
+                        : "bg-primary/10 text-primary"
+                  }`}
+              >
+                {log.type === "admin" ? (
+                  <ShieldAlert className="size-5" />
+                ) : (
+                  <Info className="size-5" />
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold truncate leading-none">
+                    {log.title}
+                  </p>
+                  <Badge variant="outline" className="text-[10px] font-bold shrink-0">
+                    {log.badge}
+                  </Badge>
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <User className="size-3" />
+                    <span>Actor: {log.actor}</span>
                   </div>
-                  
-                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                     <div className="flex items-center gap-1">
-                        <User className="size-3" />
-                        <span>Actor: {log.actor}</span>
-                     </div>
-                     <div className="flex items-center gap-1 border-l pl-4">
-                        <Clock className="size-3" />
-                        <span>{new Date(log.happenedAt).toLocaleString()}</span>
-                     </div>
+                  <div className="flex items-center gap-1 border-l pl-4">
+                    <Clock className="size-3" />
+                    <span>{new Date(log.happenedAt).toLocaleString()}</span>
                   </div>
-               </div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -141,10 +141,7 @@ export default function AdminLogsPage() {
             A comprehensive trail of critical administrative and organizer actions.
           </p>
         </div>
-        <Button variant="outline" size="sm" className="gap-2">
-           <Clock className="size-4" />
-           Live Refresh
-        </Button>
+        <RefreshButton />
       </div>
 
       <div className="grid gap-6">
@@ -153,25 +150,5 @@ export default function AdminLogsPage() {
         </Suspense>
       </div>
     </div>
-  );
-}
-
-// Minimal Button internal implementation to avoid too many imports for now or resolve correctly
-function Button({ children, variant, size, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) {
-  const variants: Record<string, string> = {
-    ghost: "bg-transparent hover:bg-muted text-muted-foreground",
-    outline: "border border-input bg-background hover:bg-muted hover:text-accent-foreground shadow-sm",
-    default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
-  };
-  const sizes: Record<string, string> = {
-    icon: "h-10 w-10 p-0",
-    sm: "h-8 px-3 text-xs"
-  };
-  const variantClass = variant ? variants[variant] : "";
-  const sizeClass = size ? sizes[size] : "";
-  return (
-    <button className={`inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 ${variantClass} ${sizeClass} ${className}`} {...props}>
-      {children}
-    </button>
   );
 }
