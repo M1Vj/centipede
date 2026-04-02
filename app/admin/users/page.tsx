@@ -21,6 +21,9 @@ type FilterParams = {
 
 async function UsersList({ role, status, search }: FilterParams) {
   const admin = createAdminClient();
+  const supabase = await createClient();
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
+  
   if (!admin) return <div className="p-4 text-muted-foreground bg-muted/5 rounded-xl border border-border/20 font-medium text-center">System is initializing. Please wait.</div>;
 
   let query = admin.from("profiles").select("*").order("created_at", { ascending: false });
@@ -56,6 +59,8 @@ async function UsersList({ role, status, search }: FilterParams) {
     
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
     if (profile?.role !== "admin") throw new Error("Unauthorized: Admin access required");
+    
+    if (userId === user.id) throw new Error("You cannot suspend your own account.");
 
     await setUserActiveStatus(userId, false, user.id);
     revalidatePath("/admin/users");
@@ -70,6 +75,8 @@ async function UsersList({ role, status, search }: FilterParams) {
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
     if (profile?.role !== "admin") throw new Error("Unauthorized: Admin access required");
 
+    if (userId === user.id) throw new Error("You cannot reactivate your own account.");
+
     await setUserActiveStatus(userId, true, user.id);
     revalidatePath("/admin/users");
   }
@@ -82,6 +89,8 @@ async function UsersList({ role, status, search }: FilterParams) {
 
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
     if (profile?.role !== "admin") throw new Error("Unauthorized: Admin access required");
+
+    if (userId === user.id) throw new Error("You cannot delete your own account.");
 
     await purgeUser(userId, user.id);
     revalidatePath("/admin/users");
@@ -100,6 +109,10 @@ async function UsersList({ role, status, search }: FilterParams) {
 
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
     if (profile?.role !== "admin") throw new Error("Unauthorized: Admin access required");
+
+    if (payload.userId === user.id) {
+      throw new Error("You cannot modify your own role or account from the dashboard.");
+    }
 
     const normalizedRole = payload.role.trim();
     if (!["mathlete", "organizer", "admin"].includes(normalizedRole)) {
@@ -184,6 +197,7 @@ async function UsersList({ role, status, search }: FilterParams) {
                 <td className="px-6 py-4 text-right">
                   <UserActions
                     user={user as AdminUserRecord}
+                    currentUserId={currentUser?.id}
                     onSuspend={suspendUser}
                     onReactivate={reactivateUser}
                     onDelete={deleteUser}

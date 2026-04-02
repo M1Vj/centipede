@@ -27,6 +27,7 @@ type UpdateUserPayload = {
 
 type UserActionsProps = {
   user: AdminUserRecord;
+  currentUserId?: string;
   onSuspend: (userId: string) => Promise<void>;
   onReactivate: (userId: string) => Promise<void>;
   onDelete: (userId: string) => Promise<void>;
@@ -41,6 +42,7 @@ const roleOptions = [
 
 export function UserActions({
   user,
+  currentUserId,
   onSuspend,
   onReactivate,
   onDelete,
@@ -72,29 +74,44 @@ export function UserActions({
   function handleSuspendConfirm() {
     setAction("suspend");
     startTransition(async () => {
-      await onSuspend(user.id);
-      setSuspendOpen(false);
-      router.refresh();
-      setAction(null);
+      try {
+        await onSuspend(user.id);
+        setSuspendOpen(false);
+        router.refresh();
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "An error occurred.");
+      } finally {
+        setAction(null);
+      }
     });
   }
 
   function handleReactivate() {
     setAction("reactivate");
     startTransition(async () => {
-      await onReactivate(user.id);
-      router.refresh();
-      setAction(null);
+      try {
+        await onReactivate(user.id);
+        router.refresh();
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "An error occurred.");
+      } finally {
+        setAction(null);
+      }
     });
   }
 
   function handleDeleteConfirm() {
     setAction("delete");
     startTransition(async () => {
-      await onDelete(user.id);
-      setDeleteOpen(false);
-      router.refresh();
-      setAction(null);
+      try {
+        await onDelete(user.id);
+        setDeleteOpen(false);
+        router.refresh();
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "An error occurred.");
+      } finally {
+        setAction(null);
+      }
     });
   }
 
@@ -102,16 +119,34 @@ export function UserActions({
     event.preventDefault();
     setAction("update");
     startTransition(async () => {
-      await onUpdate({
-        userId: user.id,
-        fullName,
-        email,
-        role,
-      });
-      setDetailOpen(false);
-      router.refresh();
-      setAction(null);
+      try {
+        await onUpdate({
+          userId: user.id,
+          fullName,
+          email,
+          role,
+        });
+        setDetailOpen(false);
+        router.refresh();
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "An error occurred.");
+      } finally {
+        setAction(null);
+      }
     });
+  }
+
+  if (currentUserId === user.id) {
+    return (
+      <div className="flex justify-end">
+        <span 
+          className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground ring-1 ring-inset ring-border/20 cursor-not-allowed"
+          title="Active session cannot be modified from here."
+        >
+          Active Session
+        </span>
+      </div>
+    );
   }
 
   return (
