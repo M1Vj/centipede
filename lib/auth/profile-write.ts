@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 type SaveProfileParams = {
   fullName: string;
@@ -18,10 +19,19 @@ export async function saveProfile({
   fullName,
   gradeLevel,
   school,
-  userId,
+  // userId parameter is ignored for security, using server-side session instead
   email,
 }: SaveProfileParams) {
-  console.log("[saveProfile] Server Action starting for userId:", userId);
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const serverUserId = user.id;
+
+  console.log("[saveProfile] Server Action starting for userId:", serverUserId);
 
   const admin = createAdminClient();
   if (!admin) {
@@ -38,7 +48,7 @@ export async function saveProfile({
     .from("profiles")
     .upsert(
       {
-        id: userId,
+        id: serverUserId,
         email: email.toLowerCase().trim(),
         full_name: fullName.trim(),
         school: school.trim(),

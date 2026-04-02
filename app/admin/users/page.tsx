@@ -51,33 +51,39 @@ async function UsersList({ role, status, search }: FilterParams) {
   async function suspendUser(userId: string) {
     "use server";
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+    
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "admin") throw new Error("Unauthorized: Admin access required");
 
-    await setUserActiveStatus(userId, false, user?.id);
+    await setUserActiveStatus(userId, false, user.id);
     revalidatePath("/admin/users");
   }
 
   async function reactivateUser(userId: string) {
     "use server";
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+    
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "admin") throw new Error("Unauthorized: Admin access required");
 
-    await setUserActiveStatus(userId, true, user?.id);
+    await setUserActiveStatus(userId, true, user.id);
     revalidatePath("/admin/users");
   }
 
   async function deleteUser(userId: string) {
     "use server";
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
 
-    await purgeUser(userId, user?.id);
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "admin") throw new Error("Unauthorized: Admin access required");
+
+    await purgeUser(userId, user.id);
     revalidatePath("/admin/users");
   }
 
@@ -89,9 +95,11 @@ async function UsersList({ role, status, search }: FilterParams) {
   }) {
     "use server";
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "admin") throw new Error("Unauthorized: Admin access required");
 
     const normalizedRole = payload.role.trim();
     if (!["mathlete", "organizer", "admin"].includes(normalizedRole)) {
@@ -103,7 +111,7 @@ async function UsersList({ role, status, search }: FilterParams) {
       fullName: payload.fullName,
       email: payload.email,
       role: normalizedRole,
-      actorId: user?.id,
+      actorId: user.id,
     });
     revalidatePath("/admin/users");
   }
@@ -220,14 +228,15 @@ function FilterPill({ href, label, isActive }: { href: string; label: string; is
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams?:
-    | { role?: string; status?: string; search?: string }
-    | Promise<{ role?: string; status?: string; search?: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const resolvedSearchParams = await Promise.resolve(searchParams);
-  const role = resolvedSearchParams?.role ?? "all";
-  const status = resolvedSearchParams?.status ?? "all";
-  const search = resolvedSearchParams?.search ?? "";
+  const resolvedSearchParams = (await searchParams) || {};
+  const getSingle = (param: string | string[] | undefined, fallback: string) => 
+    typeof param === 'string' ? param : (Array.isArray(param) ? param[0] || fallback : fallback);
+    
+  const role = getSingle(resolvedSearchParams.role, "all");
+  const status = getSingle(resolvedSearchParams.status, "all");
+  const search = getSingle(resolvedSearchParams.search, "");
 
   const buildHref = (nextRole: string, nextStatus: string, nextSearch: string) => {
     const params = new URLSearchParams();
