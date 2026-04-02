@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
-import { useFeedbackRouter } from "@/hooks/use-feedback-router";
+
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import { Button } from "@/components/ui/button";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { saveProfile } from "@/lib/auth/profile-write";
 import { getErrorMessage } from "@/lib/errors";
-import { getSupabaseClient } from "@/lib/supabaseClient";
 import type { AuthProfile } from "@/lib/auth/profile";
 
 type ProfileCompletionFormProps = {
@@ -32,7 +31,7 @@ export function ProfileCompletionForm({
   userEmail,
   userId,
 }: ProfileCompletionFormProps) {
-  const feedbackRouter = useFeedbackRouter();
+
   const { refreshProfile } = useAuth();
   const [fullName, setFullName] = useState(profile?.full_name ?? "");
   const [school, setSchool] = useState(profile?.school ?? "");
@@ -59,21 +58,43 @@ export function ProfileCompletionForm({
       message: "Saving your profile...",
       type: "pending",
     });
-
     try {
-      const supabase = getSupabaseClient();
-      await saveProfile({
-        client: supabase,
-        userId,
-        email: userEmail,
-        fullName,
-        school,
-        gradeLevel,
-      });
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Request timed out")), 15000)
+      );
 
-      await refreshProfile();
-      feedbackRouter.push("/");
+      console.log("[ProfileForm] Calling Server Action saveProfile...");
+      const result = (await Promise.race([
+        saveProfile({
+          userId,
+          email: userEmail,
+          fullName,
+          school,
+          gradeLevel,
+        }),
+        timeoutPromise,
+      ])) as { success: boolean; profile: AuthProfile };
+
+      console.log("[ProfileForm] Server Action resolved:", result);
+
+      // 1. Determine target based on the result from the Server Action
+      const freshRole = result.profile?.role || profile?.role || "mathlete";
+      const target =
+        freshRole === "admin"
+          ? "/admin"
+          : freshRole === "organizer"
+          ? "/organizer"
+          : "/mathlete";
+
+      console.log("[ProfileForm] Redirecting to:", target);
+
+      // 2. Refresh local state in the background (best effort)
+      void refreshProfile();
+
+      // 3. HARD REDIRECT to bypass any client-side routing/state issues
+      window.location.replace(target);
     } catch (nextError: unknown) {
+      console.error("[ProfileForm] Caught error:", nextError);
       setStatus({
         message: getErrorMessage(nextError, "Unable to save profile."),
         type: "error",

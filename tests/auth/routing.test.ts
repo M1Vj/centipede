@@ -5,7 +5,7 @@ describe("getAuthRedirect", () => {
   test("redirects anonymous users away from protected routes", () => {
     expect(
       getAuthRedirect({
-        pathname: "/protected",
+        pathname: "/mathlete",
         isAuthenticated: false,
         hasCompletedProfile: false,
       }),
@@ -32,7 +32,7 @@ describe("getAuthRedirect", () => {
   test("redirects authenticated users with incomplete profiles to completion", () => {
     expect(
       getAuthRedirect({
-        pathname: "/protected",
+        pathname: "/mathlete",
         isAuthenticated: true,
         hasCompletedProfile: false,
       }),
@@ -63,13 +63,62 @@ describe("getAuthRedirect", () => {
         isAuthenticated: true,
         hasCompletedProfile: true,
       }),
-    ).toBe("/");
+    ).toBe("/mathlete");
+  });
+
+  test("redirects authenticated users on the home page to their dashboards", () => {
+    expect(
+      getAuthRedirect({
+        pathname: "/",
+        isAuthenticated: true,
+        hasCompletedProfile: true,
+        role: "admin",
+      }),
+    ).toBe("/admin");
+    expect(
+      getAuthRedirect({
+        pathname: "/",
+        isAuthenticated: true,
+        hasCompletedProfile: true,
+        role: "organizer",
+      }),
+    ).toBe("/organizer");
+    expect(
+      getAuthRedirect({
+        pathname: "/",
+        isAuthenticated: true,
+        hasCompletedProfile: true,
+      }),
+    ).toBe("/mathlete");
+  });
+
+  test("redirects admins with completed profiles to the admin portal", () => {
+    expect(
+      getAuthRedirect({
+        pathname: "/auth/login",
+        isAuthenticated: true,
+        hasCompletedProfile: true,
+        role: "admin",
+      }),
+    ).toBe("/admin");
     expect(
       getAuthRedirect({
         pathname: "/profile/complete",
         isAuthenticated: true,
         hasCompletedProfile: true,
+        role: "admin",
       }),
-    ).toBe("/");
+    ).toBe("/admin");
+  });
+
+  test("redirects organizers with completed profiles to the organizer portal", () => {
+    expect(
+      getAuthRedirect({
+        pathname: "/auth/login",
+        isAuthenticated: true,
+        hasCompletedProfile: true,
+        role: "organizer",
+      }),
+    ).toBe("/organizer");
   });
 });

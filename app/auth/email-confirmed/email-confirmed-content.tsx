@@ -1,29 +1,44 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert, CircleCheck } from "lucide-react";
 import { AuthShell } from "@/components/auth-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { Button } from "@/components/ui/button";
 import { useFeedbackRouter } from "@/hooks/use-feedback-router";
-import { resolveEmailConfirmationRedirect } from "@/lib/auth/email-confirmation";
 import { getErrorMessage } from "@/lib/errors";
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import { isProfileComplete, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
 
-const fallbackMessage =
-  "We couldn't finish signing you in from the email link. Try logging in again.";
+const AUTO_REDIRECT_MS = 2000;
+
+type PageStatus = {
+  message: string;
+  type: "error" | "pending" | "success";
+};
+
+async function resolvePostConfirmRedirect(userId: string) {
+  const supabase = getSupabaseClient();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select(PROFILE_SELECT_FIELDS)
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!profile || !isProfileComplete(profile)) {
+    return "/profile/complete";
+  }
+
+  if (profile.role === "admin") return "/admin";
+  if (profile.role === "organizer") return "/organizer";
+  return "/mathlete";
+}
 
 export function EmailConfirmedContent() {
   const feedbackRouter = useFeedbackRouter();
-  const searchParams = useSearchParams();
-  const next = searchParams.get("next");
-  const [status, setStatus] = useState<{
-    message: string;
-    type: "error" | "pending";
-  }>({
+  const [status, setStatus] = useState<PageStatus>({
     message: "Confirming your email and preparing your session...",
     type: "pending",
   });
@@ -32,68 +47,88 @@ export function EmailConfirmedContent() {
     const supabase = getSupabaseClient();
     let active = true;
 
-    const completeRedirect = async () => {
+    async function confirm() {
       try {
-        const target = await resolveEmailConfirmationRedirect({
-          client: supabase,
-          next,
-        });
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
 
-        if (!active) {
-          return;
+        if (error) throw error;
+
+        if (!user) {
+          throw new Error(
+            "We couldn't finish signing you in from the email link. Try logging in again."
+          );
         }
 
-        feedbackRouter.replace(target);
-      } catch (error: unknown) {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
 
         setStatus({
-          message: getErrorMessage(error, fallbackMessage),
+          message: "Your email has been confirmed! Redirecting you now...",
+          type: "success",
+        });
+
+        const target = await resolvePostConfirmRedirect(user.id);
+
+        setTimeout(() => {
+          if (active) feedbackRouter.replace(target);
+        }, AUTO_REDIRECT_MS);
+      } catch (error: unknown) {
+        if (!active) return;
+
+        setStatus({
+          message: getErrorMessage(
+            error,
+            "We couldn't finish signing you in from the email link. Try logging in again."
+          ),
           type: "error",
         });
       }
-    };
+    }
 
-    const timer = window.setTimeout(() => {
-      void completeRedirect();
-    }, 250);
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!active || !session?.user) {
-        return;
-      }
-
-      const safeNext = next?.startsWith("/") ? next : "/";
-      feedbackRouter.replace(safeNext);
-    });
+    void confirm();
 
     return () => {
       active = false;
-      window.clearTimeout(timer);
-      subscription.unsubscribe();
     };
-  }, [feedbackRouter, next]);
+  }, [feedbackRouter]);
+
+  const statusIcon =
+    status.type === "error"
+      ? CircleAlert
+      : status.type === "success"
+        ? CircleCheck
+        : undefined;
 
   return (
     <AuthShell
       eyebrow="Email confirmation"
-      title="Finishing your sign-in"
-      description="Mathwiz Arena is validating the email link and restoring your browser session before sending you onward."
+      title={
+        status.type === "success"
+          ? "You're all set!"
+          : "Finishing your sign-in"
+      }
+      description={
+        status.type === "success"
+          ? "Your email address has been verified. We're taking you to complete your profile."
+          : "Mathwiz Arena is validating the email link and restoring your browser session before sending you onward."
+      }
     >
       <div className="w-full max-w-md">
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Completing your email sign-in</CardTitle>
+            <CardTitle className="text-2xl">
+              {status.type === "success"
+                ? "Email confirmed!"
+                : "Completing your email sign-in"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <FormStatusMessage
-              status={status.type}
+              status={status.type === "success" ? "success" : status.type}
               message={status.message}
-              icon={status.type === "error" ? CircleAlert : undefined}
+              icon={statusIcon}
             />
             {status.type === "error" ? (
               <Button asChild variant="outline" className="w-full">

@@ -40,6 +40,11 @@ async function getProfileCompletionContext() {
   }
 
   if (isProfileComplete(profile)) {
+    if (profile?.role === "admin") {
+      redirect("/admin");
+    } else if (profile?.role === "organizer") {
+      redirect("/organizer");
+    }
     redirect("/");
   }
 

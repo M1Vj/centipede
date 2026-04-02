@@ -47,7 +47,7 @@ export function UpdatePasswordForm({
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      feedbackRouter.push("/protected");
+      feedbackRouter.push("/");
     } catch (error: unknown) {
       setStatus({
         message: getErrorMessage(error, "An error occurred"),

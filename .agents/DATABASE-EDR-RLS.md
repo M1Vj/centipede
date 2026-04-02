@@ -425,6 +425,12 @@ should be expressed as PostgreSQL `CREATE POLICY` statements.
 * **Update/Delete**: Only admin may update `status`, `rejection_reason` or
   delete applications.
 
+#### admin_audit_logs
+
+* **Select**: Admin only.
+* **Insert**: Admin only (used for recording moderation actions).
+* **Update/Delete**: Denied to preserve audit integrity.
+
 #### teams & team_memberships
 
 * **teams Select**: Members of a team and admins may view the team.
@@ -666,6 +672,7 @@ subscribe to changes and update the UI accordingly.
   initial migration for `profiles` and `organizer_applications`,
   including the auth sync trigger, helper functions and foundational
   RLS policies used by the authentication flow. |
+| 2026‑04‑01 | Added `admin_audit_logs` table for centralized admin action auditing. |
 
 Whenever the database schema is modified or RLS policies are updated,
 append a new row detailing what changed and why.  Maintain this log to

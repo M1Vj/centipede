@@ -9,12 +9,27 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 
 | Release Code | Date Released |
 | ------------ | ------------- |
+| CP.010.003   | 2026-04-02    |
 | CP.010.002   | 2026-03-14    |
 | CP.010.001   | 2026-02-28    |
 
 ---
 
-## CP.010.002 Release Notes (reverse chronological order)
+## CP.010.003 Release Notes
+
+- Implemented the Admin dashboard layout, main navigation shell, and resource management views including applications, user moderation, and audit logs.
+- Hardened authentication routing, implemented unified role-aware redirection, enhanced session middleware, and resolved comprehensive auth-related bugs.
+- Enhanced UI/UX with mobile navigation, interactive competition actions, read-only resource views, and server-side auth hydration to prevent flicker.
+- Enforced platform security by blocking suspended users, recording admin actions, and strengthening profile editing boundaries.
+- Broadened test suites focusing on authentication and navigation flows, while resolving linting issues and expanding project documentation.
+
+Known Issues:
+
+- None at this time.
+
+---
+
+## CP.010.002 Release Notes
 
 - Added the foundation UI layer with the landing page, protected layout, and standardized authentication page shells.
 - Added local Supabase project scaffolding, environment normalization, config alignment, starter migration, seed placeholder, and setup commands for local development.
@@ -29,7 +44,7 @@ Known Issues:
 
 ---
 
-## CP.010.001 Release Notes (reverse chronological order)
+## CP.010.001 Release Notes
 
 - Initialized Next.js project using the Vercel Next.js + Supabase starter template.
 - Includes Supabase Auth, middleware, and server/client utility helpers out of the box.

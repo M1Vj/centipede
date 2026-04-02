@@ -52,6 +52,9 @@ export function SignUpForm({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/confirm?next=/profile/complete`,
+          queryParams: {
+            prompt: "select_account",
+          },
         },
       });
 
@@ -86,11 +89,11 @@ export function SignUpForm({
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/email-confirmed?next=/profile/complete`,
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/auth/email-confirmed`,
         },
       });
 
@@ -98,11 +101,8 @@ export function SignUpForm({
         throw error;
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session?.user) {
+      // If the user is automatically signed in (e.g. email confirmation disabled), redirect.
+      if (data.user && data.session) {
         feedbackRouter.push("/profile/complete");
         return;
       }
