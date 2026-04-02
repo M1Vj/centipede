@@ -8,6 +8,10 @@ export function getSupabaseClient() {
   if (!supabaseClient) {
     const { supabaseUrl, supabasePublicKey } = getSupabaseEnv();
 
+    if (!supabaseUrl || !supabasePublicKey) {
+      throw new Error("Supabase environment variables are missing.");
+    }
+
     supabaseClient = createBrowserClient(supabaseUrl, supabasePublicKey);
   }
 

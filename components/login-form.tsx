@@ -1,14 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { CircleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isProfileComplete, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { useFeedbackRouter } from "@/hooks/use-feedback-router";
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
+import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
+import { Spinner } from "@/components/ui/spinner";
 import { ProgressLink } from "@/components/ui/progress-link";
 import {
   Card,
@@ -25,6 +29,8 @@ export function LoginForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
+  const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pendingAction, setPendingAction] = useState<"email" | "google" | null>(null);
@@ -39,9 +45,26 @@ export function LoginForm({
   const { statusId, statusRef } = useFormStatusRegion(status.message);
   const isLoading = pendingAction !== null;
 
+  useEffect(() => {
+    if (!user) {
+      setPendingAction(null);
+      setStatus({ message: null, type: "pending" });
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam === "suspended") {
+      setStatus({
+        message: "Your account is suspended. Please contact support.",
+        type: "error",
+      });
+    }
+  }, [searchParams]);
+
   const redirectAfterLogin = async (userId: string) => {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
+    const { data: profile, error } = await supabase
       .from("profiles")
       .select(PROFILE_SELECT_FIELDS)
       .eq("id", userId)
@@ -51,7 +74,25 @@ export function LoginForm({
       throw error;
     }
 
-    feedbackRouter.push(isProfileComplete(data) ? "/" : "/profile/complete");
+    if (profile && profile.is_active === false) {
+      await supabase.auth.signOut();
+      feedbackRouter.push("/auth/suspended");
+      return;
+    }
+
+    if (!profile || !isProfileComplete(profile)) {
+      feedbackRouter.push("/profile/complete");
+      return;
+    }
+
+    // Role-based redirection
+    if (profile.role === "admin") {
+      feedbackRouter.push("/admin");
+    } else if (profile.role === "organizer") {
+      feedbackRouter.push("/organizer");
+    } else {
+      feedbackRouter.push("/");
+    }
   };
 
   const handleGoogle = async () => {
@@ -67,6 +108,9 @@ export function LoginForm({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/confirm?next=/profile/complete`,
+          queryParams: {
+            prompt: "select_account",
+          },
         },
       });
 
@@ -92,8 +136,6 @@ export function LoginForm({
     });
 
     try {
-      await supabase.auth.signOut({ scope: "local" });
-
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -113,11 +155,11 @@ export function LoginForm({
 
       await redirectAfterLogin(user.id);
     } catch (nextError: unknown) {
-      setStatus({
-        message: getErrorMessage(nextError, "An error occurred"),
-        type: "error",
-      });
-    } finally {
+      const raw = getErrorMessage(nextError, "An error occurred during login.");
+      const message = raw === "Invalid login credentials"
+        ? "Invalid email or password. If you don\u2019t have an account, please sign up first."
+        : raw;
+      setStatus({ message, type: "error" });
       setPendingAction(null);
     }
   };
@@ -212,6 +254,25 @@ export function LoginForm({
           </form>
         </CardContent>
       </Card>
+
+      <AlertDialog.Root open={pendingAction === "email"}>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="fixed inset-0 z-[90] bg-background/80 backdrop-blur-sm transition-all duration-300 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:animate-in data-[state=open]:fade-in" />
+          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-[100] w-full max-w-sm -translate-x-1/2 -translate-y-1/2 outline-none transition-all duration-300 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95">
+            <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-border/70 bg-background/95 p-8 shadow-[0_30px_90px_-32px_hsl(var(--shadow)/0.5)]">
+              <div className="flex size-14 items-center justify-center rounded-full bg-muted">
+                <Spinner className="size-6 text-primary" />
+              </div>
+              <AlertDialog.Title className="text-xl font-semibold tracking-tight text-foreground">
+                Signing in
+              </AlertDialog.Title>
+              <AlertDialog.Description className="text-center text-sm text-muted-foreground">
+                Please wait while we verify your credentials and sign you in.
+              </AlertDialog.Description>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
     </div>
   );
 }

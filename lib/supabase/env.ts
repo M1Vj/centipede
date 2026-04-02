@@ -2,8 +2,10 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabasePublicKey =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export const hasEnvVars = Boolean(supabaseUrl && supabasePublicKey);
+export const hasAdminEnvVars = Boolean(supabaseUrl && supabaseServiceKey);
 
 export function getSupabaseEnv() {
   if (!supabaseUrl || !supabasePublicKey) {
@@ -15,5 +17,6 @@ export function getSupabaseEnv() {
   return {
     supabaseUrl,
     supabasePublicKey,
+    supabaseServiceKey,
   };
 }

@@ -7,9 +7,9 @@ a short note or commit hash.
 
 ```markdown
 - [ ] 01-foundation
-- [ ] 02-authentication
+- [x] 02-authentication (Fixed signup hangs, Google OAuth flow, and profile saving via Server Actions)
 - [ ] 03-interaction-feedback
-- [ ] 04-admin-user-management
+- [x] 04-admin-user-management (Implemented redirection, UI refinements, and performance fixes)
 - [ ] 05-organizer-registration
 - [ ] 06-problem-bank
 - [ ] 07-scoring-system

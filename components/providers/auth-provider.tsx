@@ -5,6 +5,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -45,26 +46,48 @@ async function fetchProfile(userId: string) {
   return data;
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({
+  children,
+  initialUser = null,
+  initialSession = null,
+  initialProfile = null,
+}: {
+  children: ReactNode;
+  initialUser?: User | null;
+  initialSession?: Session | null;
+  initialProfile?: AuthProfile | null;
+}) {
   const router = useRouter();
   const feedbackRouter = useFeedbackRouter();
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<AuthProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const isSigningOutRef = useRef(false);
+  const [session, setSession] = useState<Session | null>(initialSession);
+  const [user, setUser] = useState<User | null>(initialUser);
+  const [profile, setProfile] = useState<AuthProfile | null>(initialProfile);
+  const [isLoading, setIsLoading] = useState(false);
+  const currentUserIdRef = useRef<string | undefined>(initialUser?.id);
 
   async function syncProfile(nextUser: User | null) {
+    console.log("[AuthProvider] syncProfile starting for user:", nextUser?.id);
     if (!nextUser || !hasEnvVars) {
+      console.log("[AuthProvider] No user or env, clearing profile.");
       setProfile(null);
       return null;
     }
 
-    const nextProfile = await fetchProfile(nextUser.id);
-    setProfile(nextProfile);
-    return nextProfile;
+    try {
+      console.log("[AuthProvider] Fetching profile from DB...");
+      const nextProfile = await fetchProfile(nextUser.id);
+      console.log("[AuthProvider] Profile fetched:", nextProfile);
+      setProfile(nextProfile);
+      return nextProfile;
+    } catch (error) {
+      console.error("[AuthProvider] Profile fetch error:", error);
+      throw error;
+    }
   }
 
   async function refreshProfile() {
+    console.log("[AuthProvider] refreshProfile triggered.");
     return syncProfile(user);
   }
 
@@ -74,57 +97,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const supabase = getSupabaseClient();
-    await supabase.auth.signOut();
+    isSigningOutRef.current = true;
+
+    // Optimistically update the UI to avoid the late-reload header issue
     setSession(null);
     setUser(null);
     setProfile(null);
-    feedbackRouter.push("/auth/login");
+
+    try {
+      // Call the backend signout route to ensure HTTP-only cookies and server session are properly cleared
+      await fetch("/auth/sign-out", {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error("[AuthProvider] Sign out error:", error);
+    } finally {
+      // Smooth client-side transition instead of hard full page reload
+      router.refresh();
+      feedbackRouter.push("/");
+
+      // Hold the signOut promise (and thus the loading modal) open briefly 
+      // to let the Next.js client-side router finish navigating to `/`. 
+      // This prevents the user from seeing the current page briefly re-rendering
+      // in an unauthenticated state before the transition completes.
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      isSigningOutRef.current = false;
+    }
   }
 
   useEffect(() => {
     if (!hasEnvVars) {
-      setIsLoading(false);
       return;
     }
 
     const supabase = getSupabaseClient();
     let isMounted = true;
 
-    async function bootstrap() {
-      setIsLoading(true);
-      const {
-        data: { session: nextSession },
-      } = await supabase.auth.getSession();
-
-      if (!isMounted) {
-        return;
-      }
-
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      await syncProfile(nextSession?.user ?? null);
-
-      if (isMounted) {
-        setIsLoading(false);
-      }
-    }
-
-    void bootstrap();
-
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      setIsLoading(true);
+    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+      if (isSigningOutRef.current) return;
 
-      void syncProfile(nextSession?.user ?? null).finally(() => {
-        if (isMounted) {
-          setIsLoading(false);
-          router.refresh();
-        }
-      });
+      const nextUser = nextSession?.user ?? null;
+
+      if (nextUser?.id !== currentUserIdRef.current) {
+        currentUserIdRef.current = nextUser?.id;
+        setSession(nextSession);
+        setUser(nextUser);
+        setIsLoading(true);
+
+        void syncProfile(nextUser).finally(() => {
+          if (isMounted) {
+            setIsLoading(false);
+          }
+        });
+      } else {
+        setSession(nextSession);
+        setUser(nextUser);
+      }
     });
 
     return () => {

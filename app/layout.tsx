@@ -30,6 +30,39 @@ const fraunces = Fraunces({
   subsets: ["latin"],
 });
 
+import { createClient } from "@/lib/supabase/server";
+import { type AuthProfile, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
+
+async function AuthHydrator({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const session = null; // We prioritize the verified user object over the session in SSR
+
+  let profile: AuthProfile | null = null;
+  if (user) {
+    const { data } = await supabase
+      .from("profiles")
+      .select(PROFILE_SELECT_FIELDS)
+      .eq("id", user.id)
+      .maybeSingle();
+    profile = data as AuthProfile | null;
+  }
+
+  return (
+    <AuthProvider initialUser={user} initialSession={session} initialProfile={profile}>
+      {children}
+    </AuthProvider>
+  );
+}
+
+import { Suspense } from "react";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -45,41 +78,43 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <NavigationFeedbackProvider>
-            <AuthProvider>
-              <div className="relative flex min-h-screen flex-col overflow-hidden">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/0.18),_transparent_55%)]" />
-                <header className="sticky top-0 z-50 border-b border-border/70 bg-background/80 backdrop-blur-xl">
-                  <div className="shell flex min-h-20 items-center justify-between gap-4 py-4">
-                    <ProgressLink href="/" className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-[1.2rem] bg-primary text-primary-foreground shadow-[0_18px_40px_-20px_hsl(var(--primary)/0.85)]">
-                        <span className="text-sm font-black uppercase tracking-[0.24em]">
-                          Mw
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-primary/80">
-                          Mathwiz Arena
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Math competition platform
-                        </p>
-                      </div>
-                    </ProgressLink>
+            <Suspense fallback={null}>
+              <AuthHydrator>
+                <div className="relative flex min-h-screen flex-col overflow-hidden">
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/0.18),_transparent_55%)]" />
+                  <header className="sticky top-0 z-50 border-b border-border/70 bg-background/80 backdrop-blur-xl">
+                    <div className="shell flex min-h-20 items-center justify-between gap-4 py-4">
+                      <ProgressLink href="/" className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-[1.2rem] bg-primary text-primary-foreground shadow-[0_18px_40px_-20px_hsl(var(--primary)/0.85)]">
+                          <span className="text-sm font-black uppercase tracking-[0.24em]">
+                            Mw
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-primary/80">
+                            Mathwiz Arena
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Math competition platform
+                          </p>
+                        </div>
+                      </ProgressLink>
 
-                    <HeaderAuthNav />
-                  </div>
-                </header>
+                      <HeaderAuthNav />
+                    </div>
+                  </header>
 
-                <main className="relative flex-1">{children}</main>
+                  <main className="relative flex-1">{children}</main>
 
-                <footer className="border-t border-border/70 bg-background/60">
-                  <div className="shell flex flex-col gap-3 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                    <p>Foundation branch: layout, theme, and Supabase-ready app shell.</p>
-                    <p>Built with Next.js, Tailwind CSS, Shadcn UI, and Supabase.</p>
-                  </div>
-                </footer>
-              </div>
-            </AuthProvider>
+                  <footer className="border-t border-border/70 bg-background/60">
+                    <div className="shell flex flex-col gap-3 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                      <p>Foundation branch: layout, theme, and Supabase-ready app shell.</p>
+                      <p>Built with Next.js, Tailwind CSS, Shadcn UI, and Supabase.</p>
+                    </div>
+                  </footer>
+                </div>
+              </AuthHydrator>
+            </Suspense>
           </NavigationFeedbackProvider>
         </ThemeProvider>
       </body>
