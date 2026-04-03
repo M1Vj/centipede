@@ -2,6 +2,8 @@ export type ProfileCompletionFields = {
   full_name?: string | null;
   school?: string | null;
   grade_level?: string | null;
+  organization?: string | null;
+  approved_at?: string | null;
 };
 
 export type AuthProfile = ProfileCompletionFields & {
@@ -12,7 +14,7 @@ export type AuthProfile = ProfileCompletionFields & {
 };
 
 export const PROFILE_SELECT_FIELDS =
-  "id, email, full_name, school, grade_level, role, is_active";
+  "id, email, full_name, school, grade_level, organization, approved_at, role, is_active";
 
 function hasContent(value: string | null | undefined) {
   return Boolean(value?.trim());
