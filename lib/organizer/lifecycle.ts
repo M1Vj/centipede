@@ -46,6 +46,83 @@ type SubmitOrganizerApplicationInput = OrganizerApplicationInput & {
   profileId: string | null;
 };
 
+type SupabaseError = {
+  code?: string | null;
+  message?: string | null;
+};
+
+function isMissingOrganizerLifecycleRpc(
+  error: SupabaseError | null | undefined,
+  rpcName: string,
+) {
+  if (!error) {
+    return false;
+  }
+
+  const message = error.message?.toLowerCase() ?? "";
+
+  if (error.code === "42883") {
+    return true;
+  }
+
+  return (
+    message.includes(`could not find the function public.${rpcName}`) ||
+    message.includes(`function public.${rpcName}`) ||
+    message.includes(`function ${rpcName}`)
+  );
+}
+
+function isMissingOrganizerLifecycleColumn(error: SupabaseError | null | undefined) {
+  if (!error) {
+    return false;
+  }
+
+  const message = error.message?.toLowerCase() ?? "";
+
+  return (
+    error.code === "42703" ||
+    message.includes("contact_email") ||
+    message.includes("contact_phone") ||
+    message.includes("organization_type") ||
+    message.includes("legal_consent_at") ||
+    message.includes("status_lookup_token_hash") ||
+    message.includes("status_lookup_token_expires_at")
+  );
+}
+
+function sanitizeSafePublicRejectionReason(reason: string | null) {
+  let sanitized = reason ?? "";
+
+  sanitized = sanitized.replace(/<[^>]+>/gi, " ");
+  sanitized = sanitized.replace(/(https?:\/\/|www\.)\S+/gi, "[redacted-link]");
+  sanitized = sanitized.replace(
+    /[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/gi,
+    "[redacted-email]",
+  );
+  sanitized = sanitized.replace(/(\+?\d[\d\s().-]{6,}\d)/g, "[redacted-phone]");
+  sanitized = sanitized.trim();
+
+  if (!sanitized) {
+    return null;
+  }
+
+  return sanitized.slice(0, 500);
+}
+
+function maskContactEmail(email: string) {
+  const normalized = email.trim().toLowerCase();
+  const atIndex = normalized.indexOf("@");
+
+  if (atIndex <= 0) {
+    return "***";
+  }
+
+  const local = normalized.slice(0, atIndex);
+  const domain = normalized.slice(atIndex + 1);
+
+  return `${local.slice(0, 1)}${"*".repeat(Math.max(local.length - 1, 2))}@${domain}`;
+}
+
 function createOrganizerAdminClient() {
   const { supabaseUrl, supabaseServiceKey } = getSupabaseEnv();
 
@@ -169,6 +246,149 @@ async function loadApplicationById(applicationId: string) {
   }
 
   return data ?? null;
+}
+
+async function insertOrganizerApplicationIntakeFallback(
+  admin: ReturnType<typeof createOrganizerAdminClient>,
+  input: {
+    applicantFullName: string;
+    organizationName: string;
+    contactEmail: string;
+    contactPhone: string;
+    organizationType: string;
+    statement: string;
+    legalConsentAt: string;
+    statusLookupTokenHash: string;
+    statusLookupTokenExpiresAt: string;
+    profileId: string | null;
+  },
+) {
+  try {
+    const { data: existingPending, error: existingPendingError } = await admin
+      .from("organizer_applications")
+      .select("id, profile_id")
+      .ilike("contact_email", input.contactEmail)
+      .eq("status", "pending")
+      .order("submitted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ id: string; profile_id: string | null }>();
+
+    if (existingPendingError) {
+      throw existingPendingError;
+    }
+
+    if (existingPending?.id) {
+      const { error: updateError } = await admin
+        .from("organizer_applications")
+        .update({
+          profile_id: existingPending.profile_id ?? input.profileId,
+          applicant_full_name: input.applicantFullName,
+          organization_name: input.organizationName,
+          contact_email: input.contactEmail,
+          contact_phone: input.contactPhone,
+          organization_type: input.organizationType,
+          statement: input.statement,
+          legal_consent_at: input.legalConsentAt,
+          status_lookup_token_hash: input.statusLookupTokenHash,
+          status_lookup_token_expires_at: input.statusLookupTokenExpiresAt,
+          submitted_at: new Date().toISOString(),
+        })
+        .eq("id", existingPending.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      return {
+        applicationId: existingPending.id,
+        createdNew: false,
+      };
+    }
+
+    const { data: insertedRow, error: insertError } = await admin
+      .from("organizer_applications")
+      .insert({
+        profile_id: input.profileId,
+        applicant_full_name: input.applicantFullName,
+        organization_name: input.organizationName,
+        contact_email: input.contactEmail,
+        contact_phone: input.contactPhone,
+        organization_type: input.organizationType,
+        statement: input.statement,
+        legal_consent_at: input.legalConsentAt,
+        status_lookup_token_hash: input.statusLookupTokenHash,
+        status_lookup_token_expires_at: input.statusLookupTokenExpiresAt,
+        status: "pending",
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    const applicationId = (insertedRow as { id?: string } | null)?.id;
+
+    if (!applicationId) {
+      throw new Error("Unable to persist organizer application.");
+    }
+
+    return {
+      applicationId,
+      createdNew: true,
+    };
+  } catch (error) {
+    if (isMissingOrganizerLifecycleColumn(error as SupabaseError)) {
+      throw new Error("Organizer applications are temporarily unavailable. Please try again later.");
+    }
+
+    throw error;
+  }
+}
+
+async function lookupOrganizerApplicationStatusFallback(
+  admin: ReturnType<typeof createOrganizerAdminClient>,
+  statusLookupToken: string,
+): Promise<StatusLookupResult> {
+  const statusLookupTokenHash = hashStatusLookupToken(statusLookupToken);
+
+  if (!statusLookupTokenHash) {
+    return { machineCode: "not_found" };
+  }
+
+  const { data, error } = await admin
+    .from("organizer_applications")
+    .select("status,rejection_reason,contact_email")
+    .eq("status_lookup_token_hash", statusLookupTokenHash)
+    .gt("status_lookup_token_expires_at", new Date().toISOString())
+    .limit(1)
+    .maybeSingle<{
+      status: "pending" | "approved" | "rejected" | null;
+      rejection_reason: string | null;
+      contact_email: string | null;
+    }>();
+
+  if (error) {
+    if (isMissingOrganizerLifecycleColumn(error as SupabaseError)) {
+      return { machineCode: "not_found" };
+    }
+
+    throw error;
+  }
+
+  if (!data?.status || !data.contact_email) {
+    return { machineCode: "not_found" };
+  }
+
+  return {
+    machineCode: "ok",
+    status: data.status,
+    rejectionReason:
+      data.status === "rejected"
+        ? sanitizeSafePublicRejectionReason(data.rejection_reason)
+        : null,
+    maskedContactEmail: maskContactEmail(data.contact_email),
+  };
 }
 
 async function resolveProfileForApprovedApplication(application: OrganizerApplicationRow) {
@@ -337,6 +557,7 @@ export async function submitOrganizerApplication(
   }
 
   const statusLookupTokenExpiresAt = getStatusLookupTokenExpiryDate();
+  const legalConsentAt = new Date().toISOString();
 
   const admin = createOrganizerAdminClient();
 
@@ -347,17 +568,37 @@ export async function submitOrganizerApplication(
     p_contact_phone: validatedInput.contactPhone,
     p_organization_type: validatedInput.organizationType,
     p_statement: validatedInput.statement,
-    p_legal_consent_at: new Date().toISOString(),
+    p_legal_consent_at: legalConsentAt,
     p_status_lookup_token_hash: statusLookupTokenHash,
     p_status_lookup_token_expires_at: statusLookupTokenExpiresAt.toISOString(),
     p_profile_id: input.profileId,
   });
 
-  if (error) {
-    throw error;
-  }
+  let inserted = (data as Array<{ application_id: string; created_new: boolean }> | null)?.[0] ?? null;
 
-  const inserted = (data as Array<{ application_id: string; created_new: boolean }> | null)?.[0];
+  if (error) {
+    if (!isMissingOrganizerLifecycleRpc(error as SupabaseError, "insert_organizer_application_intake")) {
+      throw error;
+    }
+
+    const fallbackInserted = await insertOrganizerApplicationIntakeFallback(admin, {
+      applicantFullName: validatedInput.applicantFullName,
+      organizationName: validatedInput.organizationName,
+      contactEmail: validatedInput.contactEmail,
+      contactPhone: validatedInput.contactPhone,
+      organizationType: validatedInput.organizationType,
+      statement: validatedInput.statement,
+      legalConsentAt,
+      statusLookupTokenHash,
+      statusLookupTokenExpiresAt: statusLookupTokenExpiresAt.toISOString(),
+      profileId: input.profileId,
+    });
+
+    inserted = {
+      application_id: fallbackInserted.applicationId,
+      created_new: fallbackInserted.createdNew,
+    };
+  }
 
   if (!inserted?.application_id) {
     throw new Error("Unable to persist organizer application.");
@@ -434,6 +675,10 @@ export async function lookupOrganizerApplicationStatus(
   });
 
   if (error) {
+    if (isMissingOrganizerLifecycleRpc(error as SupabaseError, "lookup_organizer_application_status")) {
+      return lookupOrganizerApplicationStatusFallback(admin, statusLookupToken);
+    }
+
     throw error;
   }
 
