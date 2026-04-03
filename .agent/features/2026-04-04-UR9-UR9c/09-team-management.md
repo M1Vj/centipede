@@ -7,7 +7,7 @@
 
 ## Mission
 
-Implement the complete team system for team competitions, including team creation, invite workflows, roster management, leadership transfer, registration lock behavior, and automatic ineligibility handling when a roster becomes invalid.
+Implement the complete team system for team competitions, including team creation, invite workflows, roster management, leadership transfer, registration lock contracts, and deterministic ineligibility-handling rules consumed by branch `10` registration flows when a roster becomes invalid.
 
 This branch exists because the old spec describes team participation as a user-facing feature, but the real complexity is in roster integrity rules and how those rules interact with registrations and later competition attempts.
 
@@ -48,7 +48,7 @@ Unblocks: team competition registration, team arena participation, participant m
 - invite by username and by team code entry
 - accept/decline and revoke invite behavior with trusted conflict checks
 - remove member, leave team, and automatic leadership transfer
-- enforce competition-specific roster lock and eligibility rules with explicit lock and unlock transitions
+- enforce executable pre-registration team-domain guards in branch `09`, and define deterministic registration-backed roster-lock and unlock transitions as branch `10` integration contracts
 - notify leaders and affected members when a roster becomes invalid after registration using shared notification helpers
 
 ### Canonical Routes and Entities (Do Not Rename)
@@ -71,7 +71,7 @@ Unblocks: team competition registration, team arena participation, participant m
 1. Lock predicate ownership (branch `09`): roster lock is true for a `(team_id, competition_id)` pair when registration state is `registered` for a competition where `format = 'team'` and `type = 'scheduled'`; branch `10` provides `competition_registrations` state integration for this predicate.
 2. Lock scope: while locked, block invite creation, invite acceptance, member removal, member leave, manual leadership transfer, and team archival from mathlete-facing flows.
 3. Lock release predicate (branch `09` contract): release lock only when registration status transitions to `withdrawn`, `cancelled`, or `ineligible`, or the competition status transitions to `ended` or `archived`; branch `10` executes registration-state wiring.
-4. Defensive exception only: trusted moderation flows can force membership deactivation for suspended/deleted users; this must set registration status to `ineligible` with `status_reason` and preserve audit traceability.
+4. Defensive exception only: trusted moderation flows can force membership deactivation for suspended/deleted users; if this drops roster size below minimum constraints, set registration status to `ineligible` with `status_reason`, transition any `in_progress` attempt to `disqualified`, and preserve audit traceability.
 5. Re-entry rule: when status becomes `ineligible`, roster edits become allowed again under branch `09` guard rules so the leader can repair membership and re-register through branch `10` if registration is still open.
 6. Eligibility authority: all lock and conflict checks must execute in trusted server actions/RPCs. UI warnings are informational and are never the source of truth.
 7. Conflict minimum: invitation acceptance must fail if the invitee would become active on two different teams already registered in the same competition; branch `10` registration lookups must consume this deterministic guard contract.
@@ -90,7 +90,7 @@ Unblocks: team competition registration, team arena participation, participant m
 4. Build roster management actions for leaders and members.
 5. Implement automatic leadership transfer when the current leader leaves or is removed.
 6. Implement deterministic team-domain roster-lock and conflict guard helpers through trusted mutation helpers, and publish branch `10` integration handoff for registration-aware wiring where `competition_registrations` exists. (Note: any DB-level lock checking functions that query `competition_registrations` must be written as stubs until branch `10` introduces the schema).
-7. Add ineligibility transition and shared notification event-dispatch contracts that branch `10` registration flows consume when a locked team drops below required roster constraints. Instruct developer to create stub/no-op implementations for notification dispatch helpers in `lib/notifications/dispatch.ts` which will be overwritten by branch `15`.
+7. Add ineligibility transition and shared notification event-dispatch contracts that branch `10` registration flows consume when a locked team drops below required roster constraints. Implement against the stable shared `lib/notifications/dispatch.ts` interface contract; if helpers are absent, add interface-only placeholders with final signatures that branch `15` must preserve (no signature churn).
 8. Add tests for membership validation, leadership transfer, and invite acceptance rules.
 
 ## Key Files
@@ -104,11 +104,11 @@ Unblocks: team competition registration, team arena participation, participant m
 - `lib/teams/*`
 - `lib/notifications/*` (shared dispatch helpers only)
 - `supabase/migrations/*`
-- `tests/teams/*`
+- `tests/teams/*` (planned suite; create before enforcing suite-specific verification)
 
 ## Verification
 
-- Manual QA: create a team, send invites, accept and decline invites, remove members, leave as leader and non-leader, register a team then test lock behavior.
+- Manual QA: create a team, send invites, accept and decline invites, remove members, leave as leader and non-leader, and verify lock-contract stub behavior in pre-registration flows. Live registration-backed lock transitions are validated in branch `10` integration gates.
 - Automated: invite lifecycle, membership conflict, leadership transfer, and ineligibility helper tests.
 - Accessibility: invite dialogs, roster tables, and confirmation actions are keyboard-safe and labeled.
 - Performance: user search is indexed and invite-state refreshes are efficient.
@@ -131,6 +131,6 @@ Unblocks: team competition registration, team arena participation, participant m
 
 ## Definition of Done
 
-- teams behave predictably before and after registration with explicit roster lock transitions
+- teams behave predictably in branch-09 pre-registration flows, and after-registration lock transitions are delivered as explicit branch-10 integration handoff contracts
 - invite and leadership rules are deterministic and tested
 - later competition registration and arena features can trust team-state integrity without route or entity renaming

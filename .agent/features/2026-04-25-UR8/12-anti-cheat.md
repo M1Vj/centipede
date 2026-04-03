@@ -7,7 +7,7 @@
 
 ## Mission
 
-Implement browser-focus monitoring, offense logging, organizer-visible tab-switch logs, warning overlays, penalty application, and safe differentiation between focus-loss cheating events and legitimate reconnect scenarios.
+Implement browser-focus monitoring, offense logging, organizer-visible tab-switch logs, warning overlays, penalty application, and deterministic differentiation between focus-loss cheating events and trusted reconnect scenarios.
 
 This branch exists because anti-cheat cannot be a generic event listener. It affects grading, monitoring, user messaging, and dispute defensibility. Offense tracking must be treated as auditable product behavior.
 
@@ -17,7 +17,7 @@ Unblocks: review/submission fairness, live monitoring, trustworthy leaderboards.
 
 ## Full Context
 
-- Business context: competitions need integrity controls without punishing legitimate reconnect cases incorrectly.
+- Business context: competitions need integrity controls without incorrectly penalizing trusted reconnect cases.
 - User roles: mathletes experience warnings and penalties; organizers monitor offenses; admins may review logs during incidents.
 - UI flow: offense overlay, warning acknowledgement, penalty messaging, organizer log views.
 - Backend flow: tab-switch log insertions, offense count increments, penalty application, attempt status transitions for auto-submit or disqualification.
@@ -73,7 +73,7 @@ Unblocks: review/submission fairness, live monitoring, trustworthy leaderboards.
 - `components/anti-cheat/*`
 - `lib/anti-cheat/*`
 - `supabase/migrations/*`
-- `tests/anti-cheat/*`
+- `tests/anti-cheat/*` (planned suite; create before enforcing suite-specific verification)
 
 ## Verification
 

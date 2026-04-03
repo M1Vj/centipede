@@ -50,7 +50,7 @@ Unblocks: anti-cheat, submission/review, leaderboards, monitoring.
 - Offline or disconnected periods still consume time because `server_now` advances while the same immutable deadline remains in force.
 - `attempt_intervals` record connectivity windows (`started_at`, `ended_at`) for audit and resume authorization only; interval duration must never be used to pause, restore, or grant extra time.
 - Timer expiry triggers a trusted attempt transition to `auto_submitted` and immediate UI lock. 
-- Timer Freeze Semantics: When a competition enters `paused` state via `force_pause`, the backend records `paused_at`. Upon resume, the pause duration `(resumed_at - paused_at)` must be added to all active attempts' `effective_attempt_deadline_at` and the competition's `scheduled_competition_end_cap_at`.
+- Pause and resume do not change `effective_attempt_deadline_at` by themselves. Deadline extension is allowed only through explicit trusted `extend_competition(...)` controls under branch `16` contracts.
 - Scheduled competition end remains a server-owned boundary transition; arena UI must consume trusted status updates and must not attempt direct lifecycle mutation.
 
 ## Requirements
@@ -82,7 +82,8 @@ Unblocks: anti-cheat, submission/review, leaderboards, monitoring.
 6. Implement solved and reset status flagging and reflect it in the question navigator.
 7. Track interval `started_at`/`ended_at` transitions on entry, resume, and exit for auditability and reconnect authorization only; never use interval duration to extend deadlines.
 8. Handle timer expiry through a trusted transition to `auto_submitted` with immediate UI lock.
-9. Add tests for interval math, answer-state helpers, and any extracted server calculations.
+9. Implement strictly scoped Supabase Realtime subscriptions for team format to sync `attempt_answers` changes for the active attempt and enforce instant UI lockout on `competition_attempts` submission signals, aligned with `.agent/DATABASE-EDR-RLS.md` Section F filters.
+10. Add tests for interval math, answer-state helpers, and any extracted server calculations.
 
 ## Key Files
 
@@ -91,14 +92,15 @@ Unblocks: anti-cheat, submission/review, leaderboards, monitoring.
 - `components/arena/*`
 - `lib/arena/*`
 - `supabase/migrations/*`
-- `tests/arena/*`
+- `tests/arena/*` (planned suite; create before enforcing suite-specific verification)
 
 ## Verification
 
 - Manual QA: enter a live or open competition, answer different problem types, refresh or disconnect then resume, watch timer behavior, let the timer expire.
 - Automated: timer and interval helper tests, answer-state tests, trusted attempt start/resume helper tests.
+- Reliability gate: in reload, temporary offline, browser-crash resume, and timer-expiry-during-save scenarios, the last acknowledged autosave is restored and no acknowledged save is lost.
 - Accessibility: keyboard-safe problem navigation, timer announcements using aria-live, labeled answer controls.
-- Performance: autosave is debounced, answer changes do not freeze navigation, problem snapshots are not repeatedly re-fetched.
+- Performance: autosave debounce interval stays within 400 to 800 ms idle window, answer-entry interaction latency stays at p95 <= 120 ms, and problem snapshots are fetched once on entry/resume with zero additional snapshot refetches per answer update.
 - Edge cases: start-time boundary, timer expiry during network lag, reconnect after browser crash, open competition with remaining attempts.
 
 ## Git Branching
@@ -118,6 +120,6 @@ Unblocks: anti-cheat, submission/review, leaderboards, monitoring.
 
 ## Definition of Done
 
-- participants can complete a competition attempt without losing work unfairly
+- participants can complete a competition attempt with deterministic persistence and resume behavior across reload/disconnect scenarios
 - timing is trusted and reconnect-safe
 - the arena state model is ready for anti-cheat and review flows

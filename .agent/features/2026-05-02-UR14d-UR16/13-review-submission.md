@@ -40,13 +40,13 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 
 - Final submit must be idempotent: the first accepted submit locks the attempt, later duplicate requests must return the existing final state without re-grading.
 - Submission transition must close the active interval once, set `submitted_at`, and move attempt status to `submitted` or `auto_submitted` through trusted server logic.
-- Grading is immediate on submit via trusted `grade_attempt(attempt_id)`. Explicitly define the grading evaluation mechanism for MathLive: mandate the use of a Computer Algebra System (CAS) library (like `math.js` or `nerdamer`) for mathematical equivalence, or explicitly define the normalization parsing rules applied to the MathLive LaTeX output before evaluating equivalence.
+- Grading is immediate on submit via trusted `grade_attempt(attempt_id)`. Release-one equivalence is fixed to branch `07` normalization semantics (no optional CAS branch): MCQ and TF use deterministic token equality, identification uses case-folded trimmed equality over normalized LaTeX payloads, and numeric uses parsed numeric comparison with absolute tolerance `<= 1e-9`.
 - Disqualified attempts are locked with `final_score = 0`.
 - Leaderboard refresh integration is contract-bound to branch `07` (`refresh_leaderboard_entries(competition_id)`) and becomes executable when branch `14` leaderboard schema ownership is available.
 - Branch `13` must not write `leaderboard_entries` directly.
 - Attempt initialization must pre-seed one `attempt_answers` row per `competition_problem` with `status_flag = 'blank'` so untouched questions are persisted deterministically.
 - Review summary counts must derive from persisted `attempt_answers.status_flag` values (`blank`, `filled`, `solved`, `reset`) with no client-only heuristics.
-- Legacy fallback rule until pre-seed backfill is complete: trusted summary helpers infer additional `blank` count as `total_snapshot_problems - distinct_answer_rows` when older attempts have missing rows.
+- Compatibility fallback rule until pre-seed backfill is complete: trusted summary helpers infer additional `blank` count as `total_snapshot_problems - distinct_answer_rows` when older attempts have missing rows.
 
 ### Answer-Key Visibility Contract
 
@@ -73,7 +73,7 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 - trusted immediate grading execution after submission, with contract-bound leaderboard refresh integration when branch `14` schemas are available
 - no direct `leaderboard_entries` writes in branch `13`; use trusted RPC contracts only
 - support open-competition additional attempts under the configured policy, with explicit `Attempt Again` result handling and the grading modes `highest_score`, `latest_score`, and `average_score`
-- review summary counts must use persisted `attempt_answers.status_flag` values with deterministic untouched-question handling (`blank` pre-seed rows, with trusted legacy inference only for older attempts missing rows)
+- review summary counts must use persisted `attempt_answers.status_flag` values with deterministic untouched-question handling (`blank` pre-seed rows, with trusted compatibility inference only for older attempts missing rows)
 - answer-key access only when the explicit post-competition visibility rules allow it
 - answer-key and explanation rendering must use KaTeX from snapshotted LaTeX data (no alternate renderer)
 - dispute submission with explicit handoff state-machine semantics from `open` into organizer-owned `reviewing -> accepted | rejected | resolved` resolution in branch `14`
@@ -96,7 +96,7 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 - `components/answer-key/*`
 - `lib/submission/*`
 - `supabase/migrations/*`
-- `tests/submission/*`
+- `tests/submission/*` (planned suite; create before enforcing suite-specific verification)
 
 ## Verification
 

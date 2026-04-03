@@ -91,8 +91,8 @@ Unblocks: notifications, operational monitoring, release readiness.
   2. Persist/activate the trusted correction artifact record for the affected `competition_problem_id` (no mutation of immutable snapshot columns).
   3. Execute `recalculate_competition_scores(competition_id, request_idempotency_token)`.
   4. Execute `refresh_leaderboard_entries(competition_id)`.
-  5. Write deterministic `competition_events` rows for `dispute_resolved` and, when applicable, `score_recalculated`, including `request_idempotency_token`, `dispute_id`, `competition_problem_id`, and `correction_artifact_id` for audit visibility.
-  6. Emit deterministic notification hooks/domain events for branch 15 fan-out by calling stub/no-op dispatch helpers in `lib/notifications/dispatch.ts` (branch 14 does not write `notifications` rows or send emails directly; branch 15 will overwrite the stubs).
+  5. Write deterministic `competition_events` rows for `dispute_resolved` and, when applicable, `score_recalculated`, including `request_idempotency_token`, `dispute_id`, `competition_problem_id`, and `correction_artifact_ids` (array, one or more ids) for audit visibility.
+  6. Emit deterministic notification hooks/domain events for branch 15 fan-out by calling the stable shared `lib/notifications/dispatch.ts` interface contract (branch 14 does not write `notifications` rows or send emails directly).
 - Rejected or resolved outcomes must still log events but must not run recalculation RPCs.
 - Terminal disputes must be idempotent in trusted handlers so retrying requests cannot trigger duplicate recalculation runs.
 
@@ -187,12 +187,12 @@ Unblocks: notifications, operational monitoring, release readiness.
 - `lib/leaderboard/*`
 - `lib/exports/*`
 - `app/organizer/competition/[competitionId]/exports/route.ts`
-- `tests/leaderboard/*`
+- `tests/leaderboard/*` (planned suite; create before enforcing suite-specific verification)
 
 ## Verification
 
 - Manual QA: verify open-competition leaderboard visibility, keep scheduled leaderboard hidden until publish, verify scheduled unpublished competitions do not leak rank/score in mathlete history, resolve accepted and rejected disputes, confirm recalc follow-through updates, confirm scheduled publication remains active after post-publish recalculation, verify answer-key gating remains independent, and export results.
-- Automated: visibility matrix tests, publication helper tests, dispute-resolution/recalculation orchestration tests, history-query tests, and export-job/access tests where practical.
+- Automated: visibility matrix tests, publication helper tests, dispute-resolution/recalculation orchestration tests, history-query tests, and export-job/access tests; if a specific export regression test cannot be added, document a waiver in QA evidence with `defect_id`, `reason`, `owner`, and `approved_by` before merge.
 - Accessibility: sortable or paginated tables remain keyboard-safe and understandable on mobile.
 - Performance: leaderboard and history pages use pagination and do not overfetch.
 - Edge cases: accepted disputes after publish, recalculated tied ranks, repeated dispute action retries, large export requests, and export failure recovery.
@@ -219,6 +219,4 @@ Unblocks: notifications, operational monitoring, release readiness.
 - dispute-resolution outcomes enforce required follow-through and audit/event visibility
 - recalculation semantics are trusted, immutable-snapshot-based, and consistent after publication
 - participants and organizers can inspect trustworthy immutable history surfaces
-- organizers and admins can export results through scoped trusted export contracts
-spect trustworthy immutable history surfaces
 - organizers and admins can export results through scoped trusted export contracts

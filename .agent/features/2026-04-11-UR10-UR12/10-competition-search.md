@@ -95,7 +95,7 @@ Unblocks: arena entry, leaderboard visibility, reminders, participant monitoring
   - scheduled: allow only before `start_time` and only when no `competition_attempts` row exists for that registration.
   - open: allow only when no `competition_attempts` row exists for that registration.
    - all withdrawals must set explicit `status_reason`
-5. Ineligible-team handling: if branch `09` marks a team registration `ineligible`, discovery must show actionable messaging and a re-registration path when windows remain open.
+5. Ineligible-team handling: trusted registration flows in branch `10` mark team registrations `ineligible` using branch `09` lock-contract predicates when roster constraints are violated; discovery must show actionable messaging and a re-registration path when windows remain open.
 6. Error contract: eligibility failures must return deterministic machine-readable codes mapped to human-readable UI copy through shared helpers.
 
 ### Notification Ownership Boundary
@@ -112,7 +112,7 @@ Unblocks: arena entry, leaderboard visibility, reminders, participant monitoring
 4. Implement individual registration through `register_for_competition` trusted mutation path.
 5. Implement team registration limited to eligible team leaders and valid rosters, reusing branch `09` lock checks.
 6. Implement withdrawal rules and confirmation UX through `withdraw_registration` trusted mutation path.
-7. Call shared notification dispatch helpers for registration and withdrawal events only. Create stub/no-op implementations for these dispatch helpers in `lib/notifications/dispatch.ts` which will be overwritten by branch `15`.
+7. Call shared notification dispatch helpers for registration and withdrawal events only. Implement against the stable shared `lib/notifications/dispatch.ts` interface contract; if helpers are absent, add interface-only placeholders with final signatures that branch `15` must preserve (no signature churn).
 8. Surface organizer- or system-driven competition cancellations or schedule changes in the participant UI.
 9. Add tests around registration validation and any extracted timezone or eligibility helpers.
 
@@ -127,14 +127,14 @@ Unblocks: arena entry, leaderboard visibility, reminders, participant monitoring
 - `lib/registrations/*`
 - `lib/notifications/*` (shared dispatch helper calls only)
 - `supabase/migrations/*`
-- `tests/competitions/*`
+- `tests/competitions/*` (planned suite; create before enforcing suite-specific verification)
 
 ## Verification
 
 - Manual QA: search, filter, calendar browse, open details, register individually, register as a team leader, withdraw, and verify messaging when a competition is full or invalid.
 - Automated: registration validation tests and any time/localization helper tests.
 - Accessibility: filters, calendar navigation, and action buttons are keyboard-safe and screen-reader labeled.
-- Performance: list queries are paginated and indexed; calendar rendering does not fetch excessive data.
+- Performance: discovery list uses server pagination (max 25 rows/page) with p95 response <= 400 ms on a 5,000-competition reference dataset; calendar view uses at most 2 backend reads per load and renders within p95 <= 600 ms.
 - Edge cases: schedule localization across timezones, closed registration, invalid rosters, withdrawn then re-registered state.
 
 ## Git Branching
