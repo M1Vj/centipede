@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ProgressLink } from "@/components/ui/progress-link";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import {
   getOrganizerSettingsSnapshot,
@@ -27,7 +29,12 @@ export default async function OrganizerSettingsPage() {
   const { profile, userEmail } = await getWorkspaceContext({ requireRole: "organizer" });
   const snapshot = profile?.id
     ? await getOrganizerSettingsSnapshot(profile.id)
-    : { contactPhone: "", organizationType: "" };
+    : {
+        contactPhone: "",
+        organizationType: "",
+        persistenceState: "degraded" as const,
+        warning: "Organizer settings are unavailable because your organizer profile context is missing.",
+      };
 
   return (
     <section className="shell py-14 md:py-20">
@@ -40,6 +47,12 @@ export default async function OrganizerSettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {snapshot.warning ? (
+              <Alert className="mb-5" role="status" aria-live="polite">
+                <AlertCircle className="size-4" />
+                <AlertDescription>{snapshot.warning}</AlertDescription>
+              </Alert>
+            ) : null}
             <form action={updateOrganizerSettings} className="space-y-5">
               <div className="grid gap-2">
                 <Label htmlFor="login_identifier">Login identifier (immutable)</Label>

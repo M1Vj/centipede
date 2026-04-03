@@ -17,6 +17,25 @@ function isMissingOrganizerSettingsColumn(error: { code?: string | null; message
   return message.includes("contact_phone") || message.includes("organization_type");
 }
 
+const ORGANIZER_SETTINGS_DEGRADED_WARNING =
+  "Organizer settings are temporarily unavailable in this environment. Contact phone and organization type were not persisted.";
+
+export type OrganizerSettingsSnapshot = {
+  contactPhone: string;
+  organizationType: string;
+  persistenceState: "available" | "degraded";
+  warning: string | null;
+};
+
+function createDegradedSettingsSnapshot(): OrganizerSettingsSnapshot {
+  return {
+    contactPhone: "",
+    organizationType: "",
+    persistenceState: "degraded",
+    warning: ORGANIZER_SETTINGS_DEGRADED_WARNING,
+  };
+}
+
 function createOrganizerAdminClient() {
   const { supabaseUrl, supabaseServiceKey } = getSupabaseEnv();
 
@@ -93,18 +112,6 @@ export async function saveOrganizerSettings(input: {
 
   const admin = createOrganizerAdminClient();
 
-  const persistProfileFallback = async () => {
-    const { error: fallbackError } = await supabase
-      .from("profiles")
-      .update({ organization: organizationType })
-      .eq("id", user.id)
-      .eq("role", "organizer");
-
-    if (fallbackError) {
-      throw new Error(fallbackError.message);
-    }
-  };
-
   const { data: latestApplication, error: latestApplicationError } = await admin
     .from("organizer_applications")
     .select("id")
@@ -115,16 +122,20 @@ export async function saveOrganizerSettings(input: {
 
   if (latestApplicationError) {
     if (isMissingOrganizerSettingsColumn(latestApplicationError)) {
-      await persistProfileFallback();
-      return;
+      return {
+        persistenceState: "degraded" as const,
+        warning: ORGANIZER_SETTINGS_DEGRADED_WARNING,
+      };
     }
 
     throw new Error(latestApplicationError.message);
   }
 
   if (!latestApplication) {
-    await persistProfileFallback();
-    return;
+    return {
+      persistenceState: "degraded" as const,
+      warning: ORGANIZER_SETTINGS_DEGRADED_WARNING,
+    };
   }
 
   const { error: updateError } = await admin
@@ -138,12 +149,19 @@ export async function saveOrganizerSettings(input: {
 
   if (updateError) {
     if (isMissingOrganizerSettingsColumn(updateError)) {
-      await persistProfileFallback();
-      return;
+      return {
+        persistenceState: "degraded" as const,
+        warning: ORGANIZER_SETTINGS_DEGRADED_WARNING,
+      };
     }
 
     throw new Error(updateError.message);
   }
+
+  return {
+    persistenceState: "available" as const,
+    warning: null,
+  };
 }
 
 export async function getOrganizerSettingsSnapshot(profileId: string) {
@@ -159,27 +177,20 @@ export async function getOrganizerSettingsSnapshot(profileId: string) {
 
   if (error) {
     if (isMissingOrganizerSettingsColumn(error)) {
-      const { data: profileData, error: profileError } = await admin
-        .from("profiles")
-        .select("organization")
-        .eq("id", profileId)
-        .maybeSingle<{ organization: string | null }>();
-
-      if (profileError) {
-        throw new Error(profileError.message);
-      }
-
-      return {
-        contactPhone: "",
-        organizationType: profileData?.organization ?? "",
-      };
+      return createDegradedSettingsSnapshot();
     }
 
     throw new Error(error.message);
   }
 
+  if (!data) {
+    return createDegradedSettingsSnapshot();
+  }
+
   return {
-    contactPhone: data?.contact_phone ?? "",
-    organizationType: data?.organization_type ?? "",
+    contactPhone: data.contact_phone ?? "",
+    organizationType: data.organization_type ?? "",
+    persistenceState: "available",
+    warning: null,
   };
 }
