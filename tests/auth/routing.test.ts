@@ -27,6 +27,20 @@ describe("getAuthRedirect", () => {
         hasCompletedProfile: false,
       }),
     ).toBeNull();
+    expect(
+      getAuthRedirect({
+        pathname: "/privacy",
+        isAuthenticated: false,
+        hasCompletedProfile: false,
+      }),
+    ).toBeNull();
+    expect(
+      getAuthRedirect({
+        pathname: "/terms",
+        isAuthenticated: false,
+        hasCompletedProfile: false,
+      }),
+    ).toBeNull();
   });
 
   test("redirects authenticated users with incomplete profiles to completion", () => {

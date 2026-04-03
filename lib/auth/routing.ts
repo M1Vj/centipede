@@ -12,6 +12,7 @@ const AUTH_ROUTE_PREFIXES = [
 ];
 
 const PROFILE_COMPLETION_ROUTE = "/profile/complete";
+const PUBLIC_ROUTES = ["/", "/privacy", "/terms"];
 
 type AuthRedirectArgs = {
   pathname: string;
@@ -33,7 +34,7 @@ export function isProfileCompletionRoute(pathname: string) {
 }
 
 export function isPublicRoute(pathname: string) {
-  return pathname === "/" || isAuthRoute(pathname);
+  return PUBLIC_ROUTES.some((route) => matchesPath(pathname, route)) || isAuthRoute(pathname);
 }
 
 export function getAuthRedirect({
