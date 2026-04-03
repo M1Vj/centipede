@@ -11,7 +11,7 @@ This document is the backend source of truth for the rebuild. It describes the f
 - Scheduled team competitions enforce participants_per_team between 2 and 5, and max_teams between 3 and 50.
 - Team format is valid only for scheduled competitions; open competitions must use individual format.
 - Problem bank descriptions are capped at 200 words, and competition descriptions are capped at 500 words.
-- The default tie-breaker is earliest final submission unless explicitly overridden.
+- The default tie-breaker is earliest final submission unless explicitly overridden. For multi-attempt modes (`highest_score`, `latest_score`), tie-breakers evaluate the attributes (`total_time_seconds` and `submitted_at`) of the specific attempt that provided the chosen score. For `average_score`, the tie-breaker uses the aggregate average time or the `submitted_at` of the latest valid attempt.
 - All limits are enforced through DB constraints and trusted RPC logic.
 
 ### Core Entity Groups
@@ -280,7 +280,7 @@ Constraint: exactly one of `profile_id` or `team_id` must be populated. `entry_s
 	- participant is active and profile-complete
 	- competition is visible, not deleted, and inside allowed registration window (for scheduled)
 	- persist immutable `entry_snapshot_json` from the accepted registration context before returning success; later profile, school, grade-level, or roster edits must not mutate the stored snapshot for that registration row
-	- capacity and duplicate-registration guards pass, except trusted ineligible re-entry for the same `(competition_id, team_id)` when roster repair conditions are satisfied and registration timing still allows entry
+	- capacity and duplicate-registration guards pass, except trusted re-entry for the same `(competition_id, team_id)` when the prior status is `ineligible` OR `withdrawn` and registration timing still allows entry. When repairing an `ineligible` or `withdrawn` registration back to `registered` via re-entry, `entry_snapshot_json` MUST be regenerated and overwritten to capture the new context.
 	- responses return deterministic machine-readable error codes for UI mapping
 
 `withdraw_registration(registration_id uuid)` is the only trusted write path for withdrawal state transitions.
@@ -836,4 +836,7 @@ Risky migrations and backfills:
 
 ### User Deletion Privacy Rule
 - Non-spam/fake account-removal path is anonymization-only: scrub PII in `profiles`, retain historical submissions/scores, and keep leaderboard integrity via anonymized references.
+- Hard-delete is reserved only for explicit spam/fake abuse actions and must be executed through trusted admin moderation with immutable audit logs.
+gs.
+nces.
 - Hard-delete is reserved only for explicit spam/fake abuse actions and must be executed through trusted admin moderation with immutable audit logs.
