@@ -167,7 +167,7 @@ describe("organizer lifecycle RPC fallbacks", () => {
 
     vi.mocked(createSupabaseClient).mockReturnValue(adminClient as never);
 
-    const result = await lookupOrganizerApplicationStatus("a".repeat(64), "127.0.0.1");
+    const result = await lookupOrganizerApplicationStatus("a".repeat(64), "127.0.0.11");
 
     expect(result.machineCode).toBe("ok");
     if (result.machineCode === "ok") {
@@ -208,7 +208,7 @@ describe("organizer lifecycle RPC fallbacks", () => {
 
     vi.mocked(createSupabaseClient).mockReturnValue(adminClient as never);
 
-    const result = await lookupOrganizerApplicationStatus("deadbeef", "127.0.0.1");
+    const result = await lookupOrganizerApplicationStatus("deadbeef", "127.0.0.12");
 
     expect(result).toEqual({ machineCode: "not_found" });
     expect(from).not.toHaveBeenCalled();
@@ -335,8 +335,61 @@ describe("organizer lifecycle RPC fallbacks", () => {
 
     vi.mocked(createSupabaseClient).mockReturnValue(adminClient as never);
 
-    const result = await lookupOrganizerApplicationStatus("a".repeat(64), "127.0.0.1");
+    const result = await lookupOrganizerApplicationStatus("a".repeat(64), "127.0.0.13");
 
     expect(result).toEqual({ machineCode: "not_found" });
+  });
+
+  test("lookupOrganizerApplicationStatus fallback throttles repeated requests by token fingerprint and client IP", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: null,
+      error: null,
+    });
+    const limit = vi.fn().mockImplementation(() => ({ maybeSingle }));
+    const gt = vi.fn().mockImplementation(() => ({ limit }));
+    const eq = vi.fn().mockImplementation(() => ({ gt }));
+    const select = vi.fn().mockImplementation(() => ({ eq }));
+
+    const from = vi.fn().mockImplementation((table: string) => {
+      if (table !== "organizer_applications") {
+        throw new Error(`Unexpected table: ${table}`);
+      }
+
+      return {
+        select,
+      };
+    });
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "42883",
+        message: "function public.lookup_organizer_application_status does not exist",
+      },
+    });
+
+    const adminClient = {
+      rpc,
+      from,
+      storage: {
+        from: vi.fn(),
+      },
+      auth: {
+        admin: {
+          inviteUserByEmail: vi.fn(),
+          generateLink: vi.fn(),
+          resetPasswordForEmail: vi.fn(),
+        },
+      },
+    };
+
+    vi.mocked(createSupabaseClient).mockReturnValue(adminClient as never);
+
+    const first = await lookupOrganizerApplicationStatus("b".repeat(64), "127.0.0.77");
+    const second = await lookupOrganizerApplicationStatus("b".repeat(64), "127.0.0.77");
+
+    expect(first).toEqual({ machineCode: "not_found" });
+    expect(second).toEqual({ machineCode: "throttled" });
+    expect(maybeSingle).toHaveBeenCalledTimes(1);
   });
 });

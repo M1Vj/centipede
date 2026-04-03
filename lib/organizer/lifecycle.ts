@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getErrorMessage } from "@/lib/errors";
 import {
   ORGANIZER_LOGO_BUCKET,
   ORGANIZER_RESET_REDIRECT_PATH,
+  STATUS_LOOKUP_TOKEN_REGEX,
 } from "@/lib/organizer/constants";
 import {
   sendOrganizerLifecycleEmail,
@@ -12,6 +14,7 @@ import {
   createStatusLookupToken,
   getStatusLookupTokenExpiryDate,
   hashStatusLookupToken,
+  normalizeStatusLookupToken,
 } from "@/lib/organizer/tokens";
 import {
   type OrganizerApplicationInput,
@@ -50,6 +53,10 @@ type SupabaseError = {
   code?: string | null;
   message?: string | null;
 };
+
+const FALLBACK_STATUS_LOOKUP_WINDOW_MS = 1_000;
+const FALLBACK_STATUS_LOOKUP_IP = "0.0.0.0";
+const fallbackStatusLookupThrottle = new Map<string, number>();
 
 function isMissingOrganizerLifecycleRpc(
   error: SupabaseError | null | undefined,
@@ -121,6 +128,47 @@ function maskContactEmail(email: string) {
   const domain = normalized.slice(atIndex + 1);
 
   return `${local.slice(0, 1)}${"*".repeat(Math.max(local.length - 1, 2))}@${domain}`;
+}
+
+function getStatusLookupTokenFingerprint(statusLookupToken: string) {
+  const normalized = normalizeStatusLookupToken(statusLookupToken);
+
+  if (!STATUS_LOOKUP_TOKEN_REGEX.test(normalized)) {
+    return "malformed";
+  }
+
+  return createHash("sha256")
+    .update(`centipede:lookup-fingerprint:${normalized}`)
+    .digest("hex");
+}
+
+function trimFallbackStatusLookupThrottle(now: number) {
+  const trimBefore = now - (FALLBACK_STATUS_LOOKUP_WINDOW_MS * 60);
+
+  for (const [key, acceptedAt] of fallbackStatusLookupThrottle.entries()) {
+    if (acceptedAt < trimBefore) {
+      fallbackStatusLookupThrottle.delete(key);
+    }
+  }
+}
+
+function isFallbackStatusLookupThrottled(statusLookupToken: string, clientIp: string | null) {
+  const now = Date.now();
+  if (fallbackStatusLookupThrottle.size > 5_000) {
+    trimFallbackStatusLookupThrottle(now);
+  }
+
+  const normalizedIp = clientIp?.trim() || FALLBACK_STATUS_LOOKUP_IP;
+  const tokenFingerprint = getStatusLookupTokenFingerprint(statusLookupToken);
+  const throttleKey = `${normalizedIp}:${tokenFingerprint}`;
+  const lastAcceptedAt = fallbackStatusLookupThrottle.get(throttleKey);
+
+  if (typeof lastAcceptedAt === "number" && now - lastAcceptedAt < FALLBACK_STATUS_LOOKUP_WINDOW_MS) {
+    return true;
+  }
+
+  fallbackStatusLookupThrottle.set(throttleKey, now);
+  return false;
 }
 
 function createOrganizerAdminClient() {
@@ -349,7 +397,12 @@ async function insertOrganizerApplicationIntakeFallback(
 async function lookupOrganizerApplicationStatusFallback(
   admin: ReturnType<typeof createOrganizerAdminClient>,
   statusLookupToken: string,
+  clientIp: string | null,
 ): Promise<StatusLookupResult> {
+  if (isFallbackStatusLookupThrottled(statusLookupToken, clientIp)) {
+    return { machineCode: "throttled" };
+  }
+
   const statusLookupTokenHash = hashStatusLookupToken(statusLookupToken);
 
   if (!statusLookupTokenHash) {
@@ -676,7 +729,7 @@ export async function lookupOrganizerApplicationStatus(
 
   if (error) {
     if (isMissingOrganizerLifecycleRpc(error as SupabaseError, "lookup_organizer_application_status")) {
-      return lookupOrganizerApplicationStatusFallback(admin, statusLookupToken);
+      return lookupOrganizerApplicationStatusFallback(admin, statusLookupToken, clientIp);
     }
 
     throw error;
