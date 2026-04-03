@@ -29,17 +29,39 @@ Unblocks: release branch creation and deployment.
 - Core role homes: `/mathlete`, `/organizer`, `/admin`.
 - Notification surfaces: `/notifications`, `/settings/notifications`.
 - Competition and results surfaces: `/mathlete/competition/[competitionId]/leaderboard`, `/organizer/competition/[competitionId]/leaderboard`.
-- Canonical notification deep-link targets (branch 15): `/organizer/status`, `/mathlete/competition/[competitionId]/review`, `/mathlete/competition/[competitionId]/answer-key`, `/mathlete/history`, `/organizer/history`.
+- Canonical notification deep-link targets (branch 15): `/organizer/status`, `/mathlete/competition/[competitionId]/leaderboard`, `/organizer/competition/[competitionId]/leaderboard`, `/organizer/competition/[competitionId]/participants`, `/mathlete/competition/[competitionId]/review`, `/mathlete/competition/[competitionId]/answer-key`, `/mathlete/history`, `/organizer/history`.
 - Live operations surfaces: `/organizer/competition/[competitionId]/participants`, `/admin/competitions/[competitionId]/participants`.
 - Any route touched by a bug fix must be added to the branch QA evidence list before merge.
 
 ## Command Verification Contract (Deterministic)
 
 - Baseline commands that must pass with exit code 0: `npm run lint`, `npm run test` (Vitest), `npm run build`.
-- Targeted Vitest suites for this branch must run when corresponding tests exist: `npm run test -- tests/notifications` and `npm run test -- tests/monitoring`.
-- Dev-server smoke verification is deterministic: start `npm run dev`, confirm startup without runtime errors, probe required routes, then intentionally stop the process and capture probe evidence in QA notes.
+- Targeted Vitest suite gate is deterministic: run `npm run test -- tests/notifications` only if `tests/notifications/*` exists, and run `npm run test -- tests/monitoring` only if `tests/monitoring/*` exists; if either suite is absent, `npm run test` remains the required baseline gate.
+- Dev-server smoke verification is deterministic: start `npm run dev`, confirm startup without runtime errors, probe every route in the Final QA Matrix plus every bug-touched route, then intentionally stop the process and capture route-by-route probe evidence in QA notes.
 - Browser automation is forbidden for this branch: do not run Playwright or other browser-automation tooling; if automation is required by external policy, log an entry with `request_type = browser_automation_exception` and `status = approved` in `.agent/PROCESS-FLOW.md` under `## CORE_PATCH_REQUESTS` using the canonical required fields before execution.
 - If migrations changed while fixing bugs, run `npm run supabase:status` and `npm run supabase:db:reset`.
+
+## Performance Gate Matrix (Deterministic)
+
+- Profiling baseline: production build (`npm run build` then `npm run dev`) with representative seeded data and warm-cache rerun.
+- Required routes for performance verification: `/`, `/mathlete`, `/organizer`, `/admin`, `/notifications`, `/mathlete/competition/[competitionId]/leaderboard`, `/organizer/competition/[competitionId]/participants`.
+- Route budgets (p95): first response/render <= 1500 ms; interactive action response <= 500 ms.
+- Stability budget: no uncaught runtime errors and no repeated console error loops on required routes.
+- Fail condition: any required route exceeding budget in two consecutive measurements or violating stability budget blocks merge until fixed or documented as approved out-of-scope blocker.
+
+## Release Severity Rubric (Deterministic)
+
+- `critical`: data loss, privilege escalation, auth bypass, or incorrect score computation in trusted paths.
+- `high`: blocking user flow, incorrect visibility or authorization behavior, duplicate destructive side effects, or incorrect leaderboard or history publication behavior.
+- `medium`: degraded but usable behavior with known workaround and no data integrity risk.
+- `low`: cosmetic, copy, or non-blocking UX polish defects.
+- Merge gate: zero open `critical` or `high` defects. `medium` defects require explicit owner and target date in QA evidence. `low` defects may defer with rationale.
+
+## Regression Test Waiver Contract
+
+- Every fixed defect requires a regression test.
+- If a regression test cannot be added, create a waiver entry in QA evidence with `defect_id`, `reason`, `owner`, `approved_by`, and `follow_up_due_at` before merge.
+- Missing test with no waiver is a branch-fail condition.
 
 ## Full Context
 
@@ -57,7 +79,7 @@ Unblocks: release branch creation and deployment.
 
 - Keep tests layered: unit and helper coverage for core logic, targeted integration suites where available, and manual exploratory QA for live edge cases.
 - Measure actual page performance and interaction stability instead of assuming the UI is fast because it feels fast locally.
-- Fix the source of a bug and add regression coverage where practical instead of relying on manual memory.
+- Fix the source of a bug and add regression coverage for every fixed defect; if infeasible, require a waiver entry under the branch waiver contract.
 - Finalize docs in the same branch so the project source of truth matches the releasable system.
 
 ## Requirements
@@ -66,9 +88,9 @@ Unblocks: release branch creation and deployment.
 - execute manual regression on every route in the final QA matrix
 - verify branch 15 notification deep-link targets and canonical notification dedupe behavior using `(recipient_id, event_identity_key)`
 - perform accessibility and mobile review across all touched routes
-- measure performance on critical routes and resolve high-impact regressions
-- fix QA-discovered bugs and add regression tests for each fixed defect where practical
-- verify admin live support remains force-pause only and that pause/resume/extend/disconnect-reset flows enforce the canonical `(reason, request_idempotency_token)` tuple
+- measure performance on required routes using the branch performance gate matrix and resolve blocking regressions
+- fix QA-discovered bugs and add regression tests for each fixed defect; if a test is infeasible, add a waiver entry using the branch waiver contract
+- verify admin live support remains limited to force-pause plus non-draft abuse/fraud moderation delete, and that pause/resume/extend/disconnect-reset flows enforce the canonical `(reason, request_idempotency_token)` tuple
 - finalize `.agent/` docs, `README.md`, and release notes or changelog inputs
 - capture out-of-scope blockers in `.agent/PROCESS-FLOW.md` under `## CORE_PATCH_REQUESTS` only
 
@@ -76,7 +98,7 @@ Unblocks: release branch creation and deployment.
 
 1. Run baseline command verification and capture initial failures.
 2. Run targeted Vitest notifications and monitoring suites when present.
-3. Run deterministic dev-server smoke verification: start `npm run dev`, probe required routes, then stop the process intentionally and capture evidence.
+3. Run deterministic dev-server smoke verification: start `npm run dev`, probe every Final QA Matrix route and bug-touched route, then stop the process intentionally and capture route-by-route evidence.
 4. Execute manual QA across the explicit route matrix for anonymous, mathlete, organizer, and admin journeys.
 5. Execute accessibility checks for keyboard flow, focus behavior, labels, and contrast on touched routes.
 6. Execute performance checks on critical routes and identify regressions.
@@ -97,13 +119,13 @@ Unblocks: release branch creation and deployment.
 ## Verification
 
 - Command verification: `npm run lint`, `npm run test`, and `npm run build` pass with exit code 0.
-- Targeted suite verification: `npm run test -- tests/notifications` and `npm run test -- tests/monitoring` pass when suites exist.
+- Targeted suite verification: run `npm run test -- tests/notifications` only when `tests/notifications/*` exists, and run `npm run test -- tests/monitoring` only when `tests/monitoring/*` exists; otherwise baseline `npm run test` is mandatory.
 - Dev-server verification: `npm run dev` starts cleanly, required route probes succeed during runtime, and the process is intentionally stopped after verification.
 - Browser-automation policy verification: Playwright and other browser-automation tooling are not used in this branch; any external requirement is documented as `request_type = browser_automation_exception` with `status = approved` in `.agent/PROCESS-FLOW.md` under `## CORE_PATCH_REQUESTS` using the canonical required fields before execution.
 - Manual route verification: every route in the Final QA Matrix is exercised with role-appropriate access checks.
-- Accessibility verification: keyboard flow, focus, labeling, contrast, and mobile-safe interactions pass on touched routes.
-- Performance verification: critical routes show no high-severity regression in load and interaction behavior.
-- Edge-case verification: disconnects, recalculation after publish, export failures, suspended-user access, invalid roster changes, large tables, notification dedupe by `(recipient_id, event_identity_key)`, and force-pause-only plus `(reason, request_idempotency_token)` enforcement are exercised.
+- Accessibility verification: touched routes pass keyboard-only traversal for all interactive controls, maintain visible focus indicators, satisfy WCAG 2.2 AA contrast thresholds (`>= 4.5:1` normal text, `>= 3:1` large text and UI components), and remain operable at required mobile viewports.
+- Performance verification: every required route in the branch performance gate matrix meets stated p95 budgets and stability requirements.
+- Edge-case verification: each listed edge case must record expected outcome assertions (`expected_status_or_error_code`, `expected_state_transition`, `required_audit_or_event_artifact`) and is fail if any assertion mismatches.
 
 ## Git Branching
 

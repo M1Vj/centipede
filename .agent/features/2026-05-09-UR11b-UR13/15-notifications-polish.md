@@ -76,19 +76,29 @@ Unblocks: `16-participant-monitoring` and release readiness.
 | Event | Channel class | Delivery rule |
 | --- | --- | --- |
 | `score_recalculated` | `in_app_only` | Write inbox item only; never send email. |
-| `team_invite_sent`, `competition_registration_confirmed`, `competition_registration_withdrawn`, `competition_announcement_posted`, `dispute_resolved`, `leaderboard_published` | `email_eligible` | Write inbox item and send email only when the user's preference row allows that event. |
-| `organizer_application_approved`, `organizer_application_rejected` | `in_app_only` | Write inbox item only; branch 15 never sends organizer-decision email because applicant transactional decision-email ownership is branch 05. |
+| `team_invite_sent`, `team_invite_accepted`, `team_invite_declined`, `team_roster_invalidated`, `competition_registration_confirmed`, `competition_registration_withdrawn`, `competition_announcement_posted`, `dispute_resolved`, `leaderboard_published` | `email_eligible` | Write inbox item and send email only when the user's preference row allows that event. |
+| `organizer_application_submitted`, `organizer_application_approved`, `organizer_application_rejected` | `in_app_only` | Write inbox item only; branch 15 never sends organizer-lifecycle email because applicant transactional lifecycle-email ownership is branch 05. |
 
 - Allowed channel classes are fixed to `in_app_only`, `email_eligible`, and `email_required`.
 - `competition_announcement_posted` has a deterministic minimum: write an inbox item whenever a valid producer event is consumed; email follows the mapped channel class policy.
 - New notification events must map to one existing channel class in this matrix; do not invent ad hoc delivery policy in code.
+
+## Event-to-Preference Mapping (Deterministic)
+
+- `team_invite_sent`, `team_invite_accepted`, `team_invite_declined`, `team_roster_invalidated` -> `team_invites`
+- `competition_registration_confirmed`, `competition_registration_withdrawn` -> `registration_reminders`
+- `competition_announcement_posted` -> `announcements`
+- `leaderboard_published`, `dispute_resolved` -> `leaderboard_publication`
+- `score_recalculated` -> `score_recalculation`
+- `organizer_application_submitted`, `organizer_application_approved`, `organizer_application_rejected` -> `organizer_decisions`
+- Dispatch validation rule: every emitted event type must map to exactly one preference toggle. Unmapped event types are invalid and must fail dispatch validation.
 
 ## Requirements
 
 - implement inbox route `/notifications` with unread state, mark-read, and mark-all-read actions
 - implement preferences route `/settings/notifications` with trusted update handling for in-app and email toggles
 - use deterministic notification preference defaults (`in_app_enabled = true`, `email_enabled = false`, event-category toggles enabled) when creating rows
-- wire notification dispatch for account-linked organizer decision outcomes as in-app-only inbox notifications (no branch-15 decision email), team invites, registration changes, dispute outcomes, leaderboard publication, score recalculation, and announcement delivery from producer-emitted `competition_announcement_posted` events
+- wire notification dispatch for account-linked organizer decision outcomes as in-app-only inbox notifications (no branch-15 decision email), team lifecycle events (`team_invite_sent`, `team_invite_accepted`, `team_invite_declined`, `team_roster_invalidated`), registration changes, dispute outcomes, leaderboard publication, score recalculation, and announcement delivery from producer-emitted `competition_announcement_posted` events
 - enforce notification deduplication using `(recipient_id, event_identity_key)`
 - enforce critical-event channel delivery using the explicit matrix classes (`in_app_only`, `email_eligible`, `email_required`) and preference rows where applicable
 - apply cross-product UI consistency updates only where notification surfaces are touched
@@ -112,11 +122,12 @@ Unblocks: `16-participant-monitoring` and release readiness.
 - `components/notifications/*`
 - `lib/notifications/*`
 - `supabase/migrations/*`
-- `tests/notifications/*`
+- `tests/notifications/*` (planned suite; currently absent in repository)
 
 ## Verification
 
-- Command verification (all commands must exit 0): `npm run lint`, `npm run test -- tests/notifications`, `npm run build`.
+- Command verification (all commands must exit 0): `npm run lint`, `npm run test`, `npm run build`.
+- Targeted suite verification gate: if `tests/notifications/*` exists, run `npm run test -- tests/notifications`; otherwise `npm run test` remains the required baseline gate.
 - Dev-server smoke verification (long-running): start `npm run dev`, probe `/notifications` and `/settings/notifications` under role shells, then intentionally stop the process and capture probe evidence.
 - Migration verification when `supabase/migrations/*` changes: `npm run supabase:status` and `npm run supabase:db:reset`.
 - Route probe verification during smoke run: `/notifications` and `/settings/notifications` load correctly for each role shell and preserve auth guards.

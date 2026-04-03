@@ -22,8 +22,9 @@ Unblocks: final QA and release readiness.
 - Do not reimplement notification inbox, preference infrastructure, or channel-specific delivery rules from branch `15-notifications-polish`; consume branch 15 dispatch helpers.
 - Do not change submission, grading, dispute-resolution, or leaderboard-publication ownership from branches `13-review-submission` and `14-leaderboard-history`.
 - Do not emit publish domain events in this branch; branch `08-competition-wizard` owns competition publish-state events and branch `14-leaderboard-history` owns leaderboard publication events.
-- Do not grant admin resume, extend, or disconnect-reset controls in this branch contract; admin live support is force-pause only via trusted moderation paths.
+- Do not grant admin manual-end, resume, extend, or disconnect-reset controls in this branch contract; admin live support allow list is force-pause plus non-draft abuse/fraud moderation delete only via trusted moderation paths.
 - This branch owns operator-facing monitoring views, trusted invocation of live controls, and durable event timeline visibility.
+- Current-state drift note: existing admin helpers may still use direct table updates with incomplete reason/idempotency metadata before this branch executes. This branch is responsible for migrating those paths to the canonical trusted control contracts.
 
 ## Full Context
 
@@ -55,6 +56,7 @@ Unblocks: final QA and release readiness.
 
 ## Route Naming Contract (Deterministic)
 
+- Target-state note: these routes are branch-16 contract targets and may not exist prior to branch-16 implementation.
 - Organizer monitoring route: `/organizer/competition/[competitionId]/participants`.
 - Admin live-support route: `/admin/competitions/[competitionId]/participants`.
 - Monitoring UI tabs must use query contract `?tab=participants|announcements|timeline`.
@@ -63,27 +65,42 @@ Unblocks: final QA and release readiness.
 ## Live Control Safety Guard Contract
 
 - Allowed actors and actions:
-  - owning organizer: open-competition pause, resume, extend, and legitimate-disconnection reset
-  - admin: incident force-pause only on live competitions through trusted moderation path and separate moderation delete path; never resume, extend, or disconnect-reset
+  - owning organizer: open-competition pause, organizer-owned resume, extend, and legitimate-disconnection reset on owned competitions under the guard rules below
+  - admin: incident force-pause and non-draft abuse/fraud moderation delete through trusted moderation paths only; never manual end, resume, extend, or disconnect-reset
 - Guard rules:
   - organizer pause is allowed only for `open` competitions when competition state is `live`; it blocks new attempt starts while allowing already-active attempts to finish
   - admin force-pause for incidents is allowed only when competition state is `live` and may target any live competition type
-  - resume is organizer-only and allowed only when competition state is `paused`
-  - extend is organizer-only and allowed only when competition state is `live` or `paused`. It must dynamically update `effective_attempt_deadline_at` for active attempts.
+  - organizer resume is allowed only when competition state is `paused` for an organizer-owned competition, including incident-recovery resumes after admin force-pause
+  - organizer extend is allowed only when competition state is `live` or `paused` for an organizer-owned competition; explicit extend is the only control action that may increase `effective_attempt_deadline_at`
   - disconnection reset is organizer-only and allowed only for eligible active attempts that are not already finalized
 
 ### Legitimate Disconnection Reset Criteria (Objective)
 
-1. Eligible active-attempt gate: `reset_attempt_for_disconnect` is allowed for active attempts in the same competition scope. `auto_submitted` and `disqualified` attempts ARE eligible for reset. It reverts the status to `in_progress` and nullifies `submitted_at`. `submitted` and `graded` attempts are ineligible.
-2. Recent-evidence gate: a trusted disconnect evidence signal must exist within a bounded recency window before the reset request.
-3. Duplicate-reset gate: deny reset when the same `attempt_id` already has a successful disconnect reset within the bounded cooldown window.
-4. Required request tuple gate: both non-empty `reason` and `request_idempotency_token` are mandatory; missing either must fail validation.
-5. Audit-evidence gate: every reset decision must persist auditable evidence metadata in `competition_events`, including `attempt_id`, `disconnect_evidence_type`, `disconnect_evidence_observed_at`, `disconnect_evidence_ref`, `reason`, `request_idempotency_token`, actor identity, and decision outcome.
+1. Required request tuple gate: both non-empty `reason` and `request_idempotency_token` are mandatory; missing either must fail validation.
+2. Evidence taxonomy gate: `disconnect_evidence_type` must be in the closed allowed-value set before other eligibility checks proceed.
+3. Eligible active-attempt gate: `reset_attempt_for_disconnect` is allowed only for attempts currently in `in_progress` state within the same competition scope. `submitted`, `auto_submitted`, `graded`, and `disqualified` attempts are ineligible.
+4. Recent-evidence gate: a trusted disconnect evidence signal must exist with `disconnect_evidence_observed_at >= server_now_at_request - interval '120 seconds'`, where `server_now_at_request` is captured by the trusted handler at request entry.
+5. Duplicate-reset gate: deny reset when the same `attempt_id` already has a successful disconnect reset (`event_type = 'attempt_disconnect_reset_applied'` with `decision_outcome = 'approved'`) where `happened_at > server_now_at_request - interval '10 minutes'`. Exactly 10 minutes old is eligible.
+6. Audit-evidence gate: every reset decision must persist auditable evidence metadata in `competition_events`, including `attempt_id`, `disconnect_evidence_type`, `disconnect_evidence_observed_at`, `disconnect_evidence_ref`, `reason`, `request_idempotency_token`, `actor_user_id`, and `decision_outcome`.
+
+### Disconnect Evidence Taxonomy (Deterministic)
+
+- Trusted evidence sources are restricted to:
+  - `attempt_heartbeat_timeout`: trusted server heartbeat monitor observed inactivity crossing the configured timeout threshold
+  - `platform_connection_drop`: trusted server/realtime connection tracker observed transport disconnect for the active attempt session
+  - `resume_handshake_reconnect`: trusted attempt-resume handshake confirms reconnect to a previously active attempt session
+- Allowed `disconnect_evidence_type` values are exactly `attempt_heartbeat_timeout`, `platform_connection_drop`, and `resume_handshake_reconnect`.
+- Evidence provenance contract: every trusted disconnect evidence signal must already be persisted as a `competition_events` detection row using one of these event types: `attempt_heartbeat_timeout_detected`, `platform_connection_drop_detected`, or `resume_handshake_reconnect_detected`. `disconnect_evidence_ref` must be that detection event row id.
+- Evidence binding and selection contract: the referenced detection event must belong to the same `attempt_id` as the reset request. If multiple qualifying detection events exist inside the 120-second window, choose the newest by `disconnect_evidence_observed_at` (tie-breaker: latest `competition_events.happened_at`, then highest `competition_events.id`).
+- Canonical reset decision event types are fixed to `attempt_disconnect_reset_applied` (approved reset) and `attempt_disconnect_reset_rejected` (any denied reset).
+- Allowed `decision_outcome` values are exactly `approved`, `rejected_ineligible_attempt_state`, `rejected_stale_evidence`, `rejected_duplicate_window`, `rejected_missing_required_tuple`, and `rejected_invalid_evidence_taxonomy`.
+- Invalid evidence taxonomy handling is deterministic: write `event_type = 'attempt_disconnect_reset_rejected'` with `decision_outcome = 'rejected_invalid_evidence_taxonomy'`, then return validation failure.
+- Rejection precedence contract (first failing gate wins): `rejected_missing_required_tuple` -> `rejected_invalid_evidence_taxonomy` -> `rejected_ineligible_attempt_state` -> `rejected_stale_evidence` -> `rejected_duplicate_window`.
 
 - Every control action must require explicit confirmation.
 - Canonical control tuple for pause, resume, extend, and disconnect reset is `(reason, request_idempotency_token)`; both are required and `reason` must be non-empty.
 - Reason capture follows canonical RPC signatures:
-  - `pause_competition(competition_id, reason, request_idempotency_token)` requires non-empty `reason`; admin live support remains force-pause only through trusted moderation path
+  - `pause_competition(competition_id, reason, request_idempotency_token)` requires non-empty `reason`; admin live support allow list remains force-pause plus non-draft abuse/fraud moderation delete only through trusted moderation paths
   - `resume_competition(competition_id, reason, request_idempotency_token)` requires non-empty `reason`
   - `extend_competition(competition_id, additional_minutes, reason, request_idempotency_token)` requires non-empty `reason`
   - `reset_attempt_for_disconnect(attempt_id, reason, request_idempotency_token)` requires non-empty `reason`
@@ -104,14 +121,14 @@ Unblocks: final QA and release readiness.
 - implement active-attempt monitoring with score, time, and offense indicators
 - implement organizer announcement broadcast for the active competition scope by writing durable announcement records and invoking shared branch 15 dispatch helpers
 - implement organizer-owned open-competition pause plus organizer-owned resume, extend, and legitimate-disconnection reset controls with mandatory confirmation, canonical reason-capture rules, and objective disconnect-reset legitimacy criteria
-- implement admin live-support hooks for trusted force-pause only, reusing the same guard and event contracts
+- implement admin live-support hooks for trusted force-pause and non-draft abuse/fraud moderation delete only, reusing the same guard and event contracts
 - implement durable event timeline for lifecycle and intervention actions from `competition_events`
 - enforce canonical control tuple (`reason`, `request_idempotency_token`) and idempotent dedupe behavior using `(competition_id, event_type, actor_user_id, request_idempotency_token)`
 
 ## Atomic Steps
 
 1. Build `/organizer/competition/[competitionId]/participants` with deterministic participants, announcements, and timeline tab states.
-2. Build `/admin/competitions/[competitionId]/participants` as a live-support view that reuses the same trusted monitoring queries and trusted force-pause moderation helper.
+2. Build `/admin/competitions/[competitionId]/participants` as a live-support view that reuses the same trusted monitoring queries and trusted moderation helpers for force-pause plus non-draft abuse/fraud delete.
 3. Add participant list search and registration-state filters with competition-scoped reads.
 4. Add live attempt summaries with active time, offense counts, and progress indicators.
 5. Add announcement composer flow that writes durable announcement records before invoking shared branch 15 fan-out helpers.
@@ -127,15 +144,16 @@ Unblocks: final QA and release readiness.
 - `components/announcements/*`
 - `lib/monitoring/*`
 - `supabase/migrations/*`
-- `tests/monitoring/*`
+- `tests/monitoring/*` (planned suite; currently absent in repository)
 
 ## Verification
 
-- Command verification (all commands must exit 0): `npm run lint`, `npm run test -- tests/monitoring`, `npm run build`.
+- Command verification (all commands must exit 0): `npm run lint`, `npm run test`, `npm run build`.
+- Targeted suite verification gate: if `tests/monitoring/*` exists, run `npm run test -- tests/monitoring`; otherwise `npm run test` remains the required baseline gate.
 - Dev-server smoke verification (long-running): start `npm run dev`, probe `/organizer/competition/[competitionId]/participants` and `/admin/competitions/[competitionId]/participants`, then intentionally stop the process and capture probe evidence.
 - Migration verification when `supabase/migrations/*` changes: `npm run supabase:status` and `npm run supabase:db:reset`.
 - Route probe verification during smoke run: `/organizer/competition/[competitionId]/participants` and `/admin/competitions/[competitionId]/participants` load with correct role guards and stable tab query handling.
-- Manual QA: view participants, watch live attempts, send announcements, run organizer pause/resume/extend/reset flows, verify admin force-pause only behavior, and inspect timeline entries for every control action.
+- Manual QA: view participants, watch live attempts, send announcements, run organizer pause/resume/extend/reset flows, verify admin allow-list behavior (force-pause plus non-draft abuse/fraud moderation delete only), and inspect timeline entries for every control action.
 - Automated: trusted control helper tests, event-log helper tests, idempotency checks, and summary-query coverage.
 - Accessibility: controls and tables are keyboard operable, announcements are labeled, and state changes are readable.
 - Performance: subscriptions remain competition-scoped and use summarized datasets.
@@ -160,6 +178,6 @@ Unblocks: final QA and release readiness.
 
 - organizers can observe and control live competitions without leaving the product
 - live control actions are durable and auditable
-- admin live support is limited to trusted force-pause while organizer-owned controls remain organizer-only
+- admin live support is limited to trusted force-pause plus non-draft abuse/fraud moderation delete while organizer-owned controls remain organizer-only
 - monitoring controls enforce explicit safety guards and idempotent behavior
 - monitoring data is ready for final release verification
