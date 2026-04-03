@@ -1,21 +1,13 @@
-import { describe, expect, test, vi, beforeEach, type Mock } from "vitest";
+import { describe, expect, test, vi, beforeEach } from "vitest";
 import { GET } from "@/app/auth/confirm/route";
 import { createClient } from "@/lib/supabase/server";
 import { type NextRequest } from "next/server";
-import { redirect } from "next/navigation";
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({
-  redirect: vi.fn(),
-}));
-
 describe("auth/confirm GET", () => {
-  const mockCreateClient = createClient as unknown as Mock;
-  const mockRedirect = redirect as unknown as Mock;
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -26,6 +18,7 @@ describe("auth/confirm GET", () => {
         exchangeCodeForSession: vi.fn().mockResolvedValue({ error: null }),
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: "admin-id" } } }),
       },
+      rpc: vi.fn().mockResolvedValue({ data: 2, error: null }),
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -36,12 +29,12 @@ describe("auth/confirm GET", () => {
         }),
       }),
     };
-    mockCreateClient.mockResolvedValue(mockSupabase);
+    vi.mocked(createClient).mockResolvedValue(mockSupabase as never);
 
     const request = new Request("http://localhost/auth/confirm?code=valid-code") as unknown as NextRequest;
-    await GET(request);
+    const response = await GET(request);
 
-    expect(mockRedirect).toHaveBeenCalledWith("/admin");
+    expect(response.headers.get("location")).toBe("http://localhost/admin");
   });
 
   test("redirects to organizer for organizer users on root next path", async () => {
@@ -50,6 +43,7 @@ describe("auth/confirm GET", () => {
         exchangeCodeForSession: vi.fn().mockResolvedValue({ error: null }),
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: "org-id" } } }),
       },
+      rpc: vi.fn().mockResolvedValue({ data: 2, error: null }),
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -60,12 +54,12 @@ describe("auth/confirm GET", () => {
         }),
       }),
     };
-    mockCreateClient.mockResolvedValue(mockSupabase);
+    vi.mocked(createClient).mockResolvedValue(mockSupabase as never);
 
     const request = new Request("http://localhost/auth/confirm?code=valid-code") as unknown as NextRequest;
-    await GET(request);
+    const response = await GET(request);
 
-    expect(mockRedirect).toHaveBeenCalledWith("/organizer");
+    expect(response.headers.get("location")).toBe("http://localhost/organizer");
   });
 
   test("respects the 'next' parameter if provided", async () => {
@@ -74,13 +68,14 @@ describe("auth/confirm GET", () => {
         exchangeCodeForSession: vi.fn().mockResolvedValue({ error: null }),
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-id" } } }),
       },
+      rpc: vi.fn().mockResolvedValue({ data: 2, error: null }),
     };
-    mockCreateClient.mockResolvedValue(mockSupabase);
+    vi.mocked(createClient).mockResolvedValue(mockSupabase as never);
 
     const request = new Request("http://localhost/auth/confirm?code=valid-code&next=/profile") as unknown as NextRequest;
-    await GET(request);
+    const response = await GET(request);
 
-    expect(mockRedirect).toHaveBeenCalledWith("/profile");
+    expect(response.headers.get("location")).toBe("http://localhost/profile");
   });
 
   test("redirects to error page on failed code exchange", async () => {
@@ -89,11 +84,11 @@ describe("auth/confirm GET", () => {
         exchangeCodeForSession: vi.fn().mockResolvedValue({ error: { message: "Invalid code" } }),
       },
     };
-    mockCreateClient.mockResolvedValue(mockSupabase);
+    vi.mocked(createClient).mockResolvedValue(mockSupabase as never);
 
     const request = new Request("http://localhost/auth/confirm?code=invalid-code") as unknown as NextRequest;
-    await GET(request);
+    const response = await GET(request);
 
-    expect(mockRedirect).toHaveBeenCalledWith("/auth/error?error=Invalid%20code");
+    expect(response.headers.get("location")).toBe("http://localhost/auth/error?error=Invalid%20code");
   });
 });

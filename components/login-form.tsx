@@ -95,6 +95,16 @@ export function LoginForm({
     }
   };
 
+  const refreshAcceptedSession = async () => {
+    const response = await fetch("/auth/session", {
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      throw new Error("Unable to refresh the active session.");
+    }
+  };
+
   const handleGoogle = async () => {
     const supabase = getSupabaseClient();
     setPendingAction("google");
@@ -153,6 +163,7 @@ export function LoginForm({
         throw new Error("Login succeeded but no user session was returned.");
       }
 
+      await refreshAcceptedSession();
       await redirectAfterLogin(user.id);
     } catch (nextError: unknown) {
       const raw = getErrorMessage(nextError, "An error occurred during login.");
