@@ -19,7 +19,7 @@ Unblocks: notifications, operational monitoring, release readiness.
 
 ## Dependency Gate (Explicit)
 
-- Branch `07-scoring-system` must already provide trusted RPCs and immutable scoring snapshot behavior: `recalculate_competition_scores(competition_id)` and `refresh_leaderboard_entries(competition_id)`.
+- Branch `07-scoring-system` must already provide trusted RPCs and immutable scoring snapshot behavior: `recalculate_competition_scores(competition_id, request_idempotency_token)` and `refresh_leaderboard_entries(competition_id)`.
 - Branch `10-competition-search` route/entity naming is canonical for competition detail paths and downstream route params.
 - Branch `13-review-submission` owns answer-key visibility and dispute submission. Branch 14 owns organizer dispute resolution, recalculation, and history/export surfaces.
 - Answer-key visibility remains independent of leaderboard publication. Do not merge or proxy one rule through the other.
@@ -30,7 +30,7 @@ Unblocks: notifications, operational monitoring, release readiness.
 - User roles: mathletes view personal history and published leaderboards; organizers view competition history and export results; admins review if needed.
 - UI flow: mathlete leaderboard view, organizer leaderboard management/publish action, organizer dispute review, mathlete history, organizer history, export trigger.
 - Backend flow: leaderboard refresh, publication state transition, organizer dispute resolution, recalculation follow-through, history queries, export-job creation, and file delivery.
-- Related tables/functions: `leaderboard_entries`, `competition_events`, `competition_attempts`, `competition_registrations`, `problem_disputes`, `export_jobs`, `notifications`.
+- Related tables/functions: `leaderboard_entries`, `competition_events`, `competition_attempts`, `competition_registrations`, `problem_disputes`, `export_jobs`.
 - Edge cases: unpublished scheduled competition, open competition real-time results, regraded scores after disputes, large export sizes, tie-breaker changes after publish, and accepted disputes after publication.
 - Security concerns: unpublished results must stay hidden from participants; export downloads must be scoped to competition owners or admins.
 - Performance concerns: leaderboard rendering and history queries need pagination and possibly virtualization; exports should run asynchronously if large.
@@ -40,7 +40,7 @@ Unblocks: notifications, operational monitoring, release readiness.
 
 - Scheduled competition: `competitions.type = 'scheduled'`.
 - Open competition: `competitions.type = 'open'`.
-- Leaderboard published state: `competitions.leaderboard_published = true`, transitioned by trusted `publish_leaderboard(competition_id)`.
+- Leaderboard published state: `competitions.leaderboard_published = true`, transitioned by trusted `publish_leaderboard(competition_id, request_idempotency_token)`.
 - Recalculation: trusted rerun of competition grading and ranking after accepted disputes or answer-key corrections.
 - Immutable result view: any leaderboard/history/export surface that must use frozen competition snapshots and read-optimized leaderboard output instead of mutable authoring data.
 
@@ -55,8 +55,8 @@ Unblocks: notifications, operational monitoring, release readiness.
 
 - Organizers and admins can view leaderboard entries for owned or moderated competitions regardless of publication state.
 - Mathletes and participants follow competition-type visibility:
-  - Scheduled competitions: leaderboard remains hidden until organizer runs `publish_leaderboard(competition_id)`.
-  - Open competitions: leaderboard visibility follows the open-competition visibility rule (no separate organizer publish gate).
+  - Scheduled competitions: leaderboard remains hidden until organizer runs `publish_leaderboard(competition_id, request_idempotency_token)`.
+  - Open competitions: leaderboard is fully visible to participant-context readers for every non-draft open state (`published`, `live`, `paused`, `ended`, `archived`); no organizer publish gate exists for open competitions.
 - Scheduled publication must be a trusted state transition with `competition_events` logging.
 - `answer_key_visibility` is a separate rule from leaderboard publication and must not be inferred from `leaderboard_published`.
 
@@ -64,30 +64,43 @@ Unblocks: notifications, operational monitoring, release readiness.
 
 - Scheduled competition with `leaderboard_published = false`:
   - `/mathlete/competition/[competitionId]/leaderboard` must deny/hide entries.
-  - `/mathlete/history` may show competition presence and the participant's own attempt state (`attempt_status`, `submitted_at`) but must not expose `rank`, `score`, `total_time_seconds`, `offense_count`, or peer aggregates.
+  - `/mathlete/history` may show competition presence and the participant's own attempt state (`competition_attempts.status`, `submitted_at`) but must not expose `rank`, `score`, `total_time_seconds`, `offense_count`, or peer aggregates.
 - Scheduled competition with `leaderboard_published = true`:
   - Mathlete leaderboard and history may expose final rank/score fields from trusted `leaderboard_entries`.
 - Open competition:
-  - Mathlete leaderboard and history may expose open-competition-visible `leaderboard_entries` without organizer publish action, still scoped to trusted participant visibility rules.
+  - Mathlete leaderboard and history may expose full `leaderboard_entries` without organizer publish action whenever the competition is not in `draft`, still scoped to trusted participant visibility rules.
 - Organizer/admin leaderboard and history views remain visible for owned or moderated competitions.
 
 ## Dispute-Resolution Follow-Through Contract
 
-- Organizer dispute resolution must support terminal outcomes (`accepted`, `rejected`, `resolved`) with required `resolution_note`.
+- Dispute state machine is explicit and closed:
+  1. `open -> reviewing`
+  2. `reviewing -> accepted`
+  3. `reviewing -> rejected`
+  4. `reviewing -> resolved`
+- `accepted`, `rejected`, and `resolved` are terminal; no further transitions are allowed.
+- Terminal meaning is explicit:
+  - `accepted`: dispute is validated and may require trusted correction artifacts plus recalculation.
+  - `rejected`: dispute is denied and must not create correction artifacts or run recalculation.
+  - `resolved`: dispute is administratively closed without classifying it as accepted or rejected for scoring change; no correction artifacts and no recalculation.
+- Any transition out of `reviewing` requires non-empty `resolution_note`, `resolved_by`, and `resolved_at`.
 - Accepted disputes that affect scoring must reference an explicit trusted correction artifact record (`answer_key_override` and/or `points_override`) linked to the disputed `competition_problem_id`; immutable publish snapshots remain unchanged.
+- Notification ownership boundary is strict: branch 14 emits domain events/hooks (`dispute_resolved`, `leaderboard_published`, `score_recalculated`) and branch 15 owns inbox/email fan-out and channel-preference delivery.
 - Accepted-dispute follow-through sequence (trusted backend only):
-  1. Resolve dispute status and persist note (`resolve_problem_dispute`).
+  1. Resolve dispute status and persist note (`resolve_problem_dispute(..., request_idempotency_token)`).
   2. Persist/activate the trusted correction artifact record for the affected `competition_problem_id` (no mutation of immutable snapshot columns).
-  3. Execute `recalculate_competition_scores(competition_id)`.
+  3. Execute `recalculate_competition_scores(competition_id, request_idempotency_token)`.
   4. Execute `refresh_leaderboard_entries(competition_id)`.
-  5. Write a `competition_events` row that includes `dispute_id`, `competition_problem_id`, and `correction_artifact_id` for audit visibility.
-  6. Trigger affected-user recalculation notifications through shared notification hooks.
-- Rejected or non-recalculation resolutions must still log events but must not run recalculation RPCs.
+  5. Write deterministic `competition_events` rows for `dispute_resolved` and, when applicable, `score_recalculated`, including `request_idempotency_token`, `dispute_id`, `competition_problem_id`, and `correction_artifact_id` for audit visibility.
+  6. Emit deterministic notification hooks/domain events for branch 15 fan-out; branch 14 does not write `notifications` rows or send emails directly.
+- Rejected or resolved outcomes must still log events but must not run recalculation RPCs.
 - Terminal disputes must be idempotent in trusted handlers so retrying requests cannot trigger duplicate recalculation runs.
 
 ## Recalculation Semantics Contract
 
 - Recalculation and leaderboard refresh must run only on trusted backend paths.
+- Recalculation call signature is strict: `recalculate_competition_scores(competition_id, request_idempotency_token)`.
+- Repeated recalculation requests with the same idempotency token must return the same trusted outcome without duplicate side effects.
 - Recalculation reads immutable publish artifacts only:
   - `competitions.scoring_snapshot_json`
   - `competition_problems` snapshot fields
@@ -113,7 +126,7 @@ Unblocks: notifications, operational monitoring, release readiness.
   - read status/download file: competition owner organizer, admin, or the original authorized requester for that competition
   - participants and unrelated organizers are always denied, even with a known `exportJobId`
 - Export job lifecycle must support `queued`, `processing`, `completed`, and `failed`, with `error_message` retained for failure diagnostics.
-- Export data source must match immutable history surfaces at generation time and include leaderboard core fields (`rank`, `display_name`, `score`, `total_time_seconds`, `offense_count`, `computed_at`).
+- Export data source must match immutable history surfaces at generation time and include leaderboard core fields (`rank`, `display_name`, `score`, `total_time_seconds`, `offense_count`, `computed_at`) plus participant/team context from immutable registration snapshots (`school`, `grade_level`, `team_name`, and roster snapshot where applicable).
 - File delivery must use trusted storage access and must not expose unscoped storage paths.
 
 ## Math Rendering Policy (Consistency Lock)
@@ -141,8 +154,9 @@ Unblocks: notifications, operational monitoring, release readiness.
 
 - leaderboard and participant-history surfaces implement the explicit publication-visibility matrix for scheduled vs open competitions without unpublished scheduled-result leakage
 - organizer-only publish leaderboard action for scheduled competitions with event logging
-- organizer dispute-review queue with terminal outcomes, required resolution notes, and trusted follow-through behavior
+- organizer dispute-review queue with explicit `open -> reviewing -> accepted | rejected | resolved` transitions, required resolution notes, and trusted follow-through behavior
 - accepted disputes trigger recalculation and leaderboard refresh through trusted RPC orchestration
+- branch 14 notification ownership is event/hook emission only for publication/dispute/recalculation outcomes; branch 15 handles inbox/email fan-out
 - mathlete history page with competition summaries, score/rank outcome, and answer-key links governed by separate answer-key rules
 - organizer history page with archive metrics, dispute/recalculation status, and export actions
 - trusted export generation for CSV and XLSX through export-job orchestration with owner/admin-scoped authorization and scoped file access
@@ -153,8 +167,8 @@ Unblocks: notifications, operational monitoring, release readiness.
 
 1. Build leaderboard reads from `leaderboard_entries` using the explicit visibility contract.
 2. Add organizer publication control for scheduled competitions via trusted publish action and event logging.
-3. Build organizer dispute-resolution surface with terminal statuses and required resolution notes.
-4. Implement accepted-dispute follow-through orchestration: resolve -> recalculate -> refresh leaderboard -> events/notification hooks.
+3. Build organizer dispute-resolution surface with explicit state-machine transitions and required resolution notes.
+4. Implement accepted-dispute follow-through orchestration: resolve -> recalculate (idempotent token) -> refresh leaderboard -> domain events/hooks for branch 15 notification fan-out.
 5. Build mathlete history view with score/rank/status and links that respect answer-key visibility independence.
 6. Build organizer history view with participant/dispute/recalculation/export status visibility.
 7. Implement export-job queueing, status polling, and scoped file delivery for CSV/XLSX.

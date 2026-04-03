@@ -20,7 +20,7 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 - Business context: participants need confidence that their submitted work is final, reviewable, and fairly graded.
 - User roles: mathletes submit and dispute; organizers resolve disputes later; admins may oversee audits.
 - UI flow: review screen, summary counts, jump back to question, final confirmation, result summary, answer key view, dispute dialog.
-- Backend flow: final submission mutation, attempt lock, grading RPC, leaderboard refresh, dispute insert.
+- Backend flow: final submission mutation, attempt lock, immediate grading RPC, contract-bound leaderboard refresh integration when branch 14 schema ownership is available, dispute insert.
 - Related tables/functions: `competition_attempts`, `attempt_answers`, `problem_disputes`, `leaderboard_entries`, grading RPCs.
 - Edge cases: time-expiry auto-submit, submission during network instability, latest-score overwrite warnings, answer key hidden before the allowed visibility point, duplicate submit clicks.
 - Security concerns: final submission and grading are trusted mutations; answer keys must respect competition-end visibility rules and cannot piggyback on leaderboard publication heuristics.
@@ -40,7 +40,9 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 
 - Final submit must be idempotent: the first accepted submit locks the attempt, later duplicate requests must return the existing final state without re-grading.
 - Submission transition must close the active interval once, set `submitted_at`, and move attempt status to `submitted` or `auto_submitted` through trusted server logic.
-- Grading orchestration must follow branch `07` contract: `grade_attempt(attempt_id)` then `refresh_leaderboard_entries(competition_id)`.
+- Grading is immediate on submit via trusted `grade_attempt(attempt_id)`.
+- Leaderboard refresh integration is contract-bound to branch `07` (`refresh_leaderboard_entries(competition_id)`) and becomes executable when branch `14` leaderboard schema ownership is available.
+- Branch `13` must not write `leaderboard_entries` directly.
 - Attempt initialization must pre-seed one `attempt_answers` row per `competition_problem` with `status_flag = 'blank'` so untouched questions are persisted deterministically.
 - Review summary counts must derive from persisted `attempt_answers.status_flag` values (`blank`, `filled`, `solved`, `reset`) with no client-only heuristics.
 - Legacy fallback rule until pre-seed backfill is complete: trusted summary helpers infer additional `blank` count as `total_snapshot_problems - distinct_answer_rows` when older attempts have missing rows.
@@ -56,27 +58,33 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 
 - Dispute creation writes to `problem_disputes` using `competition_problem_id`, `attempt_id`, and `reporter_id` from the participant context.
 - New disputes start as `status = 'open'` and remain participant-readable through trusted dispute access rules.
-- Organizer accept/reject and recalculation follow-through are owned by branch `14`, but branch `13` must create complete dispute records for that handoff.
+- Branch `13` handoff state-machine contract is explicit: `open -> reviewing -> accepted | rejected | resolved`, with no direct `open -> accepted/rejected/resolved` shortcut in participant paths.
+- State meaning is explicit for branch `14` resolution ownership:
+  - `accepted`: organizer validated the dispute and scoring correction may be required.
+  - `rejected`: organizer denied the dispute with no scoring correction.
+  - `resolved`: organizer closed the dispute administratively without classifying it as accepted or rejected for scoring changes.
+- Organizer resolution and any recalculation follow-through are owned by branch `14`, but branch `13` must create complete dispute records for that handoff.
 
 ## Requirements
 
 - review page with answer counts and problem jump links
 - final submission confirmation and double-submit protection
-- trusted grading execution after submission
-- support open-competition additional attempts under the configured policy
+- trusted immediate grading execution after submission, with contract-bound leaderboard refresh integration when branch `14` schemas are available
+- no direct `leaderboard_entries` writes in branch `13`; use trusted RPC contracts only
+- support open-competition additional attempts under the configured policy, with explicit `Attempt Again` result handling and the grading modes `highest_score`, `latest_score`, and `average_score`
 - review summary counts must use persisted `attempt_answers.status_flag` values with deterministic untouched-question handling (`blank` pre-seed rows, with trusted legacy inference only for older attempts missing rows)
 - answer-key access only when the explicit post-competition visibility rules allow it
 - answer-key and explanation rendering must use KaTeX from snapshotted LaTeX data (no alternate renderer)
-- dispute submission with `problem_disputes` status tracking from `open` through organizer resolution in branch `14`
+- dispute submission with explicit handoff state-machine semantics from `open` into organizer-owned `reviewing -> accepted | rejected | resolved` resolution in branch `14`
 
 ## Atomic Steps
 
 1. Build the review page and summary components using deterministic persisted-status counting, including untouched-question blank handling from the submit-lock contract.
 2. Implement final submit with trusted attempt-state transition, interval closure, and idempotent duplicate-submit handling.
-3. Trigger grading and leaderboard refresh after submission using the branch `07` RPC orchestration contract.
-4. Implement result summaries for scheduled and open competitions.
+3. Trigger immediate trusted grading after submission using `grade_attempt(attempt_id)`, and integrate `refresh_leaderboard_entries(competition_id)` through the branch `07` contract when branch `14` leaderboard schema ownership is available, with no direct `leaderboard_entries` writes in branch `13`.
+4. Implement result summaries for scheduled and open competitions, including an `Attempt Again` path when attempts remain and deterministic copy for `highest_score`, `latest_score`, and `average_score`.
 5. Add answer-key pages that enforce `answer_key_visibility` rules, stay separate from scheduled leaderboard publication, and use competition problem snapshots.
-6. Add dispute submission UI and persistence with deterministic `problem_disputes` inserts for organizer handoff.
+6. Add dispute submission UI and persistence with deterministic `problem_disputes` inserts for organizer handoff, preserving the explicit `open -> reviewing -> accepted | rejected | resolved` state-machine contract.
 7. Add tests for submit locking, duplicate-submit prevention, answer-key visibility enforcement, and dispute helpers.
 
 ## Key Files

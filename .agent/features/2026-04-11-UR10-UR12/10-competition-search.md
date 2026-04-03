@@ -46,6 +46,7 @@ Unblocks: arena entry, leaderboard visibility, reminders, participant monitoring
 
 - searchable and filterable competition list
 - competition detail page or modal with description, rules, schedule, and format
+- deterministic route-mode arbitration on `/mathlete/competition/[competitionId]` so detail/register and arena ownership do not conflict
 - timezone-aware calendar for upcoming and live competitions
 - registration and withdrawal flows for individual and team competitions via trusted mutation paths
 - clear eligibility, capacity, and roster warnings
@@ -58,9 +59,15 @@ Unblocks: arena entry, leaderboard visibility, reminders, participant monitoring
   - `/mathlete/competition/calendar`
   - `/mathlete/competition/[competitionId]`
 - Route ownership boundary:
-  - Branch `10` owns discovery list, calendar, and detail/register-withdraw state rendering.
+  - Branch `10` owns discovery list, calendar, and base detail/register-withdraw rendering.
   - Branch `11` must use exactly `/mathlete/competition/[competitionId]` for pre-entry and active-attempt runtime entry (nested subroutes under that segment are allowed).
   - Do not introduce alias or equivalent arena root paths (for example `/mathlete/arena/[competitionId]`).
+- Deterministic render arbitration for `/mathlete/competition/[competitionId]`:
+  1. Trusted loader resolves one `competition_page_mode` value before render.
+  2. If mode is `arena_runtime` (active `in_progress` attempt), branch `11` runtime render owns the page.
+  3. If mode is `pre_entry` (registered and eligible to start/resume with no active runtime render), branch `11` pre-entry render owns the page.
+  4. If mode is `detail_register` (not eligible for pre-entry/runtime), branch `10` detail/register render owns the page.
+  5. `submitted`, `auto_submitted`, `graded`, and `disqualified` attempts never route back into runtime mode on this page.
 - Entities:
   - DiscoverableCompetition: `competitions` row where `is_deleted = false` and `status IN ('published','live','paused')` for branch `10` discovery surfaces (`ended` and `archived` history ownership is branch `14`)
   - IndividualRegistration: `competition_registrations` row with `profile_id` populated
@@ -70,6 +77,7 @@ Unblocks: arena entry, leaderboard visibility, reminders, participant monitoring
 ### Registration and Eligibility Contract (Explicit)
 
 1. Source of truth: registration and withdrawal must execute through trusted server mutations/RPCs (`register_for_competition`, `withdraw_registration`). Client code must not write directly to `competition_registrations`.
+   - accepted registrations must populate immutable `competition_registrations.entry_snapshot_json` from the participant/team context at registration time so later history and export reads do not drift with profile or roster edits
 2. Universal eligibility checks before registration:
    - authenticated active profile
    - profile completion already satisfied
@@ -99,7 +107,7 @@ Unblocks: arena entry, leaderboard visibility, reminders, participant monitoring
 ## Atomic Steps
 
 1. Build the published competition list query with filters for type, format, status, and search text.
-2. Add the competition details route at `/mathlete/competition/[competitionId]` with rules, schedule, format summary, and register/withdraw actions.
+2. Add the competition details route at `/mathlete/competition/[competitionId]` with rules, schedule, format summary, register/withdraw actions, and trusted `competition_page_mode` arbitration for branch `11` handoff.
 3. Add a timezone-aware calendar route at `/mathlete/competition/calendar` and sync it with list filters.
 4. Implement individual registration through `register_for_competition` trusted mutation path.
 5. Implement team registration limited to eligible team leaders and valid rosters, reusing branch `09` lock checks.

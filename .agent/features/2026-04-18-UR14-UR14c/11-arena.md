@@ -45,11 +45,12 @@ Unblocks: anti-cheat, submission/review, leaderboards, monitoring.
 
 ### Timing Contract
 
-- Remaining time is computed only on trusted backend paths as `max(0, min(attempt_deadline_at, competition_end_at_for_scheduled) - server_now)`; client clocks are display-only.
-- `attempt_deadline_at` is fixed when the attempt starts and must never be extended by refresh, reconnect, or interval reopen actions.
+- Remaining time is computed only on trusted backend paths as `max(0, effective_attempt_deadline_at - server_now)`, where scheduled attempts derive `effective_attempt_deadline_at = min(attempt_base_deadline_at, scheduled_competition_end_cap_at)` and open attempts derive `effective_attempt_deadline_at = attempt_base_deadline_at`; client clocks are display-only.
+- `effective_attempt_deadline_at` is fixed when the attempt starts and must never be extended by refresh, reconnect, or interval reopen actions.
 - Offline or disconnected periods still consume time because `server_now` advances while the same immutable deadline remains in force.
 - `attempt_intervals` record connectivity windows (`started_at`, `ended_at`) for audit and resume authorization only; interval duration must never be used to pause, restore, or grant extra time.
 - Timer expiry triggers a trusted attempt transition to `auto_submitted` and immediate UI lock.
+- Scheduled competition end remains a server-owned boundary transition; arena UI must consume trusted status updates and must not attempt direct lifecycle mutation.
 
 ## Requirements
 
@@ -61,15 +62,18 @@ Unblocks: anti-cheat, submission/review, leaderboards, monitoring.
 - allow reconnect and resume without inventing extra time
 - auto-submit current answers when the timer reaches zero
 - support open-competition attempt restarts only through explicit grading policy rules
+- honor shared-route arbitration: render branch `11` only when trusted mode is `pre_entry` or `arena_runtime`
 
 ### Canonical Arena Route Contract (Strict)
 
 - Arena entry and runtime route is exactly `/mathlete/competition/[competitionId]`.
+- Branch `11` consumes the branch `10` trusted `competition_page_mode` decision and must not reimplement conflicting page ownership heuristics in client state.
+- Branch `11` render ownership is limited to `pre_entry` and `arena_runtime` modes; `detail_register` mode is owned by branch `10`.
 - Branch `11` may add nested subroutes under that segment only; alias or equivalent arena root paths are prohibited.
 
 ## Atomic Steps
 
-1. Build the pre-entry page with eligibility checks, rules acknowledgement, and explicit device-responsibility acknowledgement checkboxes.
+1. Build the pre-entry page with eligibility checks, rules acknowledgement, explicit device-responsibility acknowledgement checkboxes, and trusted route-mode gating from branch `10` arbitration.
 2. Implement trusted `start_competition_attempt` and `resume_competition_attempt` flows.
 3. Build the arena shell with timer, navigation grid, problem viewport, and answer panel.
 4. Integrate MathLive for numeric and identification answers with symbol-toolbox support, render static math with KaTeX, and handle MCQ and TF cleanly.
