@@ -99,7 +99,6 @@ async function UsersList({ role, status, search }: FilterParams) {
   async function saveUser(payload: {
     userId: string;
     fullName: string;
-    email: string;
     role: string;
   }) {
     "use server";
@@ -122,7 +121,6 @@ async function UsersList({ role, status, search }: FilterParams) {
     await updateUserProfile({
       userId: payload.userId,
       fullName: payload.fullName,
-      email: payload.email,
       role: normalizedRole,
       actorId: user.id,
     });

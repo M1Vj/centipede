@@ -21,7 +21,6 @@ export type AdminUserRecord = {
 type UpdateUserPayload = {
   userId: string;
   fullName: string;
-  email: string;
   role: string;
 };
 
@@ -56,7 +55,6 @@ export function UserActions({
   const [detailOpen, setDetailOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [fullName, setFullName] = useState(user.full_name ?? "");
-  const [email, setEmail] = useState(user.email ?? "");
   const [role, setRole] = useState(user.role ?? "mathlete");
 
   const displayName = useMemo(
@@ -66,10 +64,9 @@ export function UserActions({
 
   useEffect(() => {
     setFullName(user.full_name ?? "");
-    setEmail(user.email ?? "");
     setRole(user.role ?? "mathlete");
     setDeleteConfirmText("");
-  }, [user.email, user.full_name, user.role]);
+  }, [user.full_name, user.role]);
 
   function handleSuspendConfirm() {
     setAction("suspend");
@@ -123,7 +120,6 @@ export function UserActions({
         await onUpdate({
           userId: user.id,
           fullName,
-          email,
           role,
         });
         setDetailOpen(false);
@@ -190,7 +186,7 @@ export function UserActions({
         variant="ghost"
         size="icon"
         className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-        title="Permanently delete user"
+        title="Anonymize user account"
         onClick={() => setDeleteOpen(true)}
       >
         <Trash2 className="size-4" />
@@ -211,10 +207,10 @@ export function UserActions({
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-foreground/25 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-2xl border border-border/60 bg-background p-6 shadow-[0_30px_90px_-32px_hsl(var(--shadow)/0.5)]">
             <div className="space-y-2">
-              <p className="text-xs font-bold uppercase tracking-widest text-rose-600">Permanent delete</p>
-              <h2 className="text-xl font-semibold">Permanently remove {displayName}?</h2>
+              <p className="text-xs font-bold uppercase tracking-widest text-rose-600">Irreversible anonymization</p>
+              <h2 className="text-xl font-semibold">Anonymize {displayName}?</h2>
               <p className="text-sm text-muted-foreground">
-                This deletes the auth record and cannot be undone. Type DELETE to confirm.
+                This scrubs personal profile data, disables the account, and preserves historical competition records. Type DELETE to confirm.
               </p>
             </div>
             <div className="mt-4 space-y-2">
@@ -232,11 +228,11 @@ export function UserActions({
                 type="button"
                 variant="destructive"
                 pending={isPending && action === "delete"}
-                pendingText="Deleting..."
+                pendingText="Anonymizing..."
                 onClick={handleDeleteConfirm}
                 disabled={deleteConfirmText !== "DELETE"}
               >
-                Permanently delete
+                Anonymize account
               </Button>
             </div>
           </div>
@@ -264,7 +260,10 @@ export function UserActions({
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-muted-foreground">Email</label>
-                <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+                <Input value={user.email} readOnly disabled />
+                <p className="text-xs text-muted-foreground">
+                  Email stays immutable here so profile data remains consistent with authentication credentials.
+                </p>
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-muted-foreground">Role</label>

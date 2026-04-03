@@ -5,9 +5,7 @@ import { isProfileComplete, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
 import { getSupabaseEnv, hasEnvVars } from "./env";
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  });
+  let supabaseResponse = NextResponse.next();
 
   // Perform early short-circuit for static assets and public non-auth routes
   // to avoid unnecessary Supabase client creation or database hits.
@@ -47,9 +45,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );
-          supabaseResponse = NextResponse.next({
-            request,
-          });
+          supabaseResponse = NextResponse.next();
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options),
           );

@@ -1,13 +1,5 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
-
-import {
-  isProfileComplete,
-  PROFILE_SELECT_FIELDS,
-  type AuthProfile,
-} from "@/lib/auth/profile";
-import { createClient } from "@/lib/supabase/server";
-import { hasEnvVars } from "@/lib/supabase/env";
+import { getWorkspaceContext as getProtectedWorkspaceContext } from "@/lib/auth/workspace";
 import {
   Card,
   CardContent,
@@ -22,56 +14,7 @@ import {
 import { Building, ClipboardList, Users } from "lucide-react";
 
 async function getWorkspaceContext() {
-  if (!hasEnvVars) {
-    return {
-      userEmail: null,
-      profile: null,
-    };
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select(PROFILE_SELECT_FIELDS)
-    .eq("id", user.id)
-    .maybeSingle<AuthProfile>();
-
-  if (error) {
-    throw error;
-  }
-
-  if (!isProfileComplete(profile)) {
-    redirect("/profile/complete");
-  }
-
-  if (profile?.is_active === false) {
-    redirect("/auth/suspended");
-  }
-
-  if (profile?.role !== "organizer") {
-    if (profile?.role === "admin") {
-      redirect("/admin");
-    }
-
-    if (profile?.role === "mathlete") {
-      redirect("/mathlete");
-    }
-
-    redirect("/");
-  }
-
-  return {
-    userEmail: user.email ?? "signed-in user",
-    profile,
-  };
+  return getProtectedWorkspaceContext({ requireRole: "organizer" });
 }
 
 const organizerCards = [
