@@ -100,6 +100,10 @@ Do not report documentation edits as complete until they are confirmed by direct
 
 FR14.5 answer-key contract is default-on: new competitions must initialize `answer_key_visibility = after_end`. Participant answer-key visibility requires trusted server end-time and participant-context ownership checks. `hidden` is explicit organizer override, and `leaderboard_published` must not control answer-key access.
 
+### 3.9
+
+Organizer lifecycle handlers must tolerate under-migrated databases where branch-05 RPCs or organizer intake/status columns are missing. Prefer trusted fallback reads or writes when safe, and otherwise return non-disclosing lookup outcomes or user-friendly temporary-unavailable messages instead of raw DB errors or 500s.
+
 ## 4. Workflow Rules
 
 ### 4.1

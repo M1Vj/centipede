@@ -41,6 +41,7 @@ Unblocks: problem banks, competition authoring, organizer notification polish (b
 - Use Supabase Storage bucket `organizer-assets`; persist only `organizer_applications.logo_path` storage path values, never ad hoc public URLs.
 - Hash status lookup tokens into `organizer_applications.status_lookup_token_hash`; never persist raw tokens.
 - Keep status lookup responses minimal and safe (`status`, `rejection_reason`, `masked_contact_email`) with rate limiting to reduce brute-force risk.
+- If branch-05 organizer intake or status RPCs are unavailable in under-migrated environments, use deterministic server fallbacks when safe and preserve non-disclosing outcomes (`not_found` or throttled) rather than surfacing raw database errors.
 - Treat branch 04 reviewed decision fields as immutable handoff input; branch 05 runs trusted activation/provisioning for approved rows and handles applicant communication idempotently per `(application_id, status)`.
 - Treat organizer profile/settings as part of onboarding so later feature branches are not forced to create the organizer shell retroactively.
 - Use secure status lookup plus submission, approval, or rejection email communication as the immediate applicant feedback path.

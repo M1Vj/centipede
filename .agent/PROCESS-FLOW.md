@@ -309,6 +309,7 @@ Admin route migration sequence (canonical):
 | request_id | created_at_utc | branch | request_type | reason | requested_scope | approval_source | approved_by | status | evidence_link | notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `CPR-YYYYMMDD-001` | `YYYY-MM-DDTHH:MM:SSZ` | `feature/<name>` | `browser_automation_exception` or `out_of_scope_blocker` | short deterministic reason | exact tool, route, and command scope | policy or stakeholder source | approver name or role | `proposed` | PR or QA note link | optional follow-up or closure note |
+| `CPR-20260403-001` | `2026-04-03T15:12:00Z` | `feature/organizer-registration` | `browser_automation_exception` | user-requested full Playwright UI and workflow regression across breakpoints | Playwright MCP end-to-end UI traversal, form interaction, workflow validation, and responsive visual QA on desktop, tablet, and mobile for all reachable routes | direct user instruction in current chat turn | Mabansag, Vj (user) | `approved` | chat request 2026-04-03 organizer-registration full QA | execute browser automation immediately and mark completed after QA handoff |
 
 ## Notification Producer/Consumer Boundary Matrix
 
