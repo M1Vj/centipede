@@ -26,11 +26,17 @@ Use this checklist as the canonical execution order for the rebuild. Mark an ite
 ## Usage Rules
 
 - do not renumber existing tasks
-- the current `.agent/` numbering is canonical for execution even though legacy `.agents/` used a different historical sequence
+- the current `.agent/` numbering is canonical for execution
+- process-flow and schema references outside this repository are non-authoritative context; current `.agent/` branch contracts are authoritative
 - do not add side branches without updating this file and the quick reference
-- **CRITICAL**: Branches `01` through `04` are completely **DONE**. You must never revisit them, edit their feature branches, or assume they still need to be executed.
-- `04-admin-user-management` is DONE. It provides the admin-side approval UI and server shell. Do not rewrite this. `05-organizer-registration` connects to this existing approval path for applicant-facing status, organizer activation/provisioning, organizer workspace onboarding, and related lifecycle messaging without re-owning admin decision writes.
+- **CRITICAL**: Branches `01` through `04` are baseline-complete and must not be re-executed. Evidence-backed corrective fixes are allowed only when needed to unblock the active branch and must be documented in that active branch guide.
+- baseline-complete status for branch `04` does not imply admin route-param migration is finished; current `/admin/**/[id]` compatibility readers may remain until canonical `[bankId]` and `[competitionId]` producer cutover and branch `17` validation gates complete
+- `04-admin-user-management` remains the canonical admin decision-write owner branch. `05-organizer-registration` connects to that approval path for applicant-facing status, organizer activation/provisioning, organizer workspace onboarding, and related lifecycle messaging without re-owning admin decision writes.
 - if a bug fix is required to finish the active feature, keep it in that feature and note it in the feature file
 - if a backend change alters tables, enums, functions, or RLS, update `.agent/DATABASE-EDR-RLS.md` before marking the item complete
+- migration execution protocol is strict: apply `supabase/migrations` in ascending timestamp order
+- applied migration files are append-only in shared environments; corrections must be new higher-timestamp files
+- migration verification gate before marking a checklist item complete: `npm run supabase:status`, `npm run supabase:db:reset`, `npm run lint`, `npm run test`, `npm run build`
+- FR14.5 fidelity gate for branches touching competition visibility: default `answer_key_visibility` remains `after_end`, and reveal checks use trusted server end-time independent from `leaderboard_published`
 - if a new project rule is learned, append it to `.agent/learned-rules.md` before marking the item complete
 - no `.agent/` doc may depend on inaccessible external local files

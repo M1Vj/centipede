@@ -6,7 +6,7 @@ This file stores project-specific rules learned during planning and implementati
 
 ### 1.1
 
-`.agent/` is the only active planning folder. `.agents/` is archival only and must not be used for execution decisions.
+`.agent/` is the active planning folder and must be used for execution decisions.
 
 ### 1.2
 
@@ -42,13 +42,17 @@ The current `.agent/` numbering is the canonical execution numbering. Preserve t
 
 ### 1.10
 
-If `.agent/` intentionally changes product behavior from the external Mathwiz source materials or the legacy `.agents/` plan, record that change explicitly in the affected guide and in the relevant shared contract file. Silent behavior changes are not allowed.
+If `.agent/` intentionally changes product behavior from earlier requirement references, record that change explicitly in the affected guide and in the relevant shared contract file. Silent behavior changes are not allowed.
+
+### 1.11
+
+External process-flow and schema artifacts are reference context only. They are not copy sources for current contracts. Resolve implementation text against current `.agent/` docs and current repository boundaries.
 
 ## 2. Product Rules
 
 ### 2.1
 
-This project is a greenfield rebuild of the Mathwiz product. Implementation decisions must come from `.agent/`, repo-local files, the live Figma view, and current research rather than legacy-code assumptions.
+This project is a greenfield rebuild of the Mathwiz product. Implementation decisions must come from `.agent/`, repo-local files, the live Figma view, and current research rather than assumptions from previous implementations.
 
 ### 2.2
 
@@ -92,11 +96,15 @@ Math input and rendering are locked in release one: MathLive is the only editabl
 
 Do not report documentation edits as complete until they are confirmed by direct file reads or `git diff` output from the current workspace.
 
+### 3.8
+
+FR14.5 answer-key contract is default-on: new competitions must initialize `answer_key_visibility = after_end`. Participant answer-key visibility requires trusted server end-time and participant-context ownership checks. `hidden` is explicit organizer override, and `leaderboard_published` must not control answer-key access.
+
 ## 4. Workflow Rules
 
 ### 4.1
 
-Use Gemini CLI at meaningful checkpoints when it is available. If repeated `MODEL_CAPACITY_EXHAUSTED` errors block review, continue with local analysis and record that limitation in the handoff.
+Use Gemini CLI at fixed checkpoints on substantial work: before risky architecture refactors, after core implementation and before final verification, and before final handoff. If repeated `MODEL_CAPACITY_EXHAUSTED` errors block review after three headless/interactive attempts, continue with local analysis and record that limitation in the handoff.
 
 ### 4.2
 
@@ -109,3 +117,11 @@ If implementation uncovers cross-cutting work that should have been planned earl
 ### 4.4
 
 Admin approval and organizer activation are separate ownership concerns in the rebuilt plan. Branch `04-admin-user-management` owns the admin review and moderation shell plus organizer-application decision writes, while branch `05-organizer-registration` owns applicant-facing intake and status visibility, organizer activation/provisioning, organizer workspace onboarding, and the applicant-facing lifecycle handoff after approved or rejected decisions.
+
+### 4.5
+
+Migration execution is timestamp-ordered and append-only. Apply migrations in ascending filename timestamp order, never edit or reorder applied migration files, and deliver corrections as new higher-timestamp migrations. Before claiming completion on migration branches, pass verification gates: `npm run supabase:status`, `npm run supabase:db:reset`, `npm run lint`, `npm run test`, and `npm run build`.
+
+### 4.6
+
+For this project, use subagents by default for audits, reviews, and structured edit planning. Validate subagent findings with direct file evidence before applying patches.

@@ -51,24 +51,24 @@
 
 - use explicit dynamic segment names instead of generic `[id]` when defining new routes or updating docs
 - canonical names: `[competitionId]`, `[teamId]`, `[bankId]`, `[problemId]`, `[applicationId]`, `[attemptId]`, `[registrationId]`, `[disputeId]`, `[userId]`
-- existing workspace admin pages may still include legacy `[id]` segments; treat them as legacy compatibility and do not reuse that pattern in new work
-- for competition-facing pages, `[competitionId]` is mandatory; if an older branch guide shows `[id]`, treat it as a legacy alias for `[competitionId]` rather than a different entity
+- existing workspace admin pages may still include `[id]` segments; treat them as compatibility paths and do not reuse that pattern in new work
+- for competition-facing pages, `[competitionId]` is mandatory; if an older branch guide shows `[id]`, treat it as a compatibility alias for `[competitionId]` rather than a different entity
 - downstream branches must reuse upstream parameter names and must not rename route params without updating all affected `.agent/` docs in the same branch
 
-Legacy admin route migration contract (required sequence):
+Admin route migration contract (required sequence):
 
-1. compatibility introduce canonical admin routes with `[competitionId]` and `[bankId]` while legacy `[id]` readers still exist
-2. cut over all route producers to canonical params only (navigation, redirects, links, notifications metadata); before this cutover lands, legacy `[id]` producers may still exist as compatibility
+1. compatibility introduce canonical admin routes with `[competitionId]` and `[bankId]` while existing `[id]` readers still exist
+2. cut over all route producers to canonical params only (navigation, redirects, links, notifications metadata); before this cutover lands, existing `[id]` producers may still exist as compatibility
 3. after step 2 is merged, verify zero new `/admin/**/[id]` producers during branch `17-testing-bug-fixes`
-4. remove legacy `[id]` handlers only after producer cutover and verification
+4. remove deprecated `[id]` handlers only after producer cutover and verification
 
 ## Blank-Slate Contract Boundaries
 
-- current workspace may still contain legacy `[id]` routes in existing admin pages
+- current workspace may still contain existing `[id]` routes in admin pages
 - current app routes may not yet include future-branch target paths; this is expected until the owning branch executes
 - current migrations may still include earlier boolean lifecycle fields from pre-target schema stages
 - current migrations may not yet include future-branch target tables or RPC-backed artifacts from the ownership matrix; this is expected until the owning branch executes
-- lifecycle enum migration must follow compatibility -> deterministic backfill -> dual-write compatibility -> enum-only cutover -> legacy drop (see `.agent/DATABASE-EDR-RLS.md` Section G)
+- lifecycle enum migration must follow compatibility -> deterministic backfill -> dual-write compatibility -> enum-only cutover -> deprecated-field drop (see `.agent/DATABASE-EDR-RLS.md` Section G)
 - per-branch schema and trusted-function ownership must follow the matrix in `.agent/DATABASE-EDR-RLS.md` Section G; do not introduce a domain table or primary RPC outside its owning branch without updating that matrix first
 - target schema and route contracts are introduced by branch sequence; do not assume current code state already matches target contracts
 
@@ -109,11 +109,11 @@ Before a feature branch is considered complete:
 - run `npm run lint`
 - run `npm run test`
 - run `npm run build`
-- run `npm run dev` and manually verify all routes touched by the branch
+- run `npm run dev` and manually verify all routes touched by the branch; capture a route checklist artifact with `route`, `role`, `result`, and `evidence_note`
 - if a branch modifies `supabase/migrations/*`, run `npm run supabase:status` and `npm run supabase:db:reset`
-- inspect the changed database migration and RLS logic
-- perform an accessibility pass on the touched flows
-- verify mobile layouts for any new page or modal
+- inspect changed migration and RLS logic using a checklist artifact with `migration_id`, `changed_objects`, `policy_checks`, and `result`
+- perform an accessibility pass on touched flows with explicit checks for keyboard navigation, focus order, labels, and contrast
+- verify mobile layouts for each new page or modal at minimum viewports `375x812` and `768x1024`, and record pass or fail evidence in QA notes
 
 ## Documentation Update Rules
 
@@ -135,8 +135,8 @@ If yes, update the appropriate `.agent/` files in the same branch.
 ## AI Workflow Rules
 
 - do not push branches unless explicitly instructed
-- use Gemini CLI at meaningful checkpoints when capacity permits
-- if Gemini is unavailable because of repeated capacity failures, continue with local analysis and note the failure in the handoff
+- use Gemini CLI at fixed checkpoints: before risky architecture refactors, after core implementation and before final verification, and before final handoff on substantial branches
+- if Gemini is unavailable after 3 consecutive capacity failures across headless and interactive attempts, continue with local analysis and note the failure evidence in the handoff
 - do not treat external model output as authoritative without review
 
 ## PR Template Rules

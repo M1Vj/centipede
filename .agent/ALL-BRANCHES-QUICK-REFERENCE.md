@@ -24,17 +24,17 @@
 ## Notes
 
 - bucket folders in `.agent/features/` preserve the weekly/date planning style from the original documentation, but implementation follows branch dependencies rather than calendar assumptions
-- `.agent/` numbering is the canonical execution numbering for the rebuild, even where legacy `.agents/` used a different historical sequence
+- `.agent/` numbering is the canonical execution numbering for the rebuild
 - dependency entries are direct dependencies only (explicit branch list, no range shorthand); execution order still follows `.agent/checklist.md` and `.agent/00-ATOMIC-STRUCTURE.md`
 - branch `04-admin-user-management` owns organizer-application decision writes only for organizer lifecycle and owns a read-only admin settings shell contract with deferred trusted settings data source (such as `system_settings` once introduced by its owning migration path), which may remain placeholder-only in release one; branch `05-organizer-registration` owns organizer-role activation and provisioning (`profiles.role`, `profiles.approved_at`, including approved rows with `profile_id` null)
 - branch `07-scoring-system` owns scoring RPC contracts (`grade_attempt`, `recalculate_competition_scores`, `refresh_leaderboard_entries`); branch `13-review-submission` owns participant dispute-create contract (`create_problem_dispute`); branch `14-leaderboard-history` owns dispute resolution, correction artifacts, leaderboard/history publication, and export surfaces
 - branch `08-competition-wizard` owns lifecycle status transitions (`published -> live`, `live/paused -> ended`, archive) and trusted draft-delete path; branch `16-participant-monitoring` consumes lifecycle events and owns announcement producers plus moderation live controls
-- admin live support may force-pause via moderation controls with explicit reason; organizer controls own resume/extend/reset and require explicit reason values
+- admin live support allow list is force-pause plus non-draft abuse/fraud moderation delete via moderation controls with explicit reason; organizer controls own resume/extend/reset and require explicit reason values
 - notification sequencing is one-way: branch `15-notifications-polish` provides shared notification infrastructure, and branch `16-participant-monitoring` announcement producers consume it; branch `15` must not depend on `competition_announcements` schema
-- features 15-17 intentionally absorb cross-cutting work that the old `.agents` plan treated as optional cleanup
-- current workspace may still contain legacy `[id]` routes in some existing admin pages; new work must use canonical dynamic segment names from `.agent/PROCESS-FLOW.md`
-- legacy admin route migration sequence is fixed: compatibility introduce canonical `[competitionId]` and `[bankId]`, cut over producers, then run the branch `17-testing-bug-fixes` zero-new-`/admin/**/[id]` producer gate, then remove legacy handlers
-- legacy boolean lifecycle migration sequence is fixed: compatibility add enum status, deterministic backfill, dual-write sync, enum-only cutover, then drop old booleans
+- features 15-17 intentionally absorb cross-cutting work that earlier planning drafts treated as optional cleanup
+- current workspace may still contain existing `[id]` routes in some admin pages; new work must use canonical dynamic segment names from `.agent/PROCESS-FLOW.md`
+- admin route migration sequence is fixed: introduce canonical `[competitionId]` and `[bankId]` compatibility paths, cut over producers, then run the branch `17-testing-bug-fixes` zero-new-`/admin/**/[id]` producer gate, then remove deprecated handlers
+- boolean lifecycle migration sequence is fixed: compatibility add enum status, deterministic backfill, dual-write sync, enum-only cutover, then drop deprecated boolean fields
 - database migration sequencing in `.agent/DATABASE-EDR-RLS.md` Section G must remain branch-aligned with `.agent/checklist.md`; do not pull future-branch schema into earlier branches to satisfy documentation-only assumptions
 - per-branch schema and trusted-function ownership mapping is canonical in `.agent/DATABASE-EDR-RLS.md` Section G and must be updated before introducing a new domain table or primary RPC outside its listed owner branch
 - docs in `.agent/` are target-contract references for blank-slate implementation; branch sequencing defines when target schema/routes are introduced

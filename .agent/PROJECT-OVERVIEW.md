@@ -2,7 +2,7 @@
 
 ## Project Summary
 
-Mathwiz Arena is a greenfield rebuild of the Mathwiz online mathematics competition platform. It is not a continuation of any legacy codebase. This `.agent/` folder is written to be self-sufficient for implementation inside the current repository.
+Mathwiz Arena is a greenfield rebuild of the Mathwiz online mathematics competition platform. It is an independent implementation inside the current repository. This `.agent/` folder is written to be self-sufficient for implementation inside the current repository.
 
 The platform serves three primary roles:
 
