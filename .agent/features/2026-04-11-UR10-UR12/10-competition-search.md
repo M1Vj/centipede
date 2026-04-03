@@ -112,7 +112,7 @@ Unblocks: arena entry, leaderboard visibility, reminders, participant monitoring
 4. Implement individual registration through `register_for_competition` trusted mutation path.
 5. Implement team registration limited to eligible team leaders and valid rosters, reusing branch `09` lock checks.
 6. Implement withdrawal rules and confirmation UX through `withdraw_registration` trusted mutation path.
-7. Call shared notification dispatch helpers for registration and withdrawal events only.
+7. Call shared notification dispatch helpers for registration and withdrawal events only. Create stub/no-op implementations for these dispatch helpers in `lib/notifications/dispatch.ts` which will be overwritten by branch `15`.
 8. Surface organizer- or system-driven competition cancellations or schedule changes in the participant UI.
 9. Add tests around registration validation and any extracted timezone or eligibility helpers.
 

@@ -103,7 +103,7 @@ Unblocks: competition wizard, arena grading, leaderboards, disputes, and result 
 
 ## Atomic Steps
 
-1. Define enums and schema fields for scoring, penalties, tie-breakers, attempt grading modes, and immutable publish-time scoring snapshots.
+1. Define enums and TS interfaces for scoring, penalties, tie-breakers, attempt grading modes, and immutable publish-time scoring snapshots. Explicitly defer creating the actual schema columns on `competitions` to branch `08` (do not write an `ALTER TABLE competitions` migration here).
 2. Build organizer-facing scoring rule controls and validation helpers.
 3. Implement answer normalization functions for MCQ, TF, numeric, and identification answers.
 4. Define and validate `grade_attempt(attempt_id)` as the trusted grading RPC contract for a single attempt, including deterministic penalty-floor math; executable SQL activation occurs when owner attempt/answer schemas are available.

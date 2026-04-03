@@ -69,12 +69,12 @@ Unblocks: final QA and release readiness.
   - organizer pause is allowed only for `open` competitions when competition state is `live`; it blocks new attempt starts while allowing already-active attempts to finish
   - admin force-pause for incidents is allowed only when competition state is `live` and may target any live competition type
   - resume is organizer-only and allowed only when competition state is `paused`
-  - extend is organizer-only and allowed only when competition state is `live` or `paused`
+  - extend is organizer-only and allowed only when competition state is `live` or `paused`. It must dynamically update `effective_attempt_deadline_at` for active attempts.
   - disconnection reset is organizer-only and allowed only for eligible active attempts that are not already finalized
 
 ### Legitimate Disconnection Reset Criteria (Objective)
 
-1. Eligible active-attempt gate: `reset_attempt_for_disconnect` is allowed only when the target attempt is active in the same competition scope and not finalized (`submitted`, `auto_submitted`, `graded`, and `disqualified` are ineligible).
+1. Eligible active-attempt gate: `reset_attempt_for_disconnect` is allowed for active attempts in the same competition scope. `auto_submitted` and `disqualified` attempts ARE eligible for reset. It reverts the status to `in_progress` and nullifies `submitted_at`. `submitted` and `graded` attempts are ineligible.
 2. Recent-evidence gate: a trusted disconnect evidence signal must exist within a bounded recency window before the reset request.
 3. Duplicate-reset gate: deny reset when the same `attempt_id` already has a successful disconnect reset within the bounded cooldown window.
 4. Required request tuple gate: both non-empty `reason` and `request_idempotency_token` are mandatory; missing either must fail validation.

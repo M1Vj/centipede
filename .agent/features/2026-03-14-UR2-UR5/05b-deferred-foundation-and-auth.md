@@ -63,6 +63,9 @@ Unblocks: legal route dependencies, strict single-session invalidation, safe use
 ## Atomic Steps
 
 1. Create `app/privacy/page.tsx` and `app/terms/page.tsx` with structural skeleton copy.
+1b. Fix `organizer_applications` schema in existing migrations: make `profile_id` nullable, add `status_lookup_token_hash`, `status_lookup_token_expires_at`, `contact_email`, `contact_phone`, `organization_type`, `legal_consent_at`. Fix `organizer_applications_insert_self` RLS to allow anon inserts.
+1c. Fix `approveOrganizerApplication` RPC/helper in `lib/supabase/admin.ts` to NOT mutate `profiles.role` or `profiles.approved_at`.
+1d. Fix `handle_profile_changes()` trigger to prevent non-admins from changing `email`.
 2. Add `app/loading.tsx`, `app/admin/loading.tsx`, `app/organizer/loading.tsx`, and `app/mathlete/loading.tsx` as the minimum loading boundaries, with additional segment boundaries allowed later when needed.
 3. Update trusted auth and route-guard logic to rotate and validate `profiles.session_version` through `rotate_session_version(profile_id)` so stale sessions fail authorization.
 4. Add trusted mathlete settings/profile edit handling for school and grade-level changes through `update_mathlete_profile_settings(profile_id, school, grade_level)` while keeping role and credential fields immutable in self-service.

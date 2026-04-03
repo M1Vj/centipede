@@ -49,7 +49,8 @@ Unblocks: anti-cheat, submission/review, leaderboards, monitoring.
 - `effective_attempt_deadline_at` is fixed when the attempt starts and must never be extended by refresh, reconnect, or interval reopen actions.
 - Offline or disconnected periods still consume time because `server_now` advances while the same immutable deadline remains in force.
 - `attempt_intervals` record connectivity windows (`started_at`, `ended_at`) for audit and resume authorization only; interval duration must never be used to pause, restore, or grant extra time.
-- Timer expiry triggers a trusted attempt transition to `auto_submitted` and immediate UI lock.
+- Timer expiry triggers a trusted attempt transition to `auto_submitted` and immediate UI lock. 
+- Timer Freeze Semantics: When a competition enters `paused` state via `force_pause`, the backend records `paused_at`. Upon resume, the pause duration `(resumed_at - paused_at)` must be added to all active attempts' `effective_attempt_deadline_at` and the competition's `scheduled_competition_end_cap_at`.
 - Scheduled competition end remains a server-owned boundary transition; arena UI must consume trusted status updates and must not attempt direct lifecycle mutation.
 
 ## Requirements

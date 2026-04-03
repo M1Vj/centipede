@@ -89,8 +89,8 @@ Unblocks: team competition registration, team arena participation, participant m
 3. Add username search and team-code invite entry.
 4. Build roster management actions for leaders and members.
 5. Implement automatic leadership transfer when the current leader leaves or is removed.
-6. Implement deterministic team-domain roster-lock and conflict guard helpers through trusted mutation helpers, and publish branch `10` integration handoff for registration-aware wiring where `competition_registrations` exists.
-7. Add ineligibility transition and shared notification event-dispatch contracts that branch `10` registration flows consume when a locked team drops below required roster constraints.
+6. Implement deterministic team-domain roster-lock and conflict guard helpers through trusted mutation helpers, and publish branch `10` integration handoff for registration-aware wiring where `competition_registrations` exists. (Note: any DB-level lock checking functions that query `competition_registrations` must be written as stubs until branch `10` introduces the schema).
+7. Add ineligibility transition and shared notification event-dispatch contracts that branch `10` registration flows consume when a locked team drops below required roster constraints. Instruct developer to create stub/no-op implementations for notification dispatch helpers in `lib/notifications/dispatch.ts` which will be overwritten by branch `15`.
 8. Add tests for membership validation, leadership transfer, and invite acceptance rules.
 
 ## Key Files

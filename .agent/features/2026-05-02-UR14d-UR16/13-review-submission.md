@@ -40,7 +40,8 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 
 - Final submit must be idempotent: the first accepted submit locks the attempt, later duplicate requests must return the existing final state without re-grading.
 - Submission transition must close the active interval once, set `submitted_at`, and move attempt status to `submitted` or `auto_submitted` through trusted server logic.
-- Grading is immediate on submit via trusted `grade_attempt(attempt_id)`.
+- Grading is immediate on submit via trusted `grade_attempt(attempt_id)`. Explicitly define the grading evaluation mechanism for MathLive: mandate the use of a Computer Algebra System (CAS) library (like `math.js` or `nerdamer`) for mathematical equivalence, or explicitly define the normalization parsing rules applied to the MathLive LaTeX output before evaluating equivalence.
+- Disqualified attempts are locked with `final_score = 0`.
 - Leaderboard refresh integration is contract-bound to branch `07` (`refresh_leaderboard_entries(competition_id)`) and becomes executable when branch `14` leaderboard schema ownership is available.
 - Branch `13` must not write `leaderboard_entries` directly.
 - Attempt initialization must pre-seed one `attempt_answers` row per `competition_problem` with `status_flag = 'blank'` so untouched questions are persisted deterministically.

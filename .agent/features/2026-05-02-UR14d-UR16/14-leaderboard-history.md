@@ -92,7 +92,7 @@ Unblocks: notifications, operational monitoring, release readiness.
   3. Execute `recalculate_competition_scores(competition_id, request_idempotency_token)`.
   4. Execute `refresh_leaderboard_entries(competition_id)`.
   5. Write deterministic `competition_events` rows for `dispute_resolved` and, when applicable, `score_recalculated`, including `request_idempotency_token`, `dispute_id`, `competition_problem_id`, and `correction_artifact_id` for audit visibility.
-  6. Emit deterministic notification hooks/domain events for branch 15 fan-out; branch 14 does not write `notifications` rows or send emails directly.
+  6. Emit deterministic notification hooks/domain events for branch 15 fan-out by calling stub/no-op dispatch helpers in `lib/notifications/dispatch.ts` (branch 14 does not write `notifications` rows or send emails directly; branch 15 will overwrite the stubs).
 - Rejected or resolved outcomes must still log events but must not run recalculation RPCs.
 - Terminal disputes must be idempotent in trusted handlers so retrying requests cannot trigger duplicate recalculation runs.
 
@@ -219,4 +219,6 @@ Unblocks: notifications, operational monitoring, release readiness.
 - dispute-resolution outcomes enforce required follow-through and audit/event visibility
 - recalculation semantics are trusted, immutable-snapshot-based, and consistent after publication
 - participants and organizers can inspect trustworthy immutable history surfaces
+- organizers and admins can export results through scoped trusted export contracts
+spect trustworthy immutable history surfaces
 - organizers and admins can export results through scoped trusted export contracts
