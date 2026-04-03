@@ -9,7 +9,7 @@
 
 Build the shared UX infrastructure for loading, pending, empty, error, confirm, and navigation feedback, then apply it to the early auth and portal surfaces. This branch also establishes shared portal shell behavior, mobile navigation patterns, and stateful UI conventions that later branches must reuse.
 
-This branch exists because the old project repeatedly discovered that loading states, double-submit protection, and mobile nav could not be bolted on reliably after feature pages already diverged.
+This branch exists because repeated implementation cycles showed that loading states, double-submit protection, and mobile nav could not be bolted on reliably after feature pages already diverged.
 
 Depends on: `01-foundation`, `02-authentication`.
 
@@ -69,7 +69,7 @@ Unblocks: admin, organizer, discovery, tables, wizards, and live competition flo
 
 ## Verification
 
-- Manual QA: loading feedback appears on slow async transitions without noisy flashing.
+- Manual QA: loading feedback appears only when async transitions exceed 150 ms, and once shown remains visible for at least 250 ms to avoid noisy flashing.
 - Automated: UI component tests for button pending behavior, feedback states, and confirm dialog interactions.
 - Accessibility: dialogs trap focus, status regions announce async state, buttons expose disabled state correctly.
 - Performance: shared primitives are small, reusable, and do not force large client-only wrappers unnecessarily.

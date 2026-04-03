@@ -24,8 +24,9 @@ Unblocks: team registration, discovery, arena, monitoring, leaderboard publicati
 - Related tables/functions: `competitions`, `competition_problems`, `competition_events`, grading rule helpers, problem snapshots.
 - Edge cases: duplicate competition names, invalid registration windows, open competition with scheduled-only options, deleting active open competition, editing a published competition.
 - Security concerns: draft mutation ownership is organizer-only for organizer-owned drafts; admin moderation controls are outside this branch boundary and belong to branch `16`; publish must be a trusted action; snapshots must be immutable.
-- Performance concerns: problem selection and preview must remain fast even with larger banks; drafts should autosave without expensive full-page invalidation.
+- Performance concerns: with a 2,000-problem reference bank, problem selection/filtering should remain at p95 <= 400 ms and draft autosave at p95 <= 800 ms without full-page invalidation.
 - Accessibility/mobile: multi-step wizard needs explicit step navigation, save states, summary affordances, and mobile-safe actions.
+- External process-flow references are intent guidance only. This branch defines canonical wizard behavior for the rebuild and must not copy outdated step text when it conflicts with current contracts.
 
 ## Research Findings / Implementation Direction
 
@@ -38,9 +39,11 @@ Unblocks: team registration, discovery, arena, monitoring, leaderboard publicati
 ### Competition Constants and Lifecycle Contract (Deterministic)
 
 - `competition_type`: `scheduled`, `open`.
-- `competition_format`: `individual`, `team`.
+- `competition_format`: `individual` (each mathlete has their own attempt), `team` (team shares a single collective attempt and answers collaboratively).
 - `competition_status`: `draft`, `published`, `live`, `paused`, `ended`, `archived`.
 - `answer_key_visibility`: `after_end`, `hidden` (independent from `leaderboard_published`).
+- FR14.5 default contract: draft creation initializes `answer_key_visibility = after_end`.
+- `hidden` is explicit organizer override only; if unchanged, publish preserves `after_end` behavior.
 - Attempt limits:
   - Scheduled competitions allow exactly 1 attempt.
   - Open competitions allow 1 to 3 attempts.
@@ -53,7 +56,7 @@ Unblocks: team registration, discovery, arena, monitoring, leaderboard publicati
 Allowed status transitions:
 - `draft` -> `published` (trusted publish action only).
 - `published` -> `live` (trusted scheduled-competition start transition).
-- `live` -> `paused` and `paused` -> `live`.
+- `live` -> `paused` (organizer path is open-only; admin incident force-pause may target any live competition type) and `paused` -> `live` (organizer-owned resume on organizer-owned competitions, including recovery after admin force-pause).
 - `live` or `paused` -> `ended` (trusted lifecycle transition only; never direct client-side table mutation).
 - `paused` (open only, no active attempts) -> `archived` (trusted retire action).
 - `ended` -> `archived`.
@@ -102,7 +105,7 @@ Mutation guards by status:
 - allow organizer problem selection with whole-bank and filtered pick strategies
 - require between 10 and 100 selected problems before publish
 - configure scoring, penalties, shuffling, anti-cheat, and multiple-attempt grading
-- configure answer-key visibility using `after_end` or `hidden`, independently from leaderboard publication
+- configure answer-key visibility using `after_end` or `hidden`, independently from leaderboard publication, with default `after_end` at draft creation and trusted server-time enforcement at reveal time
 - enforce lifecycle transitions with `competition_status` constants and trusted status guards
 - assign trusted owner/trigger paths for scheduled start (`published -> live`), scheduled server-time end (`live/paused -> ended`), open trusted end control (`live/paused -> ended`) with required reason plus `request_idempotency_token`, and archive/retirement (`ended -> archived`, plus paused open retirements with no active attempts)
 - require a summary review and defensive confirmation before publish
@@ -130,14 +133,14 @@ Mutation guards by status:
 - `components/competition-wizard/*`
 - `lib/competition/*`
 - `supabase/migrations/*`
-- `tests/competition/*`
+- `tests/competitions/*` (planned suite; create before enforcing suite-specific verification)
 
 ## Verification
 
 - Manual QA: create both scheduled and open competitions, switch formats, verify the exact participant and team constraints, publish valid drafts, reject invalid drafts, and test safe-delete plus lifecycle-guard behavior.
 - Automated: extracted validation helpers and snapshot logic tests.
 - Accessibility: step navigation, summary review, error messaging, and confirmation dialogs are keyboard-safe.
-- Performance: draft saving and problem selection remain responsive with larger banks.
+- Performance: with a 2,000-problem bank, filter/search interactions stay at p95 <= 400 ms and draft autosave stays at p95 <= 800 ms without full-page reload.
 - Edge cases: duplicate names, invalid time windows, format switching after selected problems, deleting active open competitions.
 
 ## Git Branching

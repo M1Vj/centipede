@@ -30,8 +30,8 @@ Unblocks: all role-based workspaces and protected feature branches.
 ## Research Findings / Implementation Direction
 
 - Follow Supabase's current Next.js SSR guide with cookie-aware clients and authoritative `getUser()` checks on trusted boundaries.
-- Treat redirect rules as pure logic with unit tests, then wire them into middleware/proxy and shared auth utilities.
-- Keep sign-up and profile-save mutations on trusted server actions or trusted handlers when RLS or callback timing can cause client hangs.
+- Treat redirect rules as pure logic with unit tests, then wire them into server components/layouts and shared auth utilities (avoid DB lookups in Next.js Edge Middleware).
+- Keep sign-up and profile-save mutations on trusted server actions or trusted handlers when RLS or callback timing can cause client hangs, but note that Supabase OAuth sign-in must be initiated from Client Components or standard Route Handlers to handle external redirects properly.
 - Model suspended-user handling as a first-class auth state with a dedicated route and redirect branch.
 
 ## Requirements

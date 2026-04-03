@@ -42,6 +42,7 @@ Unblocks: legal route dependencies, strict single-session invalidation, safe use
 
 - Do not implement organizer intake/status/approval messaging in this branch. Those applicant-facing contracts are owned by `05-organizer-registration`.
 - This branch only delivers missing foundation contracts required by branch 05 and later branches.
+- Any corrective fixes here that touch older branch artifacts are compatibility backfills only; they do not transfer long-term ownership away from the canonical owner branches.
 
 ## Handoff Contract to Branch 05
 
@@ -63,15 +64,24 @@ Unblocks: legal route dependencies, strict single-session invalidation, safe use
 ## Atomic Steps
 
 1. Create `app/privacy/page.tsx` and `app/terms/page.tsx` with structural skeleton copy.
-1b. Fix `organizer_applications` schema in existing migrations: make `profile_id` nullable, add `status_lookup_token_hash`, `status_lookup_token_expires_at`, `contact_email`, `contact_phone`, `organization_type`, `legal_consent_at`. Fix `organizer_applications_insert_self` RLS to allow anon inserts.
-1c. Fix `approveOrganizerApplication` RPC/helper in `lib/supabase/admin.ts` to NOT mutate `profiles.role` or `profiles.approved_at`.
+1b. Apply a corrective forward migration only when evidence-backed drift exists in already-merged environments (do not rewrite already-applied migration files in shared environments) to align `organizer_applications` contract fields: make `profile_id` nullable, add `status_lookup_token_hash`, `status_lookup_token_expires_at`, `contact_email`, `contact_phone`, `organization_type`, `legal_consent_at`, and align `organizer_applications_insert_self` RLS to allow anon inserts. If drift is absent, do not introduce these schema additions in branch `05b`; keep canonical ownership in branch `05-organizer-registration`.
+1c. Fix existing `approveOrganizerApplication` helper boundaries in `lib/supabase/admin.ts` so admin decision paths do NOT mutate `profiles.role` or `profiles.approved_at`; organizer activation ownership remains with branch `05` provisioning.
 1d. Fix `handle_profile_changes()` trigger to prevent non-admins from changing `email`.
 2. Add `app/loading.tsx`, `app/admin/loading.tsx`, `app/organizer/loading.tsx`, and `app/mathlete/loading.tsx` as the minimum loading boundaries, with additional segment boundaries allowed later when needed.
-3. Update trusted auth and route-guard logic to rotate and validate `profiles.session_version` through `rotate_session_version(profile_id)` so stale sessions fail authorization.
+3. Update trusted auth and route-guard logic (in Server Components/Actions, not Middleware) to rotate and validate `profiles.session_version` through `rotate_session_version(profile_id)` so stale sessions fail authorization.
 4. Add trusted mathlete settings/profile edit handling for school and grade-level changes through `update_mathlete_profile_settings(profile_id, school, grade_level)` while keeping role and credential fields immutable in self-service.
 5. Refactor non-spam admin account removal path to call `anonymize_user_account(target_profile_id, reason, request_idempotency_token)` and enforce the field-level anonymization contract while preserving historical competition and leaderboard integrity, without introducing soft-delete or generic hard-delete semantics.
 6. Enforce branch browser-automation policy: do not run Playwright or other browser-automation tooling unless an entry with `request_type = browser_automation_exception` and `status = approved` is logged in `.agent/PROCESS-FLOW.md` under `## CORE_PATCH_REQUESTS` using the canonical required fields before execution.
 7. Verify legal routes, loading boundaries, session invalidation, mathlete settings behavior, and anonymization behavior before marking this branch done.
+
+## Step 1b Drift Gate (Deterministic)
+
+- `drift_detected = true` only when at least one required `organizer_applications` field or the required `organizer_applications_insert_self` RLS behavior is missing or incompatible in the already-applied baseline.
+- Required evidence before executing or skipping Step `1b`:
+	1. current `organizer_applications` column inventory from the active schema
+	2. current RLS policy definition for `organizer_applications_insert_self`
+	3. migration reference showing expected contract source
+- Required decision record in QA notes: `drift_detected` (`true|false`), evidence links, and selected action (`apply_step_1b` or `skip_step_1b`).
 
 ## Key Files
 

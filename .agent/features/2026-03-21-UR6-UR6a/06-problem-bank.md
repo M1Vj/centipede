@@ -96,7 +96,7 @@ Unblocks: scoring rules, competition wizard, default-bank moderation, answer-key
 - Manual QA: create banks, create and edit each problem type, upload images, import sample CSV rows, soft-delete draft items, open admin default-bank flows.
 - Automated: lint plus tests for import parsers, answer validators, and any normalization helpers introduced here.
 - Accessibility: math editor labeling, image upload instructions, import error summaries, and keyboard-safe dialogs.
-- Performance: large bank lists and problem lists remain usable with pagination or incremental loading.
+- Performance: server pagination is the default list strategy (25 rows per page), and filter/search queries stay at p95 <= 400 ms on a 2,000-problem reference dataset; incremental loading is optional for mobile-only surfaces using the same filter contract.
 - Edge cases: deleting content already used by a published competition does not corrupt historical data.
 
 ## Git Branching

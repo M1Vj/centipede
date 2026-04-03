@@ -21,6 +21,7 @@ Unblocks: admin-side organizer approval decisions, moderation, admin-backed defa
 - branch `05-organizer-registration` owns organizer activation and provisioning (`profiles.role`, `profiles.approved_at`) through a trusted activation path for approved applications, including `organizer_applications.profile_id IS NULL` cases
 - branch `05b-deferred-foundation-and-auth` owns safe anonymization for non-spam account removal and other deferred platform foundations; branch 04 must not re-implement these
 - branch `16-participant-monitoring` owns executable admin force-pause controls and non-draft competition abuse/fraud moderation delete; branch 04 must not claim or implement those ownerships
+- current-state drift note: if existing helpers in `lib/supabase/admin.ts` still perform activation or executable competition controls, treat that as compatibility debt to be corrected under active-branch bug-fix rules (do not expand or normalize the drift behavior in branch-04 contracts)
 
 ## 04 -> 05 Handoff Contract (Idempotent)
 
@@ -91,18 +92,18 @@ Unblocks: admin-side organizer approval decisions, moderation, admin-backed defa
 - `app/admin/users/page.tsx`
 - `app/admin/users/user-actions.tsx`
 - `app/admin/problem-banks/page.tsx`
-- `app/admin/problem-banks/[bankId]/page.tsx`
+- `app/admin/problem-banks/[id]/page.tsx`
 - `app/admin/competitions/page.tsx`
-- `app/admin/competitions/[competitionId]/page.tsx`
+- `app/admin/competitions/[id]/page.tsx`
 - `app/admin/logs/page.tsx`
 - `app/admin/settings/page.tsx`
 - `lib/supabase/admin.ts`
 - `supabase/migrations/*admin*`
 - `tests/auth/*`
 
-- Canonical route-param names are the target contract: `[bankId]` and `[competitionId]`; temporary legacy `[id]` compatibility is allowed until the route migration sequence completes.
+- Target migration paths after producer cutover are `app/admin/problem-banks/[bankId]/page.tsx` and `app/admin/competitions/[competitionId]/page.tsx`; current compatibility readers may remain on `[id]` until the route migration sequence completes.
 
-## Admin Routes (Target Mapping with Legacy Compatibility)
+## Admin Routes (Target Mapping with Compatibility)
 
 - `/admin` -> dashboard landing and admin workspace shell
 - `/admin/applications` -> organizer application queue with approve/reject decision actions

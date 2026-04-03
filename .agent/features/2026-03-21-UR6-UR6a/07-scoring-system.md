@@ -32,7 +32,7 @@ Unblocks: competition wizard, arena grading, leaderboards, disputes, and result 
 - Related tables/functions: `competitions`, `competition_problems`, `competition_attempts`, `attempt_answers`, `leaderboard_entries`, `problem_disputes`.
 - Edge cases: numeric formatting differences, multiple accepted answers, latest-score overwrite warnings, negative penalties, tie outcomes.
 - Security concerns: grading logic must run on trusted backend paths; clients can submit answers but cannot award themselves points.
-- Performance concerns: grading must be fast enough for submission and recalculation for whole competitions must be batch-safe.
+- Performance concerns: `grade_attempt` should meet p95 <= 250 ms for 100-problem attempts, and full-competition recalculation should complete <= 120 s for a 10,000-attempt, 100-problem reference dataset.
 - Accessibility/mobile: scoring explanations in the wizard and review flow must be understandable, not hidden behind dense jargon.
 
 ## Research Findings / Implementation Direction
@@ -74,10 +74,10 @@ Unblocks: competition wizard, arena grading, leaderboards, disputes, and result 
 ### Accepted-Dispute Correction Artifact Contract (Immutable Base + Trusted Override)
 
 - Immutable publish snapshots remain unchanged forever: `competitions.scoring_snapshot_json` and all `competition_problems` snapshot columns are never updated in-place after publish.
-- Accepted disputes and organizer-approved answer-key corrections must be represented canonically as trusted `competition_problem_corrections` records linked to `competition_id`, `competition_problem_id`, and `dispute_id` (`problem_disputes.id`).
-- Canonical `competition_problem_corrections` artifact fields are: `id`, `competition_id`, `competition_problem_id`, `dispute_id`, `correction_type` (`answer_key_override` or `points_override`), `corrected_payload_json`, `reason`, `actor_user_id`, `created_at`, and `is_active`.
-- `recalculate_competition_scores(competition_id, request_idempotency_token)` must compute effective grading inputs as immutable publish snapshot + ordered active `competition_problem_corrections` artifacts.
-- Points-override precedence for recompute is deterministic: active trusted `competition_problem_corrections` artifact where `correction_type = 'points_override'` value first, else `competition_problems.points`.
+- Accepted disputes and organizer-approved answer-key corrections must be represented canonically as trusted `competition_problem_corrections` records linked to `competition_id` and `competition_problem_id`; `dispute_id` links to `problem_disputes.id` for dispute-driven corrections and is nullable only for trusted manual correction paths.
+- Canonical `competition_problem_corrections` artifact fields are: `id`, `competition_id`, `competition_problem_id`, `dispute_id` (nullable for trusted manual correction paths), `correction_type` (`answer_key_override` or `points_override`), `corrected_answer_key_json`, `corrected_points`, `reason`, `created_by`, `created_at`, and `superseded_at`.
+- `recalculate_competition_scores(competition_id, request_idempotency_token)` must compute effective grading inputs as immutable publish snapshot + active correction overlays where `superseded_at is null`.
+- Points-override precedence for recompute is deterministic: active trusted `competition_problem_corrections` row where `correction_type = 'points_override'` and `superseded_at is null` value first, else `competition_problems.points`.
 - `competition_problem_corrections` artifacts are the only legal override path; direct mutation of immutable snapshot columns is prohibited.
 
 ### Scoring Snapshot Contract (Immutable)
@@ -103,7 +103,7 @@ Unblocks: competition wizard, arena grading, leaderboards, disputes, and result 
 
 ## Atomic Steps
 
-1. Define enums and TS interfaces for scoring, penalties, tie-breakers, attempt grading modes, and immutable publish-time scoring snapshots. Explicitly defer creating the actual schema columns on `competitions` to branch `08` (do not write an `ALTER TABLE competitions` migration here).
+1. Define enums and TS interfaces for scoring, penalties, tie-breakers, attempt grading modes, and immutable publish-time scoring snapshots. Branch `07` must not add `competitions` table columns; all `competitions` scoring snapshot columns and publish-time writes are introduced in branch `08`.
 2. Build organizer-facing scoring rule controls and validation helpers.
 3. Implement answer normalization functions for MCQ, TF, numeric, and identification answers.
 4. Define and validate `grade_attempt(attempt_id)` as the trusted grading RPC contract for a single attempt, including deterministic penalty-floor math; executable SQL activation occurs when owner attempt/answer schemas are available.
@@ -117,14 +117,15 @@ Unblocks: competition wizard, arena grading, leaderboards, disputes, and result 
 - `lib/scoring/*`
 - `supabase/migrations/*` (branch `07` contract/signature artifacts for `grade_attempt`, `recalculate_competition_scores`, and `refresh_leaderboard_entries`; executable activation migrations land with owner-schema branches `11`, `13`, and `14`)
 - organizer scoring form components
-- `tests/scoring/*`
+- `tests/scoring/*` (planned suite; create before enforcing suite-specific verification)
 
 ## Verification
 
-- Manual QA: create scoring rules in the UI, verify preview copy, grade sample attempts, confirm the publish-time scoring snapshot is frozen, and rerun recalculation after changing an answer key in a controlled scenario.
-- Automated: normalization, grade calculation, tie-breaker, and multiple-attempt tests.
+- Contract-gate verification (required in branch `07`): validate scoring interfaces, deterministic normalization/penalty/tie-break semantics, and immutable scoring snapshot contract behavior with unit-level and helper-level coverage.
+- Executable-gate verification (deferred to owner-schema branches `11`, `13`, and `14`): UI grading runs, full recalculation executions, and publish-time runtime flows.
+- Automated: normalization, grade calculation, tie-breaker, and multiple-attempt contract tests.
 - Accessibility: scoring options and warnings are understandable and screen-reader friendly.
-- Performance: grading a single attempt is low-latency; recalculating a competition is batch-safe and traceable.
+- Performance (executable gate, deferred): `grade_attempt` meets p95 <= 250 ms for a 100-problem attempt, and `recalculate_competition_scores` completes <= 120 s for a 10,000-attempt, 100-problem reference dataset with traceable run metadata.
 - Edge cases: equivalent numeric expressions, multiple accepted answers, zero-score attempts, penalty-floor enforcement at zero, and `average_score` half-step rounding boundaries.
 
 ## Git Branching
