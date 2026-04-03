@@ -25,7 +25,7 @@ Unblocks: admin, organizer, discovery, tables, wizards, and live competition flo
 - Edge cases: rapid double click, slow network, empty datasets, unauthorized mutation errors, route swaps during redirect.
 - Performance concerns: avoid flashy loaders on fast transitions; prefer segment-scoped loading and skeletons.
 - Accessibility concerns: `aria-busy`, status regions, focus restoration in dialogs, and mobile-safe action density.
-- Mobile expectations: sidebars collapse into drawers; confirm dialogs remain usable on small screens; tables fall back to stacked summaries where needed.
+- Mobile expectations: sidebars collapse into drawers; confirm dialogs remain usable on small screens; tables fall back to stacked summaries for viewports below 768px.
 
 ## Research Findings / Implementation Direction
 
@@ -38,7 +38,6 @@ Unblocks: admin, organizer, discovery, tables, wizards, and live competition flo
 
 - create shared pending, loading, empty, and error UI primitives
 - add reusable confirmation dialog patterns for destructive and irreversible actions
-- add navigation feedback that plays well with the App Router
 - define shared page-shell conventions for mathlete, organizer, and admin portals
 - refactor current auth and profile flows to use the new shared system
 - ensure every primitive is accessible and mobile-safe
@@ -48,12 +47,11 @@ Unblocks: admin, organizer, discovery, tables, wizards, and live competition flo
 1. Create reusable skeleton, empty-state, and error-state components.
 2. Extend the shared button component to support pending text, spinner state, and repeat-submit prevention.
 3. Add a shared confirmation dialog primitive for delete, suspend, reject, publish, and submit flows.
-4. Add route or segment loading feedback that complements App Router loading boundaries.
-5. Build a shared page header pattern for portal pages with title, subtitle, and action area.
-6. Build the first mobile navigation drawer pattern that later admin and organizer shells will reuse.
-7. Apply the primitives to current auth and profile pages.
-8. Add tests around shared UI primitives and navigation helpers.
-9. Verify behavior on slow network simulation and mobile viewport sizes.
+4. Build a shared page header pattern for portal pages with title, subtitle, and action area.
+5. Build the first mobile navigation drawer pattern that later admin and organizer shells will reuse.
+6. Apply the primitives to current auth and profile pages.
+7. Add tests around shared UI primitives and navigation helpers.
+8. Verify behavior on slow network simulation and mobile viewport sizes.
 
 ## Key Files
 
@@ -64,7 +62,6 @@ Unblocks: admin, organizer, discovery, tables, wizards, and live competition flo
 - `components/ui/confirm-dialog.tsx`
 - `components/providers/navigation-feedback-provider.tsx`
 - `hooks/use-feedback-router.ts`
-- `app/loading.tsx` or route-segment `loading.tsx` files as needed
 - `app/admin/layout.tsx`
 - `app/organizer/layout.tsx`
 - `app/mathlete/layout.tsx`

@@ -1,13 +1,13 @@
 # 01 - Foundation
 
 - Feature branch: `feature/foundation`
-- Requirement mapping: UR1-UR16 — platform bootstrap, shared architecture, schema baseline, testing baseline, and legal/static foundations for every later feature
+- Requirement mapping: UR1-UR16 — platform bootstrap, shared architecture, schema baseline, testing baseline, and static foundations for every later feature
 - Priority: 1
 - **Assigned to:** Mabansag, Vj
 
 ## Mission
 
-Create the production-grade baseline for the rebuild. This branch establishes the repo structure, environment handling, root layouts, shared design tokens, base schema, legal pages, local development workflow, and the testing scaffolding that every later branch assumes exists.
+Create the production-grade baseline for the rebuild. This branch establishes the repo structure, environment handling, root layouts, shared design tokens, base schema, local development workflow, and the testing scaffolding that every later branch assumes exists.
 
 This branch exists because environmental cleanup, layout refinement, local Supabase alignment, and baseline testing are first-class platform work. Later branches must inherit them instead of rediscovering them.
 
@@ -19,7 +19,7 @@ Unblocks: every later feature.
 
 - Business context: the platform must feel trustworthy and fast before any role-specific feature lands.
 - User roles: anonymous visitors, future mathletes, future organizers, admins.
-- UI flow: landing page, top navigation, auth shell styling, legal pages, root layout, base portal placeholders.
+- UI flow: landing page, top navigation, auth shell styling, root layout, base portal placeholders.
 - Backend flow: environment normalization, Supabase local config, initial auth-linked tables, seed strategy, generated types.
 - Related tables: `profiles`, `organizer_applications`, `notification_preferences` trigger stub if added here.
 - Security concerns: no service-role leakage, safe env access during build, no client-only auth assumptions.
@@ -38,10 +38,10 @@ Unblocks: every later feature.
 
 - bootstrap the workspace on Next.js 15, React 19, TypeScript, Tailwind, and Supabase SSR
 - normalize environment handling for public keys and future service-role usage
-- create a root layout, header, landing page, and legal/static pages
+- create a root layout, header, and landing page
 - establish shared color tokens, spacing primitives, and typography rules
 - add local Supabase config, initial migration(s), and a repeatable dev reset flow
-- add lint, Vitest baseline, and Playwright placeholder configuration for later branches
+- add lint and Vitest baseline configuration for later branches
 - document setup in `.agent/`, `README.md`, and any generated local docs if they are part of the branch
 
 ## Atomic Steps
@@ -52,20 +52,17 @@ Unblocks: every later feature.
 4. Create the initial migration for `profiles`, organizer applications, core enums, and auth trigger functions.
 5. Add `supabase/config.toml`, seed placeholders, and local CLI scripts.
 6. Build the root layout, global CSS tokens, and the first-pass landing page aligned to the Figma palette and composition style.
-7. Add legal pages for privacy and terms because organizer application flows depend on them later.
-8. Create auth shell wrappers so auth pages can stay visually consistent without duplicating layout code.
-9. Add a minimal protected route placeholder and portal placeholders for later role shells.
-10. Configure ESLint, Vitest, testing setup, and baseline CI-friendly scripts.
-11. Verify local dev, local Supabase commands, lint, and the baseline tests.
-12. Update `.agent/checklist.md`, `.agent/DATABASE-EDR-RLS.md`, and `.agent/learned-rules.md` if scope or schema assumptions changed during implementation.
+7. Create auth shell wrappers so auth pages can stay visually consistent without duplicating layout code.
+8. Add a minimal protected route placeholder and portal placeholders for later role shells.
+9. Configure ESLint, Vitest, testing setup, and baseline CI-friendly scripts.
+10. Verify local dev, local Supabase commands, lint, and the baseline tests.
+11. Update `.agent/checklist.md`, `.agent/DATABASE-EDR-RLS.md`, and `.agent/learned-rules.md` if scope or schema assumptions changed during implementation.
 
 ## Key Files
 
 - `app/layout.tsx`
 - `app/page.tsx`
 - `app/globals.css`
-- `app/privacy/page.tsx`
-- `app/terms/page.tsx`
 - `components/auth-shell.tsx`
 - `lib/supabase/env.ts`
 - `lib/supabase/server.ts`
@@ -78,9 +75,9 @@ Unblocks: every later feature.
 
 ## Verification
 
-- Manual QA: root page, legal pages, and auth shell layouts render correctly on desktop and mobile.
+- Manual QA: root page and auth shell layouts render correctly on desktop and mobile.
 - Automated: `npm run lint`, `npm run test`.
-- Accessibility: keyboard navigation works in header and legal/auth pages, and landmark structure is valid.
+- Accessibility: keyboard navigation works in header and auth pages, and landmark structure is valid.
 - Performance: root layout avoids unnecessary client wrappers and large bundled assets.
 - Edge cases: missing env vars fail loudly in dev but do not crash static build paths unintentionally.
 
@@ -90,7 +87,7 @@ Unblocks: every later feature.
 - Merge back into: `develop`
 - Recommended atomic commits:
   - `chore: bootstrap nextjs and supabase workspace`
-  - `feat: add root layout landing page and legal shells`
+  - `feat: add root layout landing page and auth shells`
   - `chore: add local supabase config and initial schema`
   - `test: add baseline lint and vitest setup`
 - PR title template: `UR1-UR3: foundation bootstrap and base platform setup`

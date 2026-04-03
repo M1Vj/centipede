@@ -1,13 +1,13 @@
 # 02 - Authentication
 
 - Feature branch: `feature/authentication`
-- Requirement mapping: UR1, UR3 — user authentication, role-aware redirects, profile completion, and suspended-user gating
+- Requirement mapping: UR1, partial UR3 — user authentication, role-aware redirects, profile completion, and suspended-user gating (strict single-session enforcement is delivered in `05b-deferred-foundation-and-auth`)
 - Priority: 2
 - **Assigned to:** Mabansag, Vj
 
 ## Mission
 
-Implement trusted authentication and role-aware access control for mathletes, organizers, and admins. This branch must cover mathlete Google OAuth, organizer/admin credential login, callback hardening, profile completion, strict single-session enforcement, suspended-user handling, server-trusted redirects, and safe sign-out behavior.
+Implement trusted authentication and role-aware access control for mathletes, organizers, and admins. This branch must cover mathlete Google OAuth, organizer/admin credential login, callback hardening, profile completion, suspended-user gating, server-trusted redirects, and safe sign-out behavior. Strict single-session invalidation is explicitly deferred to `05b-deferred-foundation-and-auth`.
 
 This branch exists because auth stability depends on callback hardening, redirect policy extraction, server-side profile persistence, and strict route handling. Those are part of the feature, not post-feature cleanup.
 
@@ -20,7 +20,7 @@ Unblocks: all role-based workspaces and protected feature branches.
 - Business context: every role-specific feature is invalid until identity and role routing are trustworthy.
 - User roles: anonymous visitors, incomplete mathlete profiles, approved organizers, admins, suspended users.
 - UI flow: mathlete Google sign-up and sign-in, organizer/admin credential sign-in, email confirmation, password reset, profile completion, sign out, suspended notice.
-- Backend flow: `auth.users` trigger -> `profiles`, callback code exchange, server-side `getUser()` checks, trusted profile upserts, redirect policy, and existing-session invalidation when a new login is accepted.
+- Backend flow: `auth.users` trigger -> `profiles`, callback code exchange, server-side `getUser()` checks, trusted profile upserts, and redirect policy.
 - Related tables/functions: `profiles`, `organizer_applications`, `insert_profile_for_new_user()`, `handle_profile_changes()`.
 - Edge cases: stale local sessions, OAuth callback mismatch, incomplete profile loops, suspended users, missing profile rows, password reset from expired links.
 - Security concerns: never trust `getSession()` alone on the server, never expose service role to the client, prevent self role escalation and profile spoofing.
@@ -38,7 +38,6 @@ Unblocks: all role-based workspaces and protected feature branches.
 
 - support Google OAuth for mathlete registration and sign-in plus email/password credential flows for approved organizers and admins
 - exchange callback codes safely and redirect users into the correct workspace
-- enforce strict single-session replacement so a new login invalidates older active sessions for the same account
 - require profile completion before protected usage
 - route authenticated users to the correct workspace by role
 - block suspended users from protected pages and surface a clear notice page
@@ -53,13 +52,12 @@ Unblocks: all role-based workspaces and protected feature branches.
 4. Build or rewrite login and sign-up forms with shared feedback primitives in mind.
 5. Implement Google OAuth with a stable redirect target and callback exchange route.
 6. Add organizer/admin credential-login, forgot-password, update-password, sign-up success, and email-confirmed flows where applicable.
-7. Implement strict single-session replacement on successful login so prior sessions are invalidated cleanly.
-8. Add profile completion UI backed by a trusted mutation path.
-9. Update middleware/proxy to enforce auth, completion, and suspension rules.
-10. Add role-aware home-page redirect behavior so authenticated users land in the correct workspace.
-11. Add suspended-user notice page and protect sign-in from stale loop conditions.
-12. Verify auth flows manually with multiple accounts and all major routes.
-13. Update the DB and learned-rules docs if the auth contract or profile policy changes during implementation.
+7. Add profile completion UI backed by a trusted mutation path.
+8. Update middleware/proxy to enforce auth, completion, and suspension rules.
+9. Add role-aware home-page redirect behavior so authenticated users land in the correct workspace.
+10. Add suspended-user notice page and protect sign-in from stale loop conditions.
+11. Verify auth flows manually with multiple accounts and all major routes.
+12. Update the DB and learned-rules docs if the auth contract or profile policy changes during implementation.
 
 ## Key Files
 
@@ -84,11 +82,11 @@ Unblocks: all role-based workspaces and protected feature branches.
 
 ## Verification
 
-- Manual QA: mathlete OAuth sign-up, organizer/admin credential login, password reset, incomplete profile redirect, suspended-user redirect, single-session replacement, and sign-out.
+- Manual QA: mathlete OAuth sign-up, organizer/admin credential login, password reset, incomplete profile redirect, suspended-user redirect, and sign-out.
 - Automated: `npm run lint`, `npm run test` with auth helpers and callback tests.
 - Accessibility: labels, error messaging, status regions, and keyboard order across all auth routes.
 - Performance: no auth-state flicker between server render and client hydration on protected pages.
-- Edge cases: stale callback params, missing profile row, duplicate profile writes, repeated sign-in attempts, and prior-session invalidation after new login.
+- Edge cases: stale callback params, missing profile row, duplicate profile writes, and repeated sign-in attempts.
 
 ## Git Branching
 

@@ -11,9 +11,16 @@ Implement the complete team system for team competitions, including team creatio
 
 This branch exists because the old spec describes team participation as a user-facing feature, but the real complexity is in roster integrity rules and how those rules interact with registrations and later competition attempts.
 
-Depends on: `02-authentication`, `03-interaction-feedback`.
+This branch must define lock and eligibility behavior explicitly so discovery and registration flows can consume deterministic team-state contracts.
+
+Depends on: `02-authentication`, `03-interaction-feedback`, `08-competition-wizard`.
 
 Unblocks: team competition registration, team arena participation, participant monitoring.
+
+## Dependency Gate (Explicit)
+
+- Do not start until branch `08-competition-wizard` is merged, because team lock logic depends on canonical competition format and lifecycle contracts.
+- Branch `10-competition-search` must consume route and entity names from this branch without renaming.
 
 ## Full Context
 
@@ -38,10 +45,41 @@ Unblocks: team competition registration, team arena participation, participant m
 
 - unique team names and reusable invite code support
 - invite by username and by team code entry
-- accept/decline and revoke invite behavior
+- accept/decline and revoke invite behavior with trusted conflict checks
 - remove member, leave team, and automatic leadership transfer
-- enforce competition-specific roster lock and eligibility rules
-- notify leaders when a roster becomes invalid after registration
+- enforce competition-specific roster lock and eligibility rules with explicit lock and unlock transitions
+- notify leaders and affected members when a roster becomes invalid after registration using shared notification helpers
+
+### Canonical Routes and Entities (Do Not Rename)
+
+- Routes:
+  - `/mathlete/teams`
+  - `/mathlete/teams/create`
+  - `/mathlete/teams/[teamId]`
+  - `/mathlete/teams/invites`
+  - `/mathlete/teams/join`
+- Entities:
+  - Team: `teams` row keyed by `teams.id`
+  - ActiveMembership: `team_memberships` row where `is_active = true` and `left_at is null`
+  - PendingInvitation: `team_invitations` row where `status = 'pending'`
+  - TeamRegistration: `competition_registrations` row with `team_id` populated
+  - TeamRosterLock: derived state from competition and registration data, not a standalone table
+
+### Roster Lock and Eligibility Contract (Explicit)
+
+1. Lock trigger: activate roster lock for a `(team_id, competition_id)` pair when `competition_registrations.status = 'registered'` for a competition where `format = 'team'` and `type = 'scheduled'`.
+2. Lock scope: while locked, block invite creation, invite acceptance, member removal, member leave, manual leadership transfer, and team archival from mathlete-facing flows.
+3. Lock release: release lock only when registration status transitions to `withdrawn`, `cancelled`, or `ineligible`, or the competition status transitions to `ended` or `archived`.
+4. Defensive exception only: trusted moderation flows can force membership deactivation for suspended/deleted users; this must set registration status to `ineligible` with `status_reason` and preserve audit traceability.
+5. Re-entry rule: when status becomes `ineligible`, roster edits become allowed again so the leader can repair membership and re-register through branch `10` if registration is still open.
+6. Eligibility authority: all lock and conflict checks must execute in trusted server actions/RPCs. UI warnings are informational and are never the source of truth.
+7. Conflict minimum: invitation acceptance must fail if the invitee would become active on two different teams already registered in the same competition.
+
+### Notification Ownership Boundary
+
+- Branch `09` owns domain event emission for team lifecycle events: `team_invite_sent`, `team_invite_accepted`, `team_invite_declined`, `team_roster_invalidated`.
+- Branch `09` must call shared notification dispatch helpers from trusted server paths and must not write directly to `notifications` from client components.
+- Branch `15-notifications-polish` owns inbox UX, preference toggles, email fan-out, and notification-copy standardization.
 
 ## Atomic Steps
 
@@ -50,15 +88,20 @@ Unblocks: team competition registration, team arena participation, participant m
 3. Add username search and team-code invite entry.
 4. Build roster management actions for leaders and members.
 5. Implement automatic leadership transfer when the current leader leaves or is removed.
-6. Integrate registration-aware roster lock and conflict checks.
-7. Add ineligibility handling and leader notifications when a registered team drops below minimum requirements.
+6. Integrate registration-aware roster lock and conflict checks through trusted mutation helpers only.
+7. Add ineligibility transitions and shared notification event dispatch when a locked team drops below required roster constraints.
 8. Add tests for membership validation, leadership transfer, and invite acceptance rules.
 
 ## Key Files
 
-- `app/mathlete/teams/page.tsx` or equivalent portal route
+- `app/mathlete/teams/page.tsx`
+- `app/mathlete/teams/create/page.tsx`
+- `app/mathlete/teams/[teamId]/page.tsx`
+- `app/mathlete/teams/invites/page.tsx`
+- `app/mathlete/teams/join/page.tsx`
 - `components/teams/*`
 - `lib/teams/*`
+- `lib/notifications/*` (shared dispatch helpers only)
 - `supabase/migrations/*`
 - `tests/teams/*`
 
@@ -87,6 +130,6 @@ Unblocks: team competition registration, team arena participation, participant m
 
 ## Definition of Done
 
-- teams behave predictably before and after registration
+- teams behave predictably before and after registration with explicit roster lock transitions
 - invite and leadership rules are deterministic and tested
-- later competition registration and arena features can trust team-state integrity
+- later competition registration and arena features can trust team-state integrity without route or entity renaming
