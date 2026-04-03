@@ -59,7 +59,7 @@ export async function POST(request: Request) {
   try {
     await rotateSessionVersionForUser(supabase, user.id, response);
   } catch {
-    return response;
+    return NextResponse.json({ error: "Unable to refresh session." }, { status: 500 });
   }
 
   return response;

@@ -96,4 +96,22 @@ describe("auth session rotation route", () => {
 
     expect(response.status).toBe(200);
   });
+
+  test("returns server error when rotation fails for non-schema reasons", async () => {
+    const client = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }),
+        setSession: vi.fn(),
+      },
+      rpc: vi.fn().mockResolvedValue({
+        data: null,
+        error: { code: "PGRST301", message: "backend unavailable" },
+      }),
+    };
+    vi.mocked(createClient).mockResolvedValue(client as never);
+
+    const response = await rotateSessionPost(makeRequest());
+
+    expect(response.status).toBe(500);
+  });
 });
