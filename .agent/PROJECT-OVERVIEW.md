@@ -58,6 +58,7 @@ Deliver a secure, mobile-friendly, competition-ready web application for math co
 ## In Scope
 
 - authentication, profile completion, and role-aware redirects
+- mathlete profile/settings edits for school and grade-level changes
 - organizer application workflow, applicant status visibility, admin approval, and organizer activation handoff
 - admin user management, moderation, audit logs, and resource access
 - organizer profile/settings workspace
@@ -80,7 +81,9 @@ Deliver a secure, mobile-friendly, competition-ready web application for math co
 - AI-generated problems or automated tutoring
 - multi-tenant white-label deployments in the first release
 
-## Full Tech Stack
+## Target Stack Contracts
+
+This section defines the rebuild target stack contracts. Some dependencies may be introduced by their owner branches and are not guaranteed as present-state workspace dependencies before those branches execute.
 
 ### Frontend
 
@@ -107,7 +110,7 @@ Deliver a secure, mobile-friendly, competition-ready web application for math co
 
 - ESLint
 - Vitest for unit and integration tests
-- Playwright for end-to-end flows and live UX regression checks
+- browser automation only when an approved `CORE_PATCH_REQUESTS` exception exists; otherwise rely on Vitest plus manual/dev-server QA
 - Lighthouse and browser profiling during release hardening
 
 ## Research-Backed Implementation Choices
@@ -160,7 +163,7 @@ The rebuilt app should preserve that direction while avoiding fragile one-off im
 - service-role keys are server-only and never exposed to the browser
 - every table, view, and RPC in `public` gets explicit access rules
 - profiles and organizer approvals are enforced from trusted server paths
-- strict single-session enforcement is backed by a server-trusted session-version contract rather than client-only sign-out behavior
+- strict single-session enforcement is a target contract owned by branch `05b-deferred-technical-debt`, backed by a server-trusted session-version model rather than client-only sign-out behavior
 - admin self-modification protections are explicit in UI and backend logic
 - competition snapshots prevent mutable problem bank edits from corrupting live or historical data
 - anti-cheat and audit trails are append-oriented and tamper-resistant from normal user roles

@@ -29,7 +29,7 @@ Use this checklist as the canonical execution order for the rebuild. Mark an ite
 - the current `.agent/` numbering is canonical for execution even though legacy `.agents/` used a different historical sequence
 - do not add side branches without updating this file and the quick reference
 - **CRITICAL**: Branches `01` through `04` are completely **DONE**. You must never revisit them, edit their feature branches, or assume they still need to be executed.
-- `04-admin-user-management` is DONE. It provides the admin-side approval UI and server shell. Do not rewrite this. `05-organizer-registration` connects to this existing approval path solely for email notifications and user activation.
+- `04-admin-user-management` is DONE. It provides the admin-side approval UI and server shell. Do not rewrite this. `05-organizer-registration` connects to this existing approval path for applicant-facing status, organizer activation/provisioning, organizer workspace onboarding, and related lifecycle messaging without re-owning admin decision writes.
 - if a bug fix is required to finish the active feature, keep it in that feature and note it in the feature file
 - if a backend change alters tables, enums, functions, or RLS, update `.agent/DATABASE-EDR-RLS.md` before marking the item complete
 - if a new project rule is learned, append it to `.agent/learned-rules.md` before marking the item complete

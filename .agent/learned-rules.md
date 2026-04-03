@@ -40,6 +40,10 @@ Feature-guide `**Assigned to:**` fields are the implementation-assignment signal
 
 The current `.agent/` numbering is the canonical execution numbering. Preserve traceability through `.agent/ALL-BRANCHES-QUICK-REFERENCE.md` and `.agent/checklist.md` instead of mixing numbering systems.
 
+### 1.10
+
+If `.agent/` intentionally changes product behavior from the external Mathwiz source materials or the legacy `.agents/` plan, record that change explicitly in the affected guide and in the relevant shared contract file. Silent behavior changes are not allowed.
+
 ## 2. Product Rules
 
 ### 2.1
@@ -104,4 +108,4 @@ If implementation uncovers cross-cutting work that should have been planned earl
 
 ### 4.4
 
-Admin approval and organizer activation are separate ownership concerns in the rebuilt plan. Branch `04-admin-user-management` owns the admin review and moderation shell, while branch `05-organizer-registration` owns applicant-facing intake, status visibility, and final organizer activation handoff.
+Admin approval and organizer activation are separate ownership concerns in the rebuilt plan. Branch `04-admin-user-management` owns the admin review and moderation shell plus organizer-application decision writes, while branch `05-organizer-registration` owns applicant-facing intake and status visibility, organizer activation/provisioning, organizer workspace onboarding, and the applicant-facing lifecycle handoff after approved or rejected decisions.

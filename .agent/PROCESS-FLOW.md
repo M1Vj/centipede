@@ -56,13 +56,13 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 ### Flow
 
 1. Admins authenticate through the trusted admin login path and land in the admin workspace.
-2. Admins review organizer-eligibility submissions and approve or reject them with explicit reasons.
+2. Admins review organizer-eligibility submissions and approve or reject them; rejection reason is required, and approval rationale is not persisted or required in release one.
 3. After admin review, branch `04-admin-user-management` trusted admin actions record organizer-application decision fields only (`status`, `reviewed_at`, `rejection_reason`).
-4. If approved, branch `05-organizer-registration` trusted activation/provisioning path performs organizer-role activation (`profiles.role = 'organizer'`, `profiles.approved_at`) and sends an approval email with activation instructions.
+4. If approved, branch `05-organizer-registration` trusted activation/provisioning path performs organizer-role activation (`profiles.role = 'organizer'`, `profiles.approved_at`) and sends one idempotent activation email with a password-set/reset link through the approved contact email.
 5. If rejected, the system keeps organizer access blocked and sends a rejection email with the rejection reason.
 6. Admins can update, suspend, or anonymize organizer and mathlete accounts through trusted, auditable flows. Hard-delete is reserved for explicit spam/fake abuse moderation.
 7. Admins have global read access to organizer-created problem banks and competitions.
-8. Admins can moderate inappropriate content, force-pause broken competitions with explicit reasons through trusted live-support controls, inspect live competition state, monitor high-traffic scheduled events, and support operational incidents. Resume, extend, and disconnect-reset controls remain organizer-owned actions.
+8. Admins can moderate inappropriate content and use only this live-support allow list: `force_pause` and `abuse_or_fraud_non_draft_delete`; both allowed actions require explicit reason plus `request_idempotency_token`, with mandatory audit evidence, and executable ownership belongs to branch `16` while branch `04` remains the decision/admin shell and must not over-claim implementation ownership. Admins are prohibited from `manual_end`, `resume`, `extend`, and `reset_attempt_for_disconnect`, and can inspect live competition state, monitor high-traffic scheduled events, and support operational incidents.
 9. Admins manage the default shared problem bank using the same authoring flows organizers use.
 
 ### Admin Implementation Rules
@@ -72,9 +72,20 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 - Rejection must preserve a reason and surface clear status to the applicant.
 - Admin self-destructive actions must be blocked in both UI and backend logic.
 - Admin read access to organizer resources must not bypass ownership semantics for organizer-facing views.
-- Operational moderation actions such as delete, admin force-pause live support, or safe account removal must be logged.
-- Admin live support may force-pause with explicit reason; resume, extend, and disconnect-reset controls remain organizer-owned actions.
+- Admin live-support allow list is fixed to `force_pause` and `abuse_or_fraud_non_draft_delete`; both actions require explicit reason plus `request_idempotency_token`, must be fully audited, and are branch `16` executable implementations while branch `04` remains decision/admin shell only.
+- Admin live-support deny list is fixed to `manual_end`, `resume`, `extend`, and `reset_attempt_for_disconnect`; these actions are prohibited for admin live support.
 - Non-spam/fake account removal is anonymization-only and must preserve historical competition integrity; hard-delete is reserved for explicit spam/fake abuse paths and must be fully audited.
+
+### Admin Live-Support Action Mapping (Canonical)
+
+| action_name | rpc_name | allowed actor | required reason/token | denied actions |
+| --- | --- | --- | --- | --- |
+| `force_pause` | `pause_competition` | trusted admin live support (branch `16` executable boundary) | non-empty `reason` + caller `request_idempotency_token` | none |
+| `abuse_or_fraud_non_draft_delete` | `moderate_delete_competition` | trusted admin live support (branch `16` executable boundary) | non-empty abuse or fraud `reason` + caller `request_idempotency_token` | none |
+| `manual_end` | `end_competition` (`transition_source = 'trusted_manual_action'`) | denied for admin live support | n/a | denied for admin live support |
+| `resume` | `resume_competition` | denied for admin live support | n/a | denied for admin live support |
+| `extend` | `extend_competition` | denied for admin live support | n/a | denied for admin live support |
+| `reset_attempt_for_disconnect` | `reset_attempt_for_disconnect` | denied for admin live support | n/a | denied for admin live support |
 
 ## Organizer Process Flow
 
@@ -92,48 +103,61 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 ### Flow
 
 1. Organizers apply for eligibility by submitting personal and organizational data, an optional logo, and explicit agreement to the Data Privacy Act of 2012 plus the platform Terms & Conditions.
-2. After approval, organizers receive onboarding instructions through the approved contact email. Branch `05-organizer-registration` trusted activation/provisioning completes organizer credential provisioning or activation through that handoff, including approved applications where `profile_id` is null. The same trusted path sets organizer role and approval timestamps, and the approved login identifier/email cannot be changed through organizer self-service settings. Identifier updates are allowed only through trusted admin/auth credential paths. Password recovery remains allowed.
-3. Organizers create problem banks with a name and optional description.
-4. Organizers create problem items manually or through bulk import.
-5. Problem items support math notation, optional image uploads, and these types:
+2. After approval, organizers receive one idempotent activation email through the approved contact email. Branch `05-organizer-registration` trusted activation/provisioning links or provisions the organizer identity for approved rows only (including approved applications where `profile_id` is null), uses the approved contact email as the immutable login identifier, and sends a password-set/reset activation link rather than plaintext credentials. The same trusted path sets organizer role and approval timestamps, and the approved login identifier/email cannot be changed through organizer self-service settings. Identifier updates are allowed only through trusted admin/auth credential paths. Password recovery remains allowed.
+3. The organizer dashboard home provides first-run profile summary plus statistics/data-insights shells so the promised workspace exists before later data-heavy branches expand it.
+4. Organizers create problem banks with a name and optional description.
+5. Organizers create problem items manually or through bulk import.
+6. Problem items support math notation, optional image uploads, and these types:
    - Multiple Choice with unique choices
    - True/False
    - Numeric
    - Identification
-6. Numeric and identification problems can accept multiple correct answers when edge cases require it.
-7. Organizers classify each problem by difficulty and tags.
-8. Deleting a problem bank or problem removes it from draft competition work, but published competition content must remain protected through immutable snapshots.
-9. Organizers create competitions through a multi-step wizard:
+7. Numeric and identification problems can accept multiple correct answers when edge cases require it.
+8. Organizers classify each problem by difficulty and tags.
+9. Deleting a problem bank or problem removes it from draft competition work, but published competition content must remain protected through immutable snapshots.
+10. Organizers create competitions through a multi-step wizard:
    - Overview
    - Schedule
    - Format
    - Problems and anti-cheat
    - Summary and publish
-10. Scheduled competitions require registration windows, competition date, start time, and duration. They allow exactly one attempt.
-11. Open competitions require duration and must configure attempts between one and three without a global schedule window.
-12. Individual competitions define participant caps with a minimum of 3 and a maximum of 100.
-13. Team competitions define 2 to 5 participants per team and 3 to 50 teams, and apply only to scheduled competitions.
-14. Organizers select 10 to 100 problems from owned or shared banks.
-15. Organizers configure scoring using automatic difficulty-based scoring or custom points, optional penalties, tie-breakers, and open-competition multiple-attempt grading policy. The default tie-breaker is earliest final submission timestamp unless the organizer explicitly overrides it.
-16. Organizers configure anti-cheat behavior including question shuffling, option shuffling, tab-switch logging, and offense-tier penalties.
-17. Publish remains unavailable until the full wizard validates successfully.
-18. Organizers can pause open competitions so active attempts may finish while new attempts cannot start, resume paused competitions, monitor live scheduled competitions, broadcast announcements, extend competitions through trusted controls only when the competition status is `live` or `paused`, and reset attempts for legitimate disconnect cases. Pause, resume, extend, and reset controls require explicit reasons.
-19. After competition completion, organizers review disputes, accept or reject them with resolution notes, recalculate scores if answer keys were wrong, publish scheduled leaderboards through an explicit organizer publish action, and export result data.
+11. The overview step requires a competition name, description, and a competition-authored Rules & Instructions box that mathletes must acknowledge before starting.
+12. Scheduled competitions require registration windows, competition date, start time, and duration. They allow exactly one attempt and transition from `published` to `live` through a trusted server-side start action at the server-authoritative start boundary. Lifecycle transition `live` or `paused` to `ended` is owned by trusted competition lifecycle handlers and is system-timer-owned only at the server-authoritative end boundary, with idempotent replay behavior. Organizer manual end is not allowed for scheduled competitions, and admin live-support controls do not include manual end.
+13. Open competitions require duration and must configure attempts between one and three without a global schedule window. Open `live` or `paused` to `ended` manual end is organizer-only through a trusted action and requires explicit reason plus `request_idempotency_token`.
+14. Individual competitions define participant caps with a minimum of 3 and a maximum of 100.
+15. Team competitions define 2 to 5 participants per team and 3 to 50 teams, and apply only to scheduled competitions.
+16. Organizers select 10 to 100 problems from owned or shared banks.
+17. Organizers configure scoring using automatic difficulty-based scoring or custom points, optional penalties, tie-breakers, and open-competition multiple-attempt grading policy (`highest_score`, `latest_score`, or `average_score`). The default tie-breaker is earliest final submission timestamp unless the organizer explicitly overrides it.
+18. Organizers configure anti-cheat behavior including question shuffling, option shuffling, tab-switch logging, and offense-tier penalties.
+19. Publish remains unavailable until the full wizard validates successfully.
+20. Organizers can pause only open competitions so active attempts may finish while new attempts cannot start, resume paused owned competitions (including admin force-paused states), monitor live scheduled competitions, broadcast announcements with canonical audience predicates, extend competitions through trusted controls only when the competition status is `live` or `paused`, and reset attempts for legitimate disconnect cases. Pause, resume, extend, and reset controls require explicit reasons. Open manual end requires explicit reason plus `request_idempotency_token`.
+21. Open competitions can be retired only through a trusted archive path after active attempts have finished; hard delete is allowed only for `draft` competitions through trusted draft-delete controls. Non-draft hard delete is admin-only abuse or fraud moderation with mandatory audit evidence.
+22. After competition completion, organizers review disputes, accept or reject them with resolution notes, recalculate scores if answer keys were wrong, publish scheduled leaderboards through an explicit organizer publish action, and export result data with participant/team context from immutable registration snapshots.
 
 ### Organizer Implementation Rules
 
 - The approved organizer login identifier/email must remain immutable in organizer self-service settings after approval; only trusted admin/auth credential paths may mutate it. Password recovery is allowed.
 - Organizer-role activation (`profiles.role = 'organizer'`, `profiles.approved_at`) is owned by trusted organizer activation/provisioning and not by admin decision-write paths.
-- Applicant status lookup must use opaque tokens that are stored hash-only and validated through trusted handlers or RPCs.
-- Applicant status lookup responses are restricted to safe fields (`status`, `rejection_reason`, `masked_contact_email`) with throttling controls.
+- Applicant status lookup must use opaque tokens that are stored hash-only with explicit expiry and validated through trusted handlers or RPCs.
+- Applicant status lookup responses are restricted to safe fields (`status`, `rejection_reason`, `masked_contact_email`) with throttling controls, and expired token responses must be indistinguishable from unknown or invalid token responses.
 - Problem bank descriptions are capped at 200 words.
 - Competition descriptions are capped at 500 words.
 - Competition names must be unique per organizer for competitions in `draft`, `published`, `live`, `paused`, or `ended` status.
-- Open competitions cannot be deleted while active attempts are still running.
-- Open-competition pause behavior must let already-active attempts finish while blocking new starts.
+- Hard delete is allowed only while competition status is `draft`; non-draft hard delete is admin-only abuse or fraud moderation with audit evidence.
+- Organizer pause behavior applies only to open competitions and must let already-active attempts finish while blocking new starts; scheduled pause is admin force-pause only.
+- Trusted lifecycle end transition (`live` or `paused` to `ended`) is split by competition type: scheduled end is system-timer-owned only (`transition_source = 'system_timer'`), while open manual end is organizer-only (`transition_source = 'trusted_manual_action'`) with required reason and `request_idempotency_token`; all end transitions must be idempotent, and admin live-support controls do not include manual end.
 - Live control actions (`pause`, `resume`, `extend`, `reset`) require explicit reasons and trusted server-side enforcement.
+- Announcement delivery must resolve recipients from canonical `announcement_audience` values only, with explicit withdrawn and ineligible handling.
 - Published competitions must preserve immutable problem and scoring snapshots.
 - Recalculation must be an explicit trusted action after accepted disputes or corrected answer keys.
+- Open competitions remain fully leaderboard-visible to participant-context readers for any non-draft state; scheduled publication rules do not apply to open competitions.
+
+### Competition End Transition Contract (Canonical)
+
+- Owner boundary: branch `08-competition-wizard` trusted lifecycle handlers own status mutation `live` or `paused` to `ended`.
+- Trigger-source mapping: scheduled competitions use `system_timer` only at the effective server boundary; open manual end uses `trusted_manual_action` by authorized organizer controls only.
+- Idempotency contract: replay with the same request token must return the existing terminal result and must not duplicate side effects; open manual end requires explicit reason plus `request_idempotency_token`.
+- Event contract: branch `08-competition-wizard` introduces baseline `competition_events` lifecycle writes and branch `16` expands consumers and live-control producers; every successful end transition emits `competition_ended` with canonical payload fields (`transition_source`, `transition_reason`, `request_idempotency_token`).
 
 ## Mathlete Process Flow
 
@@ -143,6 +167,7 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 - Dashboard
 - My Teams
 - Competitions
+- History
 - Notifications
 - Settings
 - Log-Out
@@ -150,7 +175,7 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 ### Flow
 
 1. Mathletes register and authenticate with Google OAuth.
-2. On first login, mathletes must complete their profile with display name, school, and grade level before joining competitions.
+2. On first login, mathletes must complete their profile with display name, school, and grade level before joining competitions. Later, they may update school and grade level through `/mathlete/settings`, but may not mutate role or organizer/admin-only identity fields there.
 3. Strict single-session enforcement terminates older sessions when the same account logs in somewhere else.
 4. Mathletes browse upcoming and live competitions through search and calendar views.
 5. All competition schedules must display in the user’s local timezone.
@@ -171,7 +196,7 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 20. Mathletes review their answers before submission and confirm final submission explicitly.
 21. On timer expiration, the system locks the UI and auto-submits the current state.
 22. Open competitions with remaining attempts can present a re-attempt path and must warn clearly about the selected grading policy.
-23. After competition end, mathletes can dispute questionable problems and view historical results. Answer-key visibility follows explicit post-competition visibility rules. Scheduled leaderboards remain hidden until the organizer publishes them. Open leaderboards are self-row only while the competition is `live` or `paused`, then full leaderboard is visible when the competition is `ended` or `archived`.
+23. After competition end, mathletes can dispute questionable problems and view historical results. Answer-key visibility follows explicit post-competition visibility rules. Scheduled leaderboards remain hidden until the organizer publishes them, and `/mathlete/history` must show only competition presence plus `competition_attempts.status`/submission state until `leaderboard_published = true`. Open leaderboards remain fully visible to participant-context readers for all non-draft open states.
 24. If recalculation changes a score, the system must notify the affected mathlete.
 
 ### Registration RPC Contract (Individual vs Team)
@@ -179,15 +204,24 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 - Trusted write path: registration and withdrawal run only through trusted backend mutations/RPCs (`register_for_competition`, `withdraw_registration`).
 - Individual registration mode: registers the authenticated profile (`profile_id` populated, `team_id` null) and is valid only for `individual` competitions.
 - Team registration mode: registers the selected team (`team_id` populated, `profile_id` null), requires active team-leader ownership, and is valid only for scheduled team competitions.
+- Team attempt authority mode: for team registrations, only an active team leader may start, resume, or submit attempt lifecycle mutations; non-leader team members are read-only for lifecycle writes.
+- Team attempt concurrency mode: trusted start, resume, and submit lifecycle writes must serialize by registration or attempt lock and return deterministic `attempt_lifecycle_conflict` on concurrent races.
 - Both registration modes must enforce profile-completion checks, registration window rules, duplicate-registration guards, and capacity limits before writing.
 - Withdrawal mode must enforce the same server-authoritative guards: scheduled requires `now() < competitions.start_time`; both scheduled and open require zero `competition_attempts` rows for the registration. If any attempt row exists for the registration, participant withdrawal is blocked.
 - Eligibility failures must return deterministic machine-readable codes so UI copy stays consistent across branches.
+
+### Announcement Audience Contract (Canonical)
+
+- `registered_only`: recipients where `competition_registrations.status = 'registered'`; withdrawn, ineligible, and cancelled are excluded.
+- `registered_and_ineligible`: recipients where `competition_registrations.status in ('registered','ineligible')`; withdrawn and cancelled are excluded.
+- `all_non_cancelled`: recipients where `competition_registrations.status in ('registered','withdrawn','ineligible')`; cancelled is excluded.
+- `operators_only`: recipients are competition owner organizer plus admins only; participant registration rows are not targeted.
 
 ### Leaderboard Visibility Contract (Canonical)
 
 - Access predicate for participant-context reads: viewer must own a registration or attempt in the competition.
 - Scheduled competitions: full leaderboard visible only when `leaderboard_published = true`.
-- Open competitions: self row only while status is `live` or `paused`; full leaderboard visible when status is `ended` or `archived`; hidden while `draft` or `published`.
+- Open competitions: full leaderboard visible for participant-context readers when status is `published`, `live`, `paused`, `ended`, or `archived`; hidden only while `draft`.
 - Organizer/admin readers for owned or moderated competitions are always allowed.
 
 ### Team Roster Lock State Machine (Canonical)
@@ -243,12 +277,14 @@ Legacy admin route migration sequence (canonical):
 - Admins, organizers, and mathletes each have distinct sidebar shells and operational surfaces.
 - Organizer and admin notifications are grouped and role-relevant rather than generic inbox spam.
 - Team ineligibility, leaderboard publication, answer-key visibility, dispute resolution, and score recalculation are all explicit product flows, not optional polish.
-- Competition deletion, pause/resume/extend/reset, and publication all require defensive rules to prevent unsafe state transitions.
-- Pause, resume, extend, and disconnect-reset controls require explicit reasons; admin live support can force-pause, while resume/extend/reset remain organizer control actions.
+- Competition deletion, pause/resume/extend/reset, end-transition, and publication all require defensive rules to prevent unsafe state transitions.
+- Pause scope is explicit by competition type: organizer pause is open-only, scheduled pause is admin force-pause only; resume/extend/reset remain organizer control actions and require explicit reasons.
 - Competition control actions and emitted competition events must use request idempotency tokens so retried requests do not duplicate side effects.
 - Answer-key visibility must always respect explicit post-competition visibility rules, separate from scheduled leaderboard publication; `after_end` uses trusted server time and `hidden` must never expose participant answer keys.
-- Open-leaderboard visibility is explicit: participant-context self row only in `live`/`paused`, full leaderboard only in `ended`/`archived`, with no organizer publish toggle.
-- Status lookup tokens are opaque, hash-persisted, and never used as a replacement for organizer authentication beyond applicant-status checks.
+- Open-leaderboard visibility is explicit: participant-context readers can see the full leaderboard for any non-draft open competition state, with no organizer publish toggle.
+- Status lookup tokens are opaque, hash-persisted with explicit expiry, and never used as a replacement for organizer authentication beyond applicant-status checks.
+- Announcement delivery audiences are explicit enum predicates with deterministic withdrawn and ineligible inclusion rules.
+- Team-registration attempt lifecycle writes are leader-authorized with deterministic concurrency conflict responses.
 - Notification delivery must de-duplicate by recipient plus deterministic event identity key to prevent duplicate inbox rows.
 - Formula stack is fixed for release one: MathLive for editable inputs, KaTeX for static rendering, and LaTeX as canonical persisted math format.
 - Exports are part of the organizer history workflow, not a separate optional add-on.
@@ -277,13 +313,14 @@ Legacy admin route migration sequence (canonical):
 
 | Domain Event | Producer Boundary (Owner) | Consumers | Channel Ownership Boundary |
 | --- | --- | --- | --- |
-| `organizer_application_submitted` | Branch `05` trusted organizer-application submission flow | Applicant confirmation messaging, admin review intake | Branch `05` owns submission email and status-lookup UX; branch `15` may reuse event payload for inbox consistency after account linkage |
-| `organizer_application_approved` / `organizer_application_rejected` | Branch `04` trusted admin decision mutation | Branch `05` activation/rejection handoff, branch `15` inbox/email polish | Branch `04` owns decision write only (`organizer_applications` decision fields); branch `05` owns organizer activation/provisioning (`profiles.role`, `profiles.approved_at`, including `profile_id` null cases) and applicant-facing lifecycle messaging; branch `15` owns preference-aware channel polish |
+| `organizer_application_submitted` | Branch `05` trusted organizer-application submission flow | Applicant confirmation messaging, admin review intake | Branch `05` owns submission email and status-lookup UX. If a profile is later linked or provisioned for the same application, branch `15` may project exactly one account-linked inbox item using the original `application_id` as the stable event identity key; no pre-link inbox row exists before that linkage event |
+| `organizer_application_approved` / `organizer_application_rejected` | Branch `04` trusted admin decision mutation | Branch `05` activation/rejection handoff and applicant transactional lifecycle messaging, branch `15` account-linked inbox/channel behavior | Branch `04` owns decision write only (`organizer_applications` decision fields); branch `05` owns organizer activation/provisioning (`profiles.role`, `profiles.approved_at`, including `profile_id` null cases) plus single applicant transactional lifecycle messaging; branch `15` owns account-linked preference-aware channel behavior only and must not duplicate applicant transactional decision email delivery |
 | `team_invite_sent` / `team_invite_accepted` / `team_invite_declined` / `team_roster_invalidated` | Branch `09` team domain trusted flows | Team lifecycle UI in branches `09` and `10`, inbox/email delivery in branch `15` | Branch `09` emits events via shared dispatch helpers; branch `15` owns inbox UX, copy normalization, and email fan-out |
 | `competition_registration_confirmed` / `competition_registration_withdrawn` | Branch `10` registration trusted flows | Branch `11` pre-entry context, branch `15` inbox/email delivery | Branch `10` emits registration-domain events only; branch `15` owns preference evaluation and delivery channels |
-| `competition_announcement_posted` | Branch `16` announcement trusted flow | Participant and organizer live surfaces, branch `15` inbox/email channels | Branch `16` owns durable announcement write and realtime trigger; branch `15` owns cross-channel delivery polish |
+| `competition_announcement_posted` | Branch `16` announcement trusted flow | Participant and organizer live surfaces in branch `16`, plus deterministic inbox delivery and channel-policy email handling via branch `15` shared notification helpers | Branch `16` owns durable announcement write, canonical audience resolution, realtime trigger, and announcement producer dispatch; for valid consumed producer events, branch `15` must provide deterministic minimum inbox delivery for resolved recipients and apply email delivery per channel policy using shared notification preferences, templates, and infrastructure |
 | `dispute_resolved` / `score_recalculated` | Branch `14` dispute-resolution and recalculation surfaces | Mathlete/organizer result surfaces, branch `15` notification delivery | Branch `14` owns dispute-resolution event truth and recalculation trigger from leaderboard/history workflows; branch `07` owns scoring RPC contracts (`recalculate_competition_scores`, `refresh_leaderboard_entries`); branch `15` owns inbox/email formatting and preferences |
 | `leaderboard_published` | Branch `14` organizer publish action | Branch `14` leaderboard/history read paths, branch `15` participant notifications | Branch `14` owns publication state transition; branch `15` owns downstream message delivery behavior |
 
 Boundary rule: only the producer boundary writes domain events for its row; consumer boundaries may read, transform, and deliver through shared helpers but must not duplicate producer writes.
+Sequencing rule: branch `15` delivers shared notification infrastructure without requiring `competition_announcements` schema, and branch `16` consumes that infrastructure when announcement producers are introduced.
 This matrix defines domain-event ownership only. Branch execution ownership still comes from each feature guide's `Assigned to` field and the checklist.

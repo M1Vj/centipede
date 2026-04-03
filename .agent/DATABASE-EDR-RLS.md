@@ -78,14 +78,15 @@ Purpose: organizer eligibility submissions and review decisions, including pre-a
 | `logo_path` | text | storage key path only; canonical format `organizer-applications/{application_id}/logo.{ext}` |
 | `legal_consent_at` | timestamptz | required before submission and represents explicit Data Privacy Act of 2012 plus Terms & Conditions consent |
 | `status_lookup_token_hash` | text | supports secure status lookup without organizer login |
+| `status_lookup_token_expires_at` | timestamptz | explicit status-lookup token expiry boundary; lookups at or after this timestamp are expired |
 | `status` | enum `organizer_application_status` |
 | `rejection_reason` | text | sanitized safe-public message only for rejected outcomes |
 | `submitted_at` | timestamptz |
 | `reviewed_at` | timestamptz |
 
-Indexes: `organizer_applications_status_idx`, `organizer_applications_profile_idx`, `organizer_applications_contact_email_idx`.
+Indexes: `organizer_applications_status_idx`, `organizer_applications_profile_idx`, `organizer_applications_contact_email_idx`, `organizer_applications_pending_contact_email_uq` (unique partial index on `lower(contact_email)` where `status = 'pending'`).
 
-Constraints: `profile_id` may remain null until approval; only one active pending application should exist per `contact_email`; status transitions are `pending -> approved` or `pending -> rejected` only through trusted decision functions; once approved or rejected, decision fields (`status`, `reviewed_at`, `rejection_reason`) are immutable; repeated identical decisions must be idempotent no-ops; status lookup tokens are stored hashed rather than in raw form; `rejection_reason` must be persisted as safe-public sanitized text (plain text only, no HTML, links, emails, or phone numbers, bounded length) and is required only when `status = 'rejected'`.
+Constraints: `profile_id` may remain null until approval; only one active pending application must exist per `contact_email`, enforced by `organizer_applications_pending_contact_email_uq`; status transitions are `pending -> approved` or `pending -> rejected` only through trusted decision functions; once approved or rejected, decision fields (`status`, `reviewed_at`, `rejection_reason`) are immutable; repeated identical decisions must be idempotent no-ops; status lookup tokens are stored hashed rather than in raw form and must include explicit expiry via `status_lookup_token_expires_at`; lookups at or after that boundary are expired; `rejection_reason` must be persisted as safe-public sanitized text (plain text only, no HTML, links, emails, or phone numbers, bounded length) and is required only when `status = 'rejected'`.
 
 Organizer decision vs activation ownership contract (canonical): branch `04-admin-user-management` decision flows write only organizer-application terminal decision fields (`status`, `reviewed_at`, `rejection_reason`) and never mutate `profiles.role` or `profiles.approved_at`; branch `05-organizer-registration` trusted activation or provisioning path owns organizer-role activation. For approved rows where `profile_id is null`, the activation path provisions or links the profile first, then sets organizer role and `approved_at`.
 
@@ -223,7 +224,7 @@ Purpose: competition draft, published, live, paused, and archived configuration.
 
 Indexes: `(organizer_id, status)`, `(published_at)`, `(type, status)`.
 
-Constraints: name uniqueness is scoped per organizer by predicate `is_deleted = false AND status IN ('draft','published','live','paused','ended')`; `archived` rows are excluded from the uniqueness predicate; scheduled competitions allow exactly one attempt; open competitions allow 1 to 3 attempts; team format is valid only when `type = 'scheduled'` and open competitions must enforce `format = 'individual'`; individual competitions allow 3 to 100 participants; scheduled team competitions allow 2 to 5 participants per team and 3 to 50 teams; `description` must not exceed 500 words; the default tie-breaker is earliest final submission timestamp unless explicitly overridden; answer-key visibility must be enforced separately from leaderboard publication via `answer_key_visibility`; published competitions freeze `scoring_snapshot_json` and may not mutate the effective scoring contract afterward.
+Constraints: name uniqueness is scoped per organizer by predicate `is_deleted = false AND status IN ('draft','published','live','paused','ended')`; `archived` rows are excluded from the uniqueness predicate; scheduled competitions allow exactly one attempt; open competitions allow 1 to 3 attempts; team format is valid only when `type = 'scheduled'` and open competitions must enforce `format = 'individual'`; individual competitions allow 3 to 100 participants; scheduled team competitions allow 2 to 5 participants per team and 3 to 50 teams; `description` must not exceed 500 words; the default tie-breaker is earliest final submission timestamp unless explicitly overridden; answer-key visibility must be enforced separately from leaderboard publication via `answer_key_visibility`; published competitions freeze `scoring_snapshot_json` and may not mutate the effective scoring contract afterward; hard delete is allowed only for `status = 'draft'` through a trusted draft-delete path; non-draft hard delete is forbidden except trusted admin abuse or fraud moderation delete with mandatory audit reason; organizer pause is valid only for open competitions and must allow active attempts to finish while blocking new starts; scheduled competitions may enter `paused` only through trusted admin force-pause moderation; lifecycle transition `live` or `paused` to `ended` is allowed only through trusted end-transition handlers with deterministic split policy: scheduled competitions end only through `transition_source = 'system_timer'` at the server boundary, while open competitions may end through organizer-only `transition_source = 'trusted_manual_action'` with required non-empty reason and `request_idempotency_token`; end transitions must be idempotent.
 
 ### `competition_problems`
 
@@ -258,11 +259,11 @@ Purpose: participant or team registration state.
 | `team_id` | uuid fk -> teams.id nullable |
 | `status` | enum `registration_status` | `registered`, `withdrawn`, `ineligible`, `cancelled` |
 | `status_reason` | text |
-| `entry_snapshot_json` | jsonb | display names, school, team roster snapshot |
+| `entry_snapshot_json` | jsonb | immutable registration-time snapshot of display names, school, grade level, team name, and team roster context used by history and exports |
 | `registered_at` | timestamptz |
 | `updated_at` | timestamptz |
 
-Constraint: exactly one of `profile_id` or `team_id` must be populated.
+Constraint: exactly one of `profile_id` or `team_id` must be populated. `entry_snapshot_json` is populated exactly once by `register_for_competition(...)` at registration time and must not be backfilled from later profile or roster edits.
 
 ### Registration RPC Contract (Canonical)
 
@@ -278,6 +279,7 @@ Constraint: exactly one of `profile_id` or `team_id` must be populated.
 - Shared checks for both paths:
 	- participant is active and profile-complete
 	- competition is visible, not deleted, and inside allowed registration window (for scheduled)
+	- persist immutable `entry_snapshot_json` from the accepted registration context before returning success; later profile, school, grade-level, or roster edits must not mutate the stored snapshot for that registration row
 	- capacity and duplicate-registration guards pass, except trusted ineligible re-entry for the same `(competition_id, team_id)` when roster repair conditions are satisfied and registration timing still allows entry
 	- responses return deterministic machine-readable error codes for UI mapping
 
@@ -320,24 +322,31 @@ Purpose: organizer or admin broadcast messages tied to a competition.
 | `message` | text |
 | `created_at` | timestamptz |
 
+Canonical `announcement_audience` enum values and recipient predicates:
+
+- `registered_only`: recipients where `competition_registrations.status = 'registered'`; withdrawn, ineligible, and cancelled rows are excluded
+- `registered_and_ineligible`: recipients where `competition_registrations.status in ('registered','ineligible')`; withdrawn and cancelled rows are excluded
+- `all_non_cancelled`: recipients where `competition_registrations.status in ('registered','withdrawn','ineligible')`; cancelled rows are excluded
+- `operators_only`: recipients are competition owner organizer plus admins only; participant registration rows are not targeted
+
 ### `competition_events`
 
-Purpose: durable event timeline for publish, pause, resume, extend, delete, recalculate, and intervention actions.
+Purpose: durable event timeline for publish, start, end, pause, resume, extend, archive, leaderboard publication, dispute resolution, score recalculation, and intervention actions.
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid pk |
 | `competition_id` | uuid fk -> competitions.id |
 | `event_type` | text |
-| `actor_user_id` | uuid fk -> profiles.id |
-| `payload_json` | jsonb | control actions include `request_idempotency_token`; pause, resume, extend, and reset payloads include a required reason |
+| `actor_user_id` | uuid fk -> profiles.id nullable | null for system-timer transitions; set for trusted manual actions |
+| `payload_json` | jsonb | publish/start/end/archive/recalculation events include `request_idempotency_token`; manual pause, resume, extend, reset, and manual open-end payloads include a required reason; `competition_ended` payloads include `transition_source` and `transition_reason` (`system_timer` for scheduled timer-owned end, `trusted_manual_action` for organizer manual open end); dispute/publication events include referenced ids needed for audit and notification fan-out |
 | `happened_at` | timestamptz |
 
-Idempotency contract: control-action RPCs (`publish_competition`, `publish_leaderboard`, `pause_competition`, `resume_competition`, `extend_competition`, `reset_attempt_for_disconnect`, `recalculate_competition_scores`) must require `request_idempotency_token`. `pause_competition`, `resume_competition`, `extend_competition`, and `reset_attempt_for_disconnect` must also require a non-empty reason. Duplicate `(competition_id, event_type, actor_user_id, request_idempotency_token)` requests return the existing event and must not re-apply side effects.
+Idempotency contract: event-producing RPCs (`publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `publish_leaderboard`, `pause_competition`, `resume_competition`, `extend_competition`, `reset_attempt_for_disconnect`, `resolve_problem_dispute`) must require `request_idempotency_token`. Token-source rule is canonical: caller supplies the token for every event-producing RPC except scheduled `end_competition` transitions with `transition_source = 'system_timer'`, which must use deterministic server token `system_end:{competition_id}:{effective_end_boundary_iso}`. `pause_competition`, `resume_competition`, `extend_competition`, `reset_attempt_for_disconnect`, and manual open `end_competition` must also require a non-empty reason. `end_competition` must enforce `transition_source in ('system_timer','trusted_manual_action')` with deterministic mapping: scheduled competitions must use `system_timer` only, while organizer manual end for open competitions must use `trusted_manual_action` and is not an admin live-support control. Duplicate `(competition_id, event_type, actor_user_id, request_idempotency_token)` requests return the existing event and must not re-apply side effects. SQL uniqueness for this dedupe key must coalesce nullable `actor_user_id` to the system-actor sentinel in the unique key (`coalesce(actor_user_id, '00000000-0000-0000-0000-000000000000'::uuid)`). Branch-14 dispute/publication orchestration events must write canonical payload fields (`dispute_id`, `competition_problem_id`, `correction_artifact_id`, `leaderboard_published`, `request_idempotency_token`), and `competition_ended` events must write (`transition_source`, `transition_reason`, `request_idempotency_token`) so notification fan-out and audit reads do not infer state indirectly. `recalculate_competition_scores(competition_id, request_idempotency_token)` remains compute-only and is not an event-producing RPC; `score_recalculated` event emission belongs to branch `14` orchestration.
 
 ### `competition_attempts`
 
-Purpose: one logical attempt per participant or team per competition.
+Purpose: one attempt row per `attempt_no` for a participant or team registration in a competition.
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -358,6 +367,15 @@ Purpose: one logical attempt per participant or team per competition.
 | `grade_summary_json` | jsonb |
 
 Indexes: `(competition_id, status)`, `(registration_id, attempt_no)`.
+
+Unique key: `(registration_id, attempt_no)`.
+
+### Team Attempt Authority and Concurrency Contract (Canonical)
+
+- Individual registration attempts: only the owning `competition_registrations.profile_id` actor may start, resume, save, or submit the attempt lifecycle.
+- Team registration attempts: only an active team leader for the registration team may start, resume, save, or submit attempt lifecycle mutations; non-leader team members are read-only in arena state views.
+- Trusted `start`, `resume`, and `submit` attempt mutations must serialize writes by registration or attempt lock (`select ... for update` or equivalent) and enforce at most one active `in_progress` attempt per registration at any moment.
+- Concurrent lifecycle races must return deterministic machine code `attempt_lifecycle_conflict`; idempotent retries with the same request token must return existing state and must not duplicate lifecycle side effects.
 
 ### `attempt_intervals`
 
@@ -513,6 +531,8 @@ Purpose: per-user channel and event preferences.
 | `organizer_decisions` | boolean |
 | `updated_at` | timestamptz |
 
+Default contract: `in_app_enabled = true`, `email_enabled = false`, and all event-category toggles default to `true` so the inbox is guaranteed by default while email remains opt-in.
+
 ### `export_jobs`
 
 Purpose: audit and retry support for CSV and XLSX exports.
@@ -529,7 +549,7 @@ Purpose: audit and retry support for CSV and XLSX exports.
 | `created_at` | timestamptz |
 | `completed_at` | timestamptz nullable |
 
-Constraints: export requests and export file retrieval are allowed only for competition owner organizers and admins; participants cannot queue or download exports.
+Constraints: export requests and export file retrieval are allowed only for competition owner organizers and admins; participants cannot queue or download exports. Generated CSV/XLSX payloads must include immutable result context plus participant or team context from registration snapshots (`display_name` and `school` for individuals; `team_name` and roster snapshot for teams) in addition to ranking fields.
 
 ### `admin_audit_logs`
 
@@ -593,30 +613,29 @@ Purpose: storage is part of the backend contract, not an implementation aftertho
 - `organizer_applications`: public applicants submit through a trusted route or RPC; applicant status is exposed only through secure lookup tokens or trusted handlers; admins can review pending rows and write terminal decisions through trusted decision paths. Normal flows preserve reviewed-row immutability (`approved`/`rejected` rows are not mutable or deletable). Hard delete is allowed only through an explicit trusted spam or fraud moderation path with mandatory `admin_audit_logs` write (actor, reason, `application_id`, evidence metadata) before deletion.
 - `problem_banks` and `problems`: owner organizer or admin-managed default-bank owner can mutate; other organizers cannot read private banks; admins can read all and mutate only the default bank or explicitly moderated records through trusted server paths
 - `teams`, `team_memberships`, `team_invitations`: members can read their own team data; leaders can invite/remove within policy; admins can read all for moderation
-- `competitions`: organizers can fully manage their own (including pause/resume/extend controls, where pausing lets active attempts finish but blocks new starts); admins can read all and can force-pause or moderate-delete only through approved server actions; mathletes read only published competitions they are eligible to see
+- `competitions`: organizers can manage their own competitions, but hard delete is allowed only for `draft` through trusted draft-delete paths; organizer pause is allowed only for open competitions and must let active attempts finish while blocking new starts; scheduled competition pause is reserved for trusted admin force-pause moderation; admins can read all and may perform non-draft moderation delete only for abuse or fraud through approved server actions with explicit audit reason; mathletes read only published competitions they are eligible to see
 - `competition_problems`: organizers and admins for their competitions; participants only after the competition starts, and only through joins scoped to an owned registration or attempt. `answer_key_snapshot_json` and explanation fields must additionally enforce `answer_key_visibility` (`after_end`: competition ended and viewer has owned registration/attempt context, `hidden`: never visible to participants)
 - `competition_registrations`: writes are allowed only through trusted validation RPCs (`register_for_competition`, `withdraw_registration`); team-path registration additionally requires active team-leader ownership checks
-- `competition_announcements`: organizers and admins can insert for owned competitions through trusted handlers; only active or relevant participants and operators in that competition can read the resulting records
-- `competition_events`: organizers and admins can read the full competition timeline for owned competitions; control-action writes require trusted idempotency tokens and required reasons for pause/resume/extend/reset; admin live support may force-pause, while resume/extend/reset controls remain organizer-only; participant-facing event visibility must use trusted filtered projections rather than raw table access
-- `competition_attempts`, `attempt_intervals`, `attempt_answers`, `tab_switch_logs`: only the owning registration and the competition owner or admin can read; participants can insert/update only through guarded RPCs while the attempt is active
+- `competition_announcements`: organizers and admins can insert for owned competitions through trusted handlers; recipient targeting must follow canonical `announcement_audience` predicates, including explicit withdrawn and ineligible inclusion or exclusion per enum value; only targeted participants and operators in that competition can read resulting records
+- `competition_events`: organizers and admins can read the full competition timeline for owned competitions; publish/start/archive/live-control/dispute/publication/recalculation writes require trusted handlers with canonical payloads; admin live support may force-pause, while resume/extend/reset controls remain organizer-only; participant-facing event visibility must use trusted filtered projections rather than raw table access
+- `competition_attempts`, `attempt_intervals`, `attempt_answers`, `tab_switch_logs`: only the owning registration and the competition owner or admin can read; participants can insert/update only through guarded RPCs while the attempt is active; team-registration lifecycle writes (`start`, `resume`, `submit`) are leader-authorized only with serialized concurrency guards
 - `problem_disputes`: reporter can insert/select own disputes only after competition end and only for owned attempt/registration context; organizer and admin can read and resolve disputes for owned competitions
 - `competition_problem_corrections`: organizers and admins can read for owned competitions; writes are allowed only through trusted dispute-resolution or correction handlers; participants consume correction effects through derived views and never mutate raw correction rows
-- `leaderboard_entries`: organizer and admin readers can always read for owned or moderated competitions; participant-context readers require owned registration or attempt context. Scheduled leaderboards require `leaderboard_published = true`. Open leaderboards are self-row only while status is `live` or `paused`, and full leaderboard when status is `ended` or `archived`.
-- `notifications` and `notification_preferences`: owner only for reads and preference writes, plus admin via support tooling if explicitly needed; notification creation and read-state mutation stay on trusted paths
+- `leaderboard_entries`: organizer and admin readers can always read for owned or moderated competitions; participant-context readers require owned registration or attempt context. Scheduled leaderboards require `leaderboard_published = true`. Open leaderboards are fully visible to participant-context readers for any non-draft open competition state (`published`, `live`, `paused`, `ended`, `archived`).
+- `notifications` and `notification_preferences`: owner-only reads and owner preference writes; admin may read via audited support tooling only; admin may not mutate user notification preferences or notification read-state unless a named trusted function is explicitly added to the ownership matrix; notification creation and read-state mutation stay on trusted paths
 - `export_jobs`: requester plus competition owner and admin, with request creation constrained to competition owner organizers and admins only
 - `admin_audit_logs`: admin only
-- `system_settings`: admin only
+- `system_settings`: admin only; branch `04-admin-user-management` owns a read-only settings shell in release one and no mutable settings RPC is implied unless a later guide explicitly introduces it
 
 ### Leaderboard and Export Visibility Matrix (Canonical)
 
 - Leaderboard visibility:
 	- organizer/admin for owned or moderated competitions: always visible
 	- participant-context access predicate: viewer must own a registration or attempt in the competition
-	- participant-context viewer:
-		- scheduled competitions: full leaderboard visible only when `leaderboard_published = true`
-		- open competitions while `status IN ('live','paused')`: self row only
-		- open competitions while `status IN ('ended','archived')`: full leaderboard visible
-		- open competitions while `status IN ('draft','published')`: hidden
+		- participant-context viewer:
+			- scheduled competitions: full leaderboard visible only when `leaderboard_published = true`
+			- open competitions while `status IN ('published','live','paused','ended','archived')`: full leaderboard visible
+			- open competitions while `status = 'draft'`: hidden
 	- viewers without participant context: denied unless a future trusted projection explicitly grants access
 - Export visibility and access:
 	- queue/export-job create: competition owner organizer or admin only
@@ -630,14 +649,21 @@ Required trusted functions:
 
 - `insert_profile_for_new_user()` trigger on `auth.users`
 - `handle_profile_changes()` trigger for protected `profiles` updates
-- `create_default_notification_preferences()` trigger on profile insert
-- `rotate_session_version(profile_id)` or equivalent trusted auth-session invalidation helper
-- `lookup_organizer_application_status(status_lookup_token)`: accepts raw opaque token from applicant, hashes token for comparison against `status_lookup_token_hash`, and returns only safe fields (status, rejection_reason, masked_contact_email). `rejection_reason` must be safe-public sanitized content only. Negative paths (invalid token, unknown token, expired token) must return a single non-disclosing response shape and code so lookup cannot be used as an enumeration oracle. Must never return raw PII. Requires 1-second rate limit to prevent brute force.
+- `create_default_notification_preferences()` trigger on profile insert; must create `in_app_enabled = true`, `email_enabled = false`, and all event-category toggles enabled by default
+- `rotate_session_version(profile_id)` trusted auth-session invalidation helper
+- `update_mathlete_profile_settings(profile_id, school, grade_level)` trusted mathlete self-service settings helper (school and grade-level only)
+- `anonymize_user_account(target_profile_id, reason, request_idempotency_token)` trusted non-spam anonymization helper
+- `lookup_organizer_application_status(status_lookup_token)`: accepts raw opaque token from applicant, hashes token for comparison against `status_lookup_token_hash`, validates `now() < status_lookup_token_expires_at`, and returns only safe fields (status, rejection_reason, masked_contact_email). `rejection_reason` must be safe-public sanitized content only. Negative paths (invalid token, unknown token, expired token) must return a single non-disclosing response shape and code so lookup cannot be used as an enumeration oracle. Must never return raw PII. Throttling is deterministic by key dimensions `(client_ip, token_fingerprint)` where `token_fingerprint` is derived from normalized raw token input and malformed token input uses a fixed malformed bucket; enforce one accepted request per key per 1-second rolling window. Rate-limit violations return `429` with machine code `throttled`, `Retry-After: 1`, and no applicant data.
 - `approve_organizer_application(application_id)`: allows only `pending -> approved`, stamps `reviewed_at`, is idempotent for repeated approve requests on already-approved rows, and writes organizer-application decision fields only (must not mutate `profiles.role` or `profiles.approved_at`)
 - `reject_organizer_application(application_id, rejection_reason)`: allows only `pending -> rejected`, stamps `reviewed_at`, is idempotent for repeated reject requests on already-rejected rows, and writes organizer-application decision fields only (must not mutate `profiles.role` or `profiles.approved_at`)
-- `provision_organizer_account(application_id)` or equivalent trusted organizer-activation helper: owns organizer-role activation and `approved_at` stamping after approved decisions; if `organizer_applications.profile_id` is null, it must provision or link profile identity first, then set organizer activation fields
+- `provision_organizer_account(application_id)` trusted organizer-activation helper: owns organizer-role activation and `approved_at` stamping after approved decisions; if `organizer_applications.profile_id` is null, it must provision or link profile identity first, then set organizer activation fields
 - `snapshot_competition_problems(competition_id)`
 - `publish_competition(competition_id, request_idempotency_token)`
+- `start_competition(competition_id, request_idempotency_token)` trusted scheduled-competition promotion from `published` to `live` with idempotent event logging at the server-authoritative start boundary
+- `end_competition(competition_id, transition_source, reason, request_idempotency_token)` trusted lifecycle transition from `live` or `paused` to `ended`; `transition_source` must be `system_timer` or `trusted_manual_action` with split enforcement: scheduled competitions accept `system_timer` only and do not allow organizer manual end, while open manual end accepts organizer-only `trusted_manual_action` with required non-empty reason and `request_idempotency_token`; repeated requests are idempotent and return existing terminal state
+- `archive_competition(competition_id, request_idempotency_token)` trusted retirement path for historically significant competitions and paused open competitions with no active attempts
+- `delete_draft_competition(competition_id)` trusted hard-delete path allowed only for `status = 'draft'`
+- `moderate_delete_competition(competition_id, reason, request_idempotency_token)` trusted admin-only abuse or fraud deletion path for non-draft competitions with mandatory audit trace
 - `register_for_competition(competition_id, team_id default null)`
 - `withdraw_registration(registration_id)`
 - `validate_team_registration(team_id, competition_id)`
@@ -645,6 +671,7 @@ Required trusted functions:
 - `resume_competition_attempt(attempt_id)`
 - `close_active_attempt_interval(attempt_id)`
 - `save_attempt_answer(attempt_id, competition_problem_id, answer_payload, status_flag)` where `answer_payload` is canonical LaTeX or normalized text derived from MathLive input
+- `submit_competition_attempt(attempt_id, request_idempotency_token)` canonical final-submit mutation with deterministic authority and concurrency guards for individual and team registrations
 - `create_problem_dispute(competition_problem_id, attempt_id, reason)` enforces post-end timing and ownership scope (branch `13-review-submission` ownership contract)
 - `can_view_answer_key(competition_id, viewer_profile_id)` enforces `answer_key_visibility` (`after_end` requires ended competition plus owned registration/attempt context; `hidden` always denies participant access)
 - `log_tab_switch_offense(attempt_id, metadata_json)` validates required anti-cheat metadata keys and mirrors parseable `metadata_json.client_timestamp` into `tab_switch_logs.client_timestamp`
@@ -652,12 +679,12 @@ Required trusted functions:
 - `recalculate_competition_scores(competition_id, request_idempotency_token)` computes effective grading inputs as immutable snapshots plus active `competition_problem_corrections` overlays, with canonical points precedence (`active points_override.corrected_points` else `competition_problems.points`) (branch `07-scoring-system` scoring RPC contract ownership)
 - `refresh_leaderboard_entries(competition_id)` (branch `07-scoring-system` scoring RPC contract ownership)
 - `publish_leaderboard(competition_id, request_idempotency_token)`
-- `broadcast_competition_announcement(competition_id, audience, message)`
-- `pause_competition(competition_id, reason, request_idempotency_token)` organizer control action with admin force-pause support
-- `resume_competition(competition_id, reason, request_idempotency_token)` organizer-only control action
+- `broadcast_competition_announcement(competition_id, audience, message)` resolves recipients strictly by canonical `announcement_audience` predicates, including explicit withdrawn and ineligible handling
+- `pause_competition(competition_id, reason, request_idempotency_token)` organizer pause for open competitions only; scheduled pause allowed only through trusted admin force-pause support
+- `resume_competition(competition_id, reason, request_idempotency_token)` organizer-owned control action for paused owned competitions, including admin-forced pauses
 - `extend_competition(competition_id, additional_minutes, reason, request_idempotency_token)` organizer-only control action
 - `reset_attempt_for_disconnect(attempt_id, reason, request_idempotency_token)` organizer-only control action
-- `resolve_problem_dispute(dispute_id, resolution_status, resolution_note)` (branch `14-leaderboard-history` dispute-resolution ownership contract)
+- `resolve_problem_dispute(dispute_id, resolution_status, resolution_note, request_idempotency_token)` (branch `14-leaderboard-history` dispute-resolution ownership contract)
 - `record_competition_problem_correction(competition_problem_id, dispute_id, correction_type, corrected_payload, reason)` (branch `14-leaderboard-history` correction ownership contract)
 - `queue_export_job(competition_id, format)` owner organizer or admin only
 - `enqueue_notification(recipient_id, type, title, body, link_path, event_identity_key, metadata_json)` de-duplicates by `(recipient_id, event_identity_key)`
@@ -667,23 +694,33 @@ Required trusted functions:
 
 ### Policy Consistency Contracts
 
-- Status lookup token policy: raw lookup tokens are transient input only; persisted storage is hash-only (`status_lookup_token_hash`) and lookup responses are restricted safe fields.
+- Status lookup token policy: raw lookup tokens are transient input only; persisted storage is hash-only (`status_lookup_token_hash`) plus explicit expiry (`status_lookup_token_expires_at`), and lookup responses are restricted safe fields.
+- Status lookup expiry policy: every status lookup validates `now() < status_lookup_token_expires_at`; expired tokens are treated exactly like invalid or unknown tokens and never receive special response shapes.
 - Status lookup negative-path policy: unknown, invalid, or expired lookup tokens must return one generic non-disclosing response and deterministic machine code, with no token-validity leak.
+- Status lookup throttle policy: throttle key dimensions are `(client_ip, token_fingerprint)` with a fixed malformed-token bucket, enforcement window is 1 second, and violations must return `429` with machine code `throttled` plus `Retry-After: 1` and no applicant data.
 - Organizer login-identifier immutability policy: organizer self-service settings cannot change `profiles.email`; only trusted admin/auth credential flows can mutate login identifier.
 - Organizer decision-transition policy: organizer application decisions allow only `pending -> approved` or `pending -> rejected`; direct terminal-to-terminal flips are forbidden.
 - Organizer decision-field immutability policy: after first terminal decision, `status`, `reviewed_at`, and `rejection_reason` are immutable.
-- Organizer activation ownership policy: decision functions (`approve_organizer_application`, `reject_organizer_application`) never mutate organizer role activation fields; trusted activation or provisioning (`provision_organizer_account` or equivalent) alone may set `profiles.role = 'organizer'` and `profiles.approved_at`, including approved rows that start with `profile_id is null`.
+- Organizer activation ownership policy: decision functions (`approve_organizer_application`, `reject_organizer_application`) never mutate organizer role activation fields; trusted activation or provisioning (`provision_organizer_account`) alone may set `profiles.role = 'organizer'` and `profiles.approved_at`, including approved rows that start with `profile_id is null`.
+- Organizer activation-delivery policy: approved organizer onboarding uses the approved contact email as the immutable login identifier and sends one idempotent activation message with a password-set/reset link; rejected applications never provision identity state.
 - Organizer rejection reason policy: `organizer_applications.rejection_reason` is sanitized safe-public text only and is present only for rejected outcomes.
 - Organizer logo-path policy: `organizer_applications.logo_path` stores only canonical storage paths in the format `organizer-applications/{application_id}/logo.{ext}`.
 - Competition format invariant policy: `competitions.format = 'team'` is legal only when `competitions.type = 'scheduled'`; open competitions are always individual format.
 - Competition name-uniqueness policy: uniqueness predicate is `is_deleted = false AND status IN ('draft','published','live','paused','ended')` scoped by organizer; `archived` rows are excluded.
+- Competition delete policy: hard delete is allowed only for `status = 'draft'` through trusted draft-delete handlers; non-draft hard delete is admin-only abuse or fraud moderation with explicit audit reason and evidence metadata.
+- Competition pause-scope policy: organizer pause applies only to open competitions and must allow active attempts to finish while blocking new starts; scheduled competitions may pause only through trusted admin force-pause moderation.
+- Competition end-transition policy: `live` or `paused` to `ended` is owned by trusted lifecycle handlers with deterministic split rules: scheduled competitions end through `transition_source = 'system_timer'` only at the server boundary, while open competitions may end through organizer-only `transition_source = 'trusted_manual_action'`; admin live-support controls do not include manual end; end transitions are idempotent and must not duplicate state effects.
 - Description cap policy: `problem_banks.description` is capped at 200 words and `competitions.description` is capped at 500 words through DB checks and trusted write validation.
 - Registration withdrawal policy: scheduled withdrawals require `now() < competitions.start_time` and zero attempt rows; open withdrawals require zero attempt rows; any attempt row blocks participant withdrawal.
 - Ineligible re-entry policy: `competition_registrations.status = 'ineligible'` may transition back to `registered` only through trusted re-validation while registration timing still allows entry.
 - Dispute-create timing policy: dispute creation is allowed only after competition end (`ended` or `archived`) and only for owned attempt/registration context.
 - Answer-key visibility policy: answer-key access is controlled by `answer_key_visibility` and post-competition checks; it must never be derived from `leaderboard_published`.
-- Open-leaderboard visibility policy: participant-context access requires owned registration or attempt; open competitions expose self row only while `live` or `paused`, and full leaderboard only once `ended` or `archived`.
+- Open-leaderboard visibility policy: participant-context access requires owned registration or attempt; open competitions expose the full leaderboard for all non-draft states (`published`, `live`, `paused`, `ended`, `archived`).
+- Registration snapshot policy: `competition_registrations.entry_snapshot_json` is written at registration acceptance and remains immutable even if profile, school, grade-level, team name, or roster data later changes.
+- Notification preference defaults policy: default rows must enable in-app delivery and all event categories while keeping email globally disabled until the user opts in.
 - Timer and interval policy: `attempt_intervals` support reconnect auditability only and never pause consumed time; offline gaps consume remaining trusted competition time.
+- Team-attempt authority policy: team-registration attempt lifecycle mutations (`start`, `resume`, `submit`) are leader-authorized only; non-leader team members are read-only for lifecycle writes.
+- Team-attempt concurrency policy: attempt lifecycle mutations serialize by registration or attempt lock and return deterministic `attempt_lifecycle_conflict` on concurrent races.
 - Anti-cheat metadata policy: canonical client time field is `metadata_json.client_timestamp` (nullable value required key); `tab_switch_logs.client_timestamp` is a normalized mirror for query/index use.
 - Answer-status counting policy: untouched-question counts come from pre-seeded `attempt_answers.status_flag = 'blank'`, with deterministic blank inference fallback only for legacy rows.
 - Correction artifact policy: accepted disputes or manual answer-key fixes must write `competition_problem_corrections`; recalculation reads immutable snapshots plus active corrections without mutating original snapshot columns.
@@ -691,8 +728,8 @@ Required trusted functions:
 - Leaderboard/export access policy: scheduled visibility depends on organizer publish gate, open visibility follows explicit self-row/full-row timing rules, and export queue/download access is strictly owner organizer or admin only.
 - Notification idempotency policy: retries must de-duplicate by `(recipient_id, event_identity_key)`.
 - Competition-control permission policy: admin live support may force-pause and follows a separate moderation delete path; resume, extend, and disconnect-reset controls are organizer-only.
-- Competition-control reason policy: pause, resume, extend, and disconnect-reset control actions require a non-empty reason.
-- Competition-control idempotency policy: control-action requests de-duplicate by `(competition_id, event_type, actor_user_id, request_idempotency_token)` and return existing results on replay.
+- Competition-control reason policy: pause, resume, extend, and disconnect-reset control actions require a non-empty reason; organizer manual open end requires a non-empty reason as well.
+- Competition-control idempotency policy: control-action requests (including `end_competition`) de-duplicate by `(competition_id, event_type, actor_user_id, request_idempotency_token)` and return existing results on replay; caller supplies `request_idempotency_token` for control-action RPCs except scheduled `end_competition` system-timer transitions, which must use deterministic server token `system_end:{competition_id}:{effective_end_boundary_iso}`; SQL uniqueness must coalesce nullable `actor_user_id` to the system-actor sentinel (`coalesce(actor_user_id, '00000000-0000-0000-0000-000000000000'::uuid)`) so system-timer dedupe cannot break.
 - Account-removal policy: non-spam/fake account removals are anonymization-only; hard-delete is reserved for explicit spam/fake abuse paths with admin audit trace.
 - Formula stack policy: editable math input uses MathLive, static rendering uses KaTeX, and persisted canonical math values remain LaTeX.
 - Timer naming policy: trusted timing logic must use canonical names and derivations `attempt_base_deadline_at`, `scheduled_competition_end_cap_at`, and `effective_attempt_deadline_at`; scheduled attempts are capped by the scheduled competition end cap.
@@ -716,16 +753,26 @@ Performance rules:
 
 ## Section G - Migration Notes
 
-Recommended migration order:
+Recommended migration order (branch-aligned canonical):
 
-1. foundational enums, `profiles`, organizer applications, notification preferences
-2. admin settings and audit logs
-3. problem banks and problems
-4. teams and invitations
-5. competitions and competition snapshots
-6. registrations and live attempt tables
-7. disputes, correction artifacts, notifications, export jobs, leaderboard output
-8. supporting RPCs, triggers, and performance indexes
+1. `01-foundation`: foundational enums, `profiles`, `organizer_applications`, `notification_preferences`
+2. `02-authentication`: no new canonical domain table migrations
+3. `03-interaction-feedback`: no new canonical domain table migrations
+4. `04-admin-user-management`: `admin_audit_logs`, `system_settings`, organizer decision RPCs
+5. `05b-deferred-foundation-and-auth`: trusted auth-session and anonymization hardening helpers
+6. `05-organizer-registration`: status lookup expiry contract and organizer activation-provisioning helpers
+7. `06-problem-bank`: `problem_banks`, `problems`
+8. `07-scoring-system`: scoring enums and scoring RPC contracts
+9. `08-competition-wizard`: `competitions`, `competition_problems`, initial `competition_events` schema for lifecycle or audit events, publish or start or end or archive lifecycle helpers, and trusted draft-delete path
+10. `09-team-management`: `teams`, `team_memberships`, `team_invitations`
+11. `10-competition-search`: `competition_registrations` plus registration and withdrawal RPCs
+12. `11-arena`: `competition_attempts`, `attempt_intervals`, `attempt_answers`, plus start or resume or submit attempt lifecycle helpers
+13. `12-anti-cheat`: `tab_switch_logs` and offense logging RPC
+14. `13-review-submission`: `problem_disputes` and participant dispute-create helpers
+15. `14-leaderboard-history`: `competition_problem_corrections`, `leaderboard_entries`, `export_jobs`, and publication or correction helpers
+16. `15-notifications-polish`: `notifications` table and shared notification delivery helpers
+17. `16-participant-monitoring`: `competition_announcements`, announcement fan-out, pause or resume or extend or reset controls, and non-draft moderation delete path (consumes and expands existing `competition_events` producers)
+18. `17-testing-bug-fixes`: compatibility cleanup migrations only
 
 Audit baseline contract: missing future-branch routes or tables in current app or migrations are expected before the owning branch executes; treat these as planned sequencing gaps, not contradictions.
 
@@ -760,21 +807,21 @@ Risky migrations and backfills:
 | Branch | Schema ownership introduced in branch | Trusted function or trigger ownership introduced in branch |
 | --- | --- | --- |
 | `01-foundation` | foundational enums, `profiles`, `organizer_applications`, `notification_preferences` | `insert_profile_for_new_user`, `handle_profile_changes`, `create_default_notification_preferences` |
-| `02-authentication` | no new domain table; auth-session coordination on `profiles.session_version` | `rotate_session_version` or equivalent trusted session invalidation helper |
+| `02-authentication` | no new domain table; auth-session coordination on `profiles.session_version` is consumed but not completed | no new canonical trusted auth-session helper; branch prepares for later hardening |
 | `04-admin-user-management` | `admin_audit_logs`, `system_settings` | `approve_organizer_application`, `reject_organizer_application` |
-| `05b-deferred-foundation-and-auth` | compatibility hardening only; no new canonical domain table | trusted anonymization or compatibility helpers if required by rollout |
-| `05-organizer-registration` | organizer onboarding storage-path contract; profile link activation contract for approved applications | `lookup_organizer_application_status`, `provision_organizer_account` |
+| `05b-deferred-foundation-and-auth` | compatibility hardening only; no new canonical domain table | `rotate_session_version`, `update_mathlete_profile_settings`, `anonymize_user_account` |
+| `05-organizer-registration` | organizer onboarding storage-path contract; profile link activation contract for approved applications; status-lookup token expiry contract | `lookup_organizer_application_status`, `provision_organizer_account` |
 | `06-problem-bank` | `problem_banks`, `problems` | trusted bank or problem mutation helpers as needed |
 | `07-scoring-system` | scoring enums and scoring snapshot contract fields used by competitions | `grade_attempt`, `recalculate_competition_scores`, `refresh_leaderboard_entries` |
-| `08-competition-wizard` | `competitions`, `competition_problems` | `snapshot_competition_problems`, `publish_competition` |
+| `08-competition-wizard` | `competitions`, `competition_problems`, initial `competition_events` (lifecycle or audit baseline) | `snapshot_competition_problems`, `publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `delete_draft_competition` |
 | `09-team-management` | `teams`, `team_memberships`, `team_invitations` | `transfer_team_leadership` |
 | `10-competition-search` | `competition_registrations` | `register_for_competition`, `withdraw_registration`, `validate_team_registration` |
-| `11-arena` | `competition_attempts`, `attempt_intervals`, `attempt_answers` | `start_competition_attempt`, `resume_competition_attempt`, `close_active_attempt_interval`, `save_attempt_answer` |
+| `11-arena` | `competition_attempts`, `attempt_intervals`, `attempt_answers` | `start_competition_attempt`, `resume_competition_attempt`, `close_active_attempt_interval`, `save_attempt_answer`, `submit_competition_attempt` |
 | `12-anti-cheat` | `tab_switch_logs` | `log_tab_switch_offense` |
 | `13-review-submission` | `problem_disputes` (participant dispute-create ownership); submission contracts on existing attempt tables | `create_problem_dispute`, `can_view_answer_key` |
 | `14-leaderboard-history` | `competition_problem_corrections`, `leaderboard_entries` (leaderboard/history surfaces), `export_jobs`; dispute-resolution contracts on existing `problem_disputes` rows | `resolve_problem_dispute`, `record_competition_problem_correction`, `publish_leaderboard`, `queue_export_job` |
-| `15-notifications-polish` | `notifications` | `enqueue_notification`, `mark_notification_read`, `mark_all_notifications_read` |
-| `16-participant-monitoring` | `competition_announcements`, `competition_events` | `broadcast_competition_announcement`, `pause_competition` (organizer path plus admin force-pause support), `resume_competition`, `extend_competition`, `reset_attempt_for_disconnect` (resume/extend/reset are organizer-only control actions) |
+| `15-notifications-polish` | `notifications` | `enqueue_notification`, `mark_notification_read`, `mark_all_notifications_read` (shared delivery infrastructure only; no `competition_announcements` producer ownership) |
+| `16-participant-monitoring` | `competition_announcements` (consumes and expands existing `competition_events` producers introduced in branch `08`) | `broadcast_competition_announcement` (announcement producer ownership and audience resolution; consumes branch `15` delivery helpers), `pause_competition` (organizer open-competition path plus admin force-pause support), `resume_competition`, `extend_competition`, `reset_attempt_for_disconnect` (resume/extend/reset are organizer-only control actions), `moderate_delete_competition` |
 | `17-testing-bug-fixes` | no new domain table by default; cleanup or compatibility removals only | migration cleanup gates only (no new primary business-domain RPCs) |
 
 ## Section H - Change Log
@@ -784,6 +831,7 @@ Risky migrations and backfills:
 - 2026-04-03: Made source-of-truth contracts deterministic for status lookup sanitization/negative paths, team-format invariants, description caps, registration withdrawal timing, non-pausing interval timing, anti-cheat metadata keys, untouched-answer counting, accepted-dispute correction artifacts, and leaderboard/export visibility boundaries.
 - 2026-04-03: Resolved remaining core-contract gaps for open leaderboard timing/predicate, organizer identifier immutability, organizer decision idempotency, dispute-create timing guard, canonical organizer logo paths, control-action and notification idempotency keys, explicit competition-name uniqueness statuses, and account-removal semantics.
 - 2026-04-03: Added explicit branch `04` decision-only versus branch `05` activation-only organizer ownership, deterministic points precedence fallback, canonical timer-deadline naming, concrete route and lifecycle migration sequences, and a per-branch schema/function ownership matrix.
+- 2026-04-03: Added explicit status-lookup token expiry contract, canonical `live/paused -> ended` ownership and idempotency semantics, team-attempt authority and concurrency guards, deterministic announcement audience predicates, explicit draft-delete versus non-draft moderation-delete policy, branch-aligned migration sequencing, and non-circular notification versus announcement ownership sequencing.
 
 
 ### User Deletion Privacy Rule
