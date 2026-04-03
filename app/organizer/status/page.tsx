@@ -1,13 +1,14 @@
 import { OrganizerStatusLookup } from "@/components/organizer/status-lookup";
 
-export default function OrganizerStatusPage({
+export default async function OrganizerStatusPage({
   searchParams,
 }: {
-  searchParams: { token?: string | string[] };
+  searchParams: Promise<{ token?: string | string[] }>;
 }) {
-  const initialToken = Array.isArray(searchParams.token)
-    ? searchParams.token[0] || ""
-    : searchParams.token || "";
+  const resolvedSearchParams = await searchParams;
+  const initialToken = Array.isArray(resolvedSearchParams.token)
+    ? resolvedSearchParams.token[0] || ""
+    : resolvedSearchParams.token || "";
 
   return (
     <section className="shell py-14 md:py-20">
