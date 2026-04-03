@@ -11,9 +11,34 @@ Execute the final release hardening pass: full regression testing, accessibility
 
 This branch exists because many critical issues only surface when flows are tested end to end. The rebuild must reserve an explicit branch for truth-finding, not assume feature completion equals release readiness.
 
-Depends on: `01` through `16`.
+Depends on: `01`, `02`, `03`, `04`, `05b`, `05`, `06`, `07`, `08`, `09`, `10`, `11`, `12`, `13`, `14`, `15`, `16`.
 
 Unblocks: release branch creation and deployment.
+
+## Scope Boundary
+
+- This branch is for regression testing, bug fixes, hardening, and release-contract completion only.
+- Do not add net-new product capabilities, new role workflows, or ownership changes that belong to earlier feature branches.
+- Do not re-scope branch `15-notifications-polish` or `16-participant-monitoring`; only fix defects found while validating them.
+- Playwright and other browser-automation tooling are forbidden in this branch unless an external policy exception is logged in `.agent/PROCESS-FLOW.md` under `## CORE_PATCH_REQUESTS` using the canonical required fields with `status = approved` before execution.
+- If a release blocker requires out-of-scope architecture work, record it in `.agent/PROCESS-FLOW.md` under `## CORE_PATCH_REQUESTS` as `request_type = out_of_scope_blocker` using the canonical required fields, and do not silently absorb it into this branch.
+
+## Route Naming Contract (Final QA Matrix)
+
+- Public and auth: `/`, `/auth/login`, `/auth/sign-up`, `/auth/forgot-password`.
+- Core role homes: `/mathlete`, `/organizer`, `/admin`.
+- Notification surfaces: `/notifications`, `/settings/notifications`.
+- Competition and results surfaces: `/mathlete/competition/[competitionId]/leaderboard`, `/organizer/competition/[competitionId]/leaderboard`, `/mathlete/history`, `/organizer/history`.
+- Live operations surfaces: `/organizer/competition/[competitionId]/participants`, `/admin/competitions/[competitionId]/participants`.
+- Any route touched by a bug fix must be added to the branch QA evidence list before merge.
+
+## Command Verification Contract (Deterministic)
+
+- Baseline commands that must pass with exit code 0: `npm run lint`, `npm run test` (Vitest), `npm run build`.
+- Targeted Vitest suites for this branch must run when corresponding tests exist: `npm run test -- tests/notifications` and `npm run test -- tests/monitoring`.
+- Dev-server smoke verification is deterministic: start `npm run dev`, confirm startup without runtime errors, probe required routes, then intentionally stop the process and capture probe evidence in QA notes.
+- Browser automation is forbidden for this branch: do not run Playwright or other browser-automation tooling; if automation is required by external policy, log the exception in `.agent/PROCESS-FLOW.md` under `## CORE_PATCH_REQUESTS` using the canonical required fields with `status = approved` before execution.
+- If migrations changed while fixing bugs, run `npm run supabase:status` and `npm run supabase:db:reset`.
 
 ## Full Context
 
@@ -29,47 +54,53 @@ Unblocks: release branch creation and deployment.
 
 ## Research Findings / Implementation Direction
 
-- Keep tests layered: unit and helper coverage for core logic, Playwright for end-to-end flows, and manual exploratory QA for live edge cases.
+- Keep tests layered: unit and helper coverage for core logic, targeted integration suites where available, and manual exploratory QA for live edge cases.
 - Measure actual page performance and interaction stability instead of assuming the UI is fast because it feels fast locally.
 - Fix the source of a bug and add regression coverage where practical instead of relying on manual memory.
 - Finalize docs in the same branch so the project source of truth matches the releasable system.
 
 ## Requirements
 
-- run and stabilize all lint, unit, integration, and end-to-end suites
-- perform manual regression for every major role workflow
-- perform accessibility and mobile review across the whole app
-- measure performance on critical routes and resolve major regressions
-- fix bugs discovered during QA and add regression tests
+- run and stabilize the deterministic command matrix in this document
+- execute manual regression on every route in the final QA matrix
+- perform accessibility and mobile review across all touched routes
+- measure performance on critical routes and resolve high-impact regressions
+- fix QA-discovered bugs and add regression tests for each fixed defect where practical
 - finalize `.agent/` docs, `README.md`, and release notes or changelog inputs
+- capture out-of-scope blockers in `.agent/PROCESS-FLOW.md` under `## CORE_PATCH_REQUESTS` only
 
 ## Atomic Steps
 
-1. Establish the final automated test matrix and make sure it runs locally.
-2. Add missing Playwright coverage for core user journeys if gaps remain.
-3. Run the full regression suite and capture failures.
-4. Perform role-based manual QA across anonymous, mathlete, organizer, and admin workflows.
-5. Run accessibility review and fix blockers.
-6. Run performance checks on critical routes and fix meaningful regressions.
-7. Apply bug fixes with targeted regression tests.
-8. Reconcile documentation with the final system, including `.agent/` and release notes.
-9. Validate migrations, env assumptions, and deploy/build behavior.
+1. Run baseline command verification and capture initial failures.
+2. Run targeted Vitest notifications and monitoring suites when present.
+3. Run deterministic dev-server smoke verification: start `npm run dev`, probe required routes, then stop the process intentionally and capture evidence.
+4. Execute manual QA across the explicit route matrix for anonymous, mathlete, organizer, and admin journeys.
+5. Execute accessibility checks for keyboard flow, focus behavior, labels, and contrast on touched routes.
+6. Execute performance checks on critical routes and identify regressions.
+7. Apply bug fixes, then add or update regression tests before rerunning failing checks.
+8. Re-run full command verification until clean or until remaining blockers are explicitly documented.
+9. Confirm Vitest-only automation was used (`npm run test` and targeted filters), and confirm Playwright/browser automation was not executed; if external policy requires it, log the exception in `.agent/PROCESS-FLOW.md` under `## CORE_PATCH_REQUESTS` using the canonical required fields with `status = approved` before running it.
+10. Reconcile release documentation and capture unresolved out-of-scope blockers in `.agent/PROCESS-FLOW.md` under `## CORE_PATCH_REQUESTS` as `request_type = out_of_scope_blocker` entries.
+11. Validate migration and environment assumptions before release-branch handoff.
 
 ## Key Files
 
 - `tests/**/*`
-- Playwright config and e2e specs
+- QA evidence notes and route-matrix checklists generated during branch validation
 - performance and accessibility notes generated during QA
 - `README.md`
 - `.agent/*`
 
 ## Verification
 
-- Automated: lint, unit, integration, and e2e all pass.
-- Manual QA: all primary role workflows and major edge cases are exercised.
-- Accessibility: keyboard, focus, labeling, contrast, and mobile-safe interactions pass the final sweep.
-- Performance: critical routes meet acceptable local and staging thresholds with no major regression.
-- Edge cases: disconnects, recalculation after publish, export failures, suspended-user access, invalid roster changes, large tables, and notification delivery.
+- Command verification: `npm run lint`, `npm run test`, and `npm run build` pass with exit code 0.
+- Targeted suite verification: `npm run test -- tests/notifications` and `npm run test -- tests/monitoring` pass when suites exist.
+- Dev-server verification: `npm run dev` starts cleanly, required route probes succeed during runtime, and the process is intentionally stopped after verification.
+- Browser-automation policy verification: Playwright and other browser-automation tooling are not used in this branch; any external requirement is documented in `.agent/PROCESS-FLOW.md` under `## CORE_PATCH_REQUESTS` using the canonical required fields with `status = approved` before execution.
+- Manual route verification: every route in the Final QA Matrix is exercised with role-appropriate access checks.
+- Accessibility verification: keyboard flow, focus, labeling, contrast, and mobile-safe interactions pass on touched routes.
+- Performance verification: critical routes show no high-severity regression in load and interaction behavior.
+- Edge-case verification: disconnects, recalculation after publish, export failures, suspended-user access, invalid roster changes, large tables, and notification delivery are exercised.
 
 ## Git Branching
 
@@ -83,7 +114,7 @@ Unblocks: release branch creation and deployment.
 - PR title template: `Release readiness: regression fixes, verification, and final hardening`
 - PR description template:
   - Summary: full QA, bug fixes, accessibility and performance hardening, docs finalization
-  - Testing: lint, unit, integration, Playwright, manual regression
+  - Testing: lint, unit and integration suites, deterministic dev-server smoke checks, manual regression
   - Docs: `.agent/`, README, and release notes aligned to final behavior
 
 ## Definition of Done
@@ -91,4 +122,5 @@ Unblocks: release branch creation and deployment.
 - the full system is verified rather than assumed
 - high-severity bugs are fixed with regression coverage
 - docs reflect the final releasable state
+- unresolved out-of-scope blockers are explicitly captured in `.agent/PROCESS-FLOW.md` under `## CORE_PATCH_REQUESTS`
 - the codebase is ready to move into a release branch without hidden implementation debt
