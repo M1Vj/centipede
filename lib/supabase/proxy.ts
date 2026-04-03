@@ -11,6 +11,7 @@ export async function updateSession(request: NextRequest) {
   // to avoid unnecessary Supabase client creation or database hits.
   const path = request.nextUrl.pathname;
   if (
+    path.startsWith("/api/") ||
     path.startsWith("/_next") ||
     path.startsWith("/favicon.ico") ||
     path === "/robots.txt" ||
