@@ -33,7 +33,7 @@ Unblocks: final QA and release readiness.
 - Backend flow: registration reads, attempt summary subscriptions, competition-event writes, announcement inserts, trusted live-control state transitions, disconnection-reset helpers, and invocation of branch 15 notification fan-out.
 - Related tables/functions: `competition_registrations`, `competition_attempts`, `tab_switch_logs`, `competition_announcements`, `competition_events`, `notifications`.
 - Edge cases: paused open competition with active attempts, extending a competition while users are active, organizer reconnecting to stale monitoring state, announcement sent to withdrawn users accidentally.
-- Security concerns: owning organizers issue pause, resume, extend, and legitimate-disconnection reset controls; admins can only force-pause through trusted moderation paths; live data must be competition-scoped.
+- Security concerns: owning organizers issue open-competition pause plus organizer-owned resume, extend, and legitimate-disconnection reset controls; admins can force-pause live competitions for incidents through trusted moderation paths only; live data must be competition-scoped.
 - Performance concerns: monitoring views need targeted subscriptions and summarized queries, not row-by-row client storms.
 - Accessibility/mobile: monitoring is primarily desktop-oriented but still needs safe tablet fallback and keyboard operability.
 
@@ -49,7 +49,9 @@ Unblocks: final QA and release readiness.
 
 - Branch 16 is the producer for organizer-authored announcements by writing durable `competition_announcements` rows and associated organizer metadata.
 - Branch 15 is the consumer for channel delivery behavior, inbox projection, and preference-aware dispatch based on durable announcement records.
-- Branch 16 must call shared dispatch helpers and must not add separate channel-specific delivery guarantees.
+- Executable dependency model follows `.agent/PROCESS-FLOW.md`: branch `15` lands shared delivery helpers first; branch `16` then lands announcement authoring that calls those helpers.
+- Branch 16 announcement flow writes the durable record first, then calls branch 15 dispatch helpers using the same stable event identity payload for retries.
+- Branch 16 must not add separate channel-specific delivery guarantees.
 
 ## Route Naming Contract (Deterministic)
 
@@ -61,14 +63,25 @@ Unblocks: final QA and release readiness.
 ## Live Control Safety Guard Contract
 
 - Allowed actors and actions:
-  - owning organizer: pause, resume, extend, and legitimate-disconnection reset
-  - admin: force-pause only through trusted moderation path
+  - owning organizer: open-competition pause, resume, extend, and legitimate-disconnection reset
+  - admin: incident force-pause only on live competitions through trusted moderation path and separate moderation delete path; never resume, extend, or disconnect-reset
 - Guard rules:
-  - pause or force-pause is allowed only when competition state is `live`
+  - organizer pause is allowed only for `open` competitions when competition state is `live`; it blocks new attempt starts while allowing already-active attempts to finish
+  - admin force-pause for incidents is allowed only when competition state is `live` and may target any live competition type
   - resume is organizer-only and allowed only when competition state is `paused`
   - extend is organizer-only and allowed only when competition state is `live` or `paused`
   - disconnection reset is organizer-only and allowed only for eligible active attempts that are not already finalized
+
+### Legitimate Disconnection Reset Criteria (Objective)
+
+1. Eligible active-attempt gate: `reset_attempt_for_disconnect` is allowed only when the target attempt is active in the same competition scope and not finalized (`submitted`, `auto_submitted`, `graded`, and `disqualified` are ineligible).
+2. Recent-evidence gate: a trusted disconnect evidence signal must exist within a bounded recency window before the reset request.
+3. Duplicate-reset gate: deny reset when the same `attempt_id` already has a successful disconnect reset within the bounded cooldown window.
+4. Required request tuple gate: both non-empty `reason` and `request_idempotency_token` are mandatory; missing either must fail validation.
+5. Audit-evidence gate: every reset decision must persist auditable evidence metadata in `competition_events`, including `attempt_id`, `disconnect_evidence_type`, `disconnect_evidence_observed_at`, `disconnect_evidence_ref`, `reason`, `request_idempotency_token`, actor identity, and decision outcome.
+
 - Every control action must require explicit confirmation.
+- Canonical control tuple for pause, resume, extend, and disconnect reset is `(reason, request_idempotency_token)`; both are required and `reason` must be non-empty.
 - Reason capture follows canonical RPC signatures:
   - `pause_competition(competition_id, reason, request_idempotency_token)` requires non-empty `reason`; admin live support remains force-pause only through trusted moderation path
   - `resume_competition(competition_id, reason, request_idempotency_token)` requires non-empty `reason`
@@ -90,10 +103,10 @@ Unblocks: final QA and release readiness.
 - implement participant list with search, filters, and registration-state context
 - implement active-attempt monitoring with score, time, and offense indicators
 - implement organizer announcement broadcast for the active competition scope by writing durable announcement records and invoking shared branch 15 dispatch helpers
-- implement organizer-owned pause, resume, extend, and legitimate-disconnection reset controls with mandatory confirmation and canonical reason-capture rules
+- implement organizer-owned open-competition pause plus organizer-owned resume, extend, and legitimate-disconnection reset controls with mandatory confirmation, canonical reason-capture rules, and objective disconnect-reset legitimacy criteria
 - implement admin live-support hooks for trusted force-pause only, reusing the same guard and event contracts
 - implement durable event timeline for lifecycle and intervention actions from `competition_events`
-- enforce idempotent control invocation behavior using `request_idempotency_token`
+- enforce canonical control tuple (`reason`, `request_idempotency_token`) and idempotent dedupe behavior using `(competition_id, event_type, actor_user_id, request_idempotency_token)`
 
 ## Atomic Steps
 
@@ -102,9 +115,9 @@ Unblocks: final QA and release readiness.
 3. Add participant list search and registration-state filters with competition-scoped reads.
 4. Add live attempt summaries with active time, offense counts, and progress indicators.
 5. Add announcement composer flow that writes durable announcement records before invoking shared branch 15 fan-out helpers.
-6. Add trusted organizer-owned pause, resume, extend, and legitimate-disconnection reset controls that enforce lifecycle guards, canonical reason-capture behavior, and confirmation requirements.
+6. Add trusted organizer-owned open-competition pause plus organizer-owned resume, extend, and legitimate-disconnection reset controls that enforce lifecycle guards, canonical reason-capture behavior, objective disconnect-reset legitimacy criteria, and confirmation requirements.
 7. Write one `competition_events` row per control action and render timeline entries in chronological order.
-8. Add tests for control guards, idempotency-token dedupe behavior, event logging, disconnection-reset eligibility rules, and summary queries.
+8. Add tests for control guards, idempotency-token dedupe behavior, event logging, disconnection-reset legitimacy rules (active and non-finalized gate, recent-evidence gate, bounded-window duplicate prevention), and summary queries.
 
 ## Key Files
 

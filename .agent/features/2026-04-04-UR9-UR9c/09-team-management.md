@@ -20,6 +20,7 @@ Unblocks: team competition registration, team arena participation, participant m
 ## Dependency Gate (Explicit)
 
 - Do not start until branch `08-competition-wizard` is merged, because team lock logic depends on canonical competition format and lifecycle contracts.
+- Branch `09` owns team-domain lock predicates, invite or membership mutation rules, and deterministic guard helpers; branch `10-competition-search` owns registration-table integration where `competition_registrations` schema and registration mutations exist.
 - Branch `10-competition-search` must consume route and entity names from this branch without renaming.
 
 ## Full Context
@@ -65,15 +66,15 @@ Unblocks: team competition registration, team arena participation, participant m
   - TeamRegistration: `competition_registrations` row with `team_id` populated
   - TeamRosterLock: derived state from competition and registration data, not a standalone table
 
-### Roster Lock and Eligibility Contract (Explicit)
+### Roster Lock and Eligibility Contract (Explicit, Branch10 Handoff)
 
-1. Lock trigger: activate roster lock for a `(team_id, competition_id)` pair when `competition_registrations.status = 'registered'` for a competition where `format = 'team'` and `type = 'scheduled'`.
+1. Lock predicate ownership (branch `09`): roster lock is true for a `(team_id, competition_id)` pair when registration state is `registered` for a competition where `format = 'team'` and `type = 'scheduled'`; branch `10` provides `competition_registrations` state integration for this predicate.
 2. Lock scope: while locked, block invite creation, invite acceptance, member removal, member leave, manual leadership transfer, and team archival from mathlete-facing flows.
-3. Lock release: release lock only when registration status transitions to `withdrawn`, `cancelled`, or `ineligible`, or the competition status transitions to `ended` or `archived`.
+3. Lock release predicate (branch `09` contract): release lock only when registration status transitions to `withdrawn`, `cancelled`, or `ineligible`, or the competition status transitions to `ended` or `archived`; branch `10` executes registration-state wiring.
 4. Defensive exception only: trusted moderation flows can force membership deactivation for suspended/deleted users; this must set registration status to `ineligible` with `status_reason` and preserve audit traceability.
-5. Re-entry rule: when status becomes `ineligible`, roster edits become allowed again so the leader can repair membership and re-register through branch `10` if registration is still open.
+5. Re-entry rule: when status becomes `ineligible`, roster edits become allowed again under branch `09` guard rules so the leader can repair membership and re-register through branch `10` if registration is still open.
 6. Eligibility authority: all lock and conflict checks must execute in trusted server actions/RPCs. UI warnings are informational and are never the source of truth.
-7. Conflict minimum: invitation acceptance must fail if the invitee would become active on two different teams already registered in the same competition.
+7. Conflict minimum: invitation acceptance must fail if the invitee would become active on two different teams already registered in the same competition; branch `10` registration lookups must consume this deterministic guard contract.
 
 ### Notification Ownership Boundary
 
@@ -88,8 +89,8 @@ Unblocks: team competition registration, team arena participation, participant m
 3. Add username search and team-code invite entry.
 4. Build roster management actions for leaders and members.
 5. Implement automatic leadership transfer when the current leader leaves or is removed.
-6. Integrate registration-aware roster lock and conflict checks through trusted mutation helpers only.
-7. Add ineligibility transitions and shared notification event dispatch when a locked team drops below required roster constraints.
+6. Implement deterministic team-domain roster-lock and conflict guard helpers through trusted mutation helpers, and publish branch `10` integration handoff for registration-aware wiring where `competition_registrations` exists.
+7. Add ineligibility transition and shared notification event-dispatch contracts that branch `10` registration flows consume when a locked team drops below required roster constraints.
 8. Add tests for membership validation, leadership transfer, and invite acceptance rules.
 
 ## Key Files
