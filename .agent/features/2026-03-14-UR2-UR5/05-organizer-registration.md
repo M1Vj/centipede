@@ -49,8 +49,9 @@ Unblocks: problem banks, competition authoring, organizer notification polish (b
 ## Organizer Communication Contract
 
 - Submission: after a successful application insert with `status = 'pending'`, send a submission-confirmation email to `contact_email`.
-- Approval: when branch 04 marks an application `approved`, run trusted activation/provisioning in this branch (including null `profile_id` cases) and write `profiles.role = 'organizer'` plus `profiles.approved_at` idempotently, then send an approval email with next-step instructions exactly once per `(application_id, approved)`.
+- Approval: when branch 04 marks an application `approved`, run trusted activation/provisioning in this branch (including null `profile_id` cases) and write `profiles.role = 'organizer'` plus `profiles.approved_at` idempotently, then send one activation email with a password-set/reset link exactly once per `(application_id, approved)`.
 - Rejection: when branch 04 marks an application `rejected`, keep organizer access blocked and send a rejection email with reason exactly once per `(application_id, rejected)`.
+- Decision-reason contract: `rejection_reason` is required for rejected outcomes; approval rationale is not persisted or required in release one.
 - This branch does not write `notifications` or `notification_preferences`; account-linked notification delivery belongs to branch 15.
 - This branch must not write `organizer_applications.status`, `rejection_reason`, or `reviewed_at`.
 - Activation and communication retries must be deterministic and idempotent so the final organizer state and outbound messages are stable.
@@ -59,11 +60,14 @@ Unblocks: problem banks, competition authoring, organizer notification polish (b
 
 - Applicant status must be checked through an opaque token path (not organizer login).
 - Persist only token hashes (`status_lookup_token_hash`) and validate through trusted handlers or RPC.
+- Canonical expiry evaluation is owned by trusted `lookup_organizer_application_status(status_lookup_token)` DB logic; callers must not invent client-side expiry rules.
 - Success response is restricted to safe fields: `status`, `rejection_reason`, and `masked_contact_email`.
-- Invalid, malformed, unknown, or expired token returns `404` with the same generic `not_found` machine-code payload and no applicant data.
+- Throttle key dimensions are `(client_ip, token_fingerprint)` where `token_fingerprint` is derived from normalized raw token input and malformed input maps to a fixed malformed bucket.
+- Throttle window is deterministic: allow one accepted lookup per key per rolling 1-second window.
+- Invalid, malformed, unknown, or DB-evaluated expired token returns `404` with the same generic `not_found` machine-code payload and no applicant data.
 - Throttled lookups return `429` with `Retry-After: 1` and a generic `throttled` error payload with no applicant data.
-- Negative-path responses must stay non-disclosing and use a fixed machine-code policy: `not_found` for lookup failure states (including expiry) and `throttled` for rate-limit states.
-- Enforce defensive lookup throttling consistent with the DB contract (1-second minimum interval).
+- Negative-path responses must stay non-disclosing and follow the DB source-of-truth machine-code policy: `not_found` for lookup failure states (including expiry) and `throttled` for rate-limit states.
+- Enforce the DB throttle contract exactly, including key dimensions, 1-second window, `429` response behavior, and `Retry-After: 1` header.
 
 ## Storage Contract
 
@@ -81,9 +85,10 @@ Unblocks: problem banks, competition authoring, organizer notification polish (b
 - write organizer logo objects to `organizer-assets/organizer-applications/{application_id}/logo.{ext}` and persist only `organizer-applications/{application_id}/logo.{ext}` in `logo_path`
 - send a submission-confirmation email immediately after successful organizer application creation
 - show review status (`pending`, `approved`, `rejected`) and rejection reason through secure token lookup that returns only safe fields
-- consume approved or rejected decisions from branch 04 and perform trusted organizer activation/provisioning writes (`profiles.role`, `profiles.approved_at`) idempotently, including null `profile_id` paths
-- deliver organizer credentials or activation instructions to the approved contact email after approval, and deliver explicit rejection messaging when denied
+- consume approved decisions from branch 04 and perform trusted organizer activation/provisioning writes (`profiles.role`, `profiles.approved_at`) idempotently, including null `profile_id` paths
+- deliver one activation email with a password-set/reset link to the approved contact email after approval, and deliver explicit rejection messaging when denied
 - route newly approved organizers into the organizer workspace (`/organizer`)
+- add organizer dashboard home states for profile summary plus statistics/data-insights shells so the promised dashboard surface exists before later data-heavy branches
 - keep the approved organizer login identifier immutable in self-service settings while allowing password recovery
 - add organizer profile and settings pages needed before problem-bank work begins
 - keep this branch read-only for admin decision fields (`status`, `rejection_reason`, `reviewed_at`)
@@ -95,9 +100,9 @@ Unblocks: problem banks, competition authoring, organizer notification polish (b
 3. Add upload handling for logo assets to Supabase Storage bucket `organizer-assets` using key `organizer-applications/{application_id}/logo.{ext}`, then persist only that canonical object path in `organizer_applications.logo_path`.
 4. Persist application data to `organizer_applications` with idempotent submit behavior, default `status = 'pending'`, hashed status lookup token storage, and immediate submission-confirmation email delivery.
 5. Build the applicant status page (`/organizer/status`) with `pending`, `approved`, and `rejected` states using secure token lookup that returns only `status`, `rejection_reason`, and `masked_contact_email`.
-6. Integrate with trusted admin decisions from branch 04 as read-only handoff input (no admin UI rewrite and no decision writes): approval triggers trusted activation/provisioning writes plus approval email messaging and onboarding instructions; rejection triggers rejection email messaging with reason.
+6. Integrate with trusted admin decisions from branch 04 as read-only handoff input (no admin UI rewrite and no decision writes): approved decisions trigger trusted activation/provisioning writes plus one idempotent activation email with onboarding instructions; rejected decisions trigger rejection email messaging only.
 7. Add organizer-first-run routing so users logging in with the `organizer` role land directly in the `/organizer` dashboard.
-8. Build organizer profile (`/organizer/profile`) and settings (`/organizer/settings`) pages with editable organization-facing fields while keeping the login identifier non-editable in self-service settings.
+8. Build organizer dashboard home states in `/organizer` for profile summary plus statistics/data-insights shells, then add organizer profile (`/organizer/profile`) and settings (`/organizer/settings`) pages with editable organization-facing fields while keeping the login identifier non-editable in self-service settings.
 9. Verify the existing admin review path from branch 04 works cleanly end-to-end with the new application payload, including deterministic activation/provisioning for approved rows and null `profile_id` cases, then correct email and routing outcomes.
 
 ## Key Files

@@ -23,7 +23,7 @@ Unblocks: team registration, discovery, arena, monitoring, leaderboard publicati
 - Backend flow: draft persistence, snapshotting competition problems, publish transition, lifecycle events, deletion rules, and lifecycle state guards that later live controls reuse.
 - Related tables/functions: `competitions`, `competition_problems`, `competition_events`, grading rule helpers, problem snapshots.
 - Edge cases: duplicate competition names, invalid registration windows, open competition with scheduled-only options, deleting active open competition, editing a published competition.
-- Security concerns: only the owning organizer or trusted admin can mutate drafts; publish must be a trusted action; snapshots must be immutable.
+- Security concerns: draft mutation ownership is organizer-only for organizer-owned drafts; admin moderation controls are outside this branch boundary and belong to branch `16`; publish must be a trusted action; snapshots must be immutable.
 - Performance concerns: problem selection and preview must remain fast even with larger banks; drafts should autosave without expensive full-page invalidation.
 - Accessibility/mobile: multi-step wizard needs explicit step navigation, save states, summary affordances, and mobile-safe actions.
 
@@ -48,23 +48,33 @@ Unblocks: team registration, discovery, arena, monitoring, leaderboard publicati
   - Individual competitions allow 3 to 100 participants.
   - Scheduled team competitions allow 2 to 5 participants per team and 3 to 50 teams.
 - Problem count limits: publish requires 10 to 100 selected problems.
+- Overview contract: the wizard overview step must persist organizer-authored `competitions.instructions` that mathletes acknowledge before entering the arena.
 
 Allowed status transitions:
 - `draft` -> `published` (trusted publish action only).
-- `published` -> `live` (trusted start transition).
+- `published` -> `live` (trusted scheduled-competition start transition).
 - `live` -> `paused` and `paused` -> `live`.
-- `live` or `paused` -> `ended`.
+- `live` or `paused` -> `ended` (trusted lifecycle transition only; never direct client-side table mutation).
+- `paused` (open only, no active attempts) -> `archived` (trusted retire action).
 - `ended` -> `archived`.
+
+End transition ownership and trigger policy:
+- Scheduled competitions: the `live/paused -> ended` transition is system-owned and server-time-driven when trusted time reaches `scheduled_competition_end_cap_at` (`transition_source = 'system_timer'` only).
+- Open competitions: the `live/paused -> ended` transition is organizer-owned through trusted lifecycle controls, must use `transition_source = 'trusted_manual_action'`, requires non-empty reason plus `request_idempotency_token`, must be idempotent, and must emit one deterministic end event.
 
 Mutation guards by status:
 - Full configuration edits allowed only in `draft`.
 - Publish snapshot fields become immutable once status is `published` or later.
 - Safe delete allowed only for `draft` competitions with no active registrations or attempts.
+- Archive/retire is the organizer-owned path for non-draft historically significant competitions. Open competitions may be archived only after active attempts have finished; archive replaces destructive delete for published/live/ended history-bearing records.
 - Duplicate name guard is explicit: for a single organizer, block duplicate `competitions.name` when `is_deleted = false` and status is one of `draft`, `published`, `live`, `paused`, or `ended`; allow reuse only when prior records are `archived` or soft-deleted.
 
 ### Publish-Time Snapshot Semantics (Non-Negotiable)
 
-- `publish_competition(competition_id)` is the single trusted publish entry point.
+- `publish_competition(competition_id, request_idempotency_token)` is the single trusted publish entry point.
+- `start_competition(competition_id, request_idempotency_token)` is the trusted scheduled-competition start entry point that promotes `published` competitions to `live` idempotently at the server-authoritative start boundary.
+- `archive_competition(competition_id, request_idempotency_token)` is the trusted retirement entry point for non-draft competitions and must record an archive event idempotently.
+- End transition policy is split and canonical: scheduled end is server-boundary driven with `transition_source = 'system_timer'` only, while open end is organizer-triggered through trusted lifecycle controls with required non-empty reason and `request_idempotency_token`; both paths must be idempotent and event-audited.
 - Publish runs as one transaction-level contract:
   1. Validate all wizard constraints and required confirmations.
   2. Persist immutable `competitions.scoring_snapshot_json`.
@@ -84,6 +94,7 @@ Mutation guards by status:
 
 - support scheduled and open competition types
 - support individual and team formats with their validation rules, including team mode as scheduled-only
+- require an overview-step Rules & Instructions box that is persisted to `competitions.instructions` and later acknowledged in the arena
 - validate registration window, start time, duration, and attempt rules
 - enforce open-competition attempt count between one and three
 - enforce individual competitions at 3 to 100 participants
@@ -93,6 +104,7 @@ Mutation guards by status:
 - configure scoring, penalties, shuffling, anti-cheat, and multiple-attempt grading
 - configure answer-key visibility using `after_end` or `hidden`, independently from leaderboard publication
 - enforce lifecycle transitions with `competition_status` constants and trusted status guards
+- assign trusted owner/trigger paths for scheduled start (`published -> live`), scheduled server-time end (`live/paused -> ended`), open trusted end control (`live/paused -> ended`) with required reason plus `request_idempotency_token`, and archive/retirement (`ended -> archived`, plus paused open retirements with no active attempts)
 - require a summary review and defensive confirmation before publish
 - block duplicate competition names for the same organizer when status is one of `draft`, `published`, `live`, `paused`, or `ended`, with reuse allowed only for `archived` or soft-deleted records
 - block invalid edits or deletes for live and historically significant competitions
@@ -101,14 +113,14 @@ Mutation guards by status:
 
 1. Build the organizer competition list and draft-create entry point.
 2. Implement the multi-step wizard with persistent draft state.
-3. Add the overview and schedule steps with strong date/time validation.
+3. Add the overview and schedule steps with strong date/time validation plus the required Rules & Instructions field persisted to `competitions.instructions`.
 4. Add the format step with individual vs team and scheduled vs open rules, including scheduled-only team enforcement, open-attempt limits, and the exact participant or team-count constraints.
 5. Add the problem selection step with bank browsing, filter/search, selected problem ordering, and the 10-to-100 problem guardrail.
 6. Add scoring and anti-cheat configuration steps using the rules from branch 07.
 7. Add the review and publish step with full validation summary, edit jump-links, and explicit confirmation.
 8. Snapshot selected problems into `competition_problems` at publish time with frozen snapshot columns and immutable post-publish behavior.
-9. Implement organizer controls for draft edit, publish, safe delete, and lifecycle state guards that enforce the allowed `competition_status` transitions.
-10. Record `competition_events` for publish, pause, resume, extend, end, and other major lifecycle actions.
+9. Implement organizer controls for draft edit, publish, trusted scheduled start, safe draft delete, open trusted end control (required reason plus `request_idempotency_token`), archive/retire, and lifecycle state guards that enforce the allowed `competition_status` transitions.
+10. Record baseline `competition_events` for publish, start, end, and archive lifecycle actions in branch 08, with end events emitted only by the canonical scheduled-system or open-organizer trusted paths; defer pause, resume, extend, and reset producer event writes to branch 16 control actions.
 
 ## Key Files
 
