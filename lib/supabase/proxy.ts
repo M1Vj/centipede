@@ -25,8 +25,8 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Skip proxy for auth sign-out route to prevent redundant checks or redirect loops
-  if (path === "/auth/sign-out" || !hasEnvVars) {
+  // Skip proxy for auth session or sign-out routes to prevent redundant checks or redirect loops
+  if (path === "/auth/session" || path === "/auth/sign-out" || !hasEnvVars) {
     return supabaseResponse;
   }
 
