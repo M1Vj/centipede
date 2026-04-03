@@ -3,6 +3,37 @@ import { getErrorMessage } from "@/lib/errors";
 import { submitOrganizerApplication } from "@/lib/organizer/lifecycle";
 import { createClient } from "@/lib/supabase/server";
 
+const KNOWN_SUBMISSION_ERRORS = new Set([
+  "Applicant full name is required.",
+  "Organization name is required.",
+  "A valid contact email is required.",
+  "Contact phone is required.",
+  "Organization type is required.",
+  "Organizer statement is required.",
+  "You must accept the Data Privacy Act of 2012 and Terms & Conditions.",
+  "Only JPEG and PNG logo files are allowed.",
+  "Logo file size must be 2MB or less.",
+  "Unsupported logo file type.",
+  "Organizer applications are temporarily unavailable. Please try again later.",
+]);
+
+function toSubmissionErrorPayload(error: unknown) {
+  const message = getErrorMessage(error, "Unable to submit organizer application.");
+
+  if (KNOWN_SUBMISSION_ERRORS.has(message)) {
+    const status = message === "Organizer applications are temporarily unavailable. Please try again later."
+      ? 503
+      : 400;
+
+    return { message, status };
+  }
+
+  return {
+    message: "Unable to submit organizer application.",
+    status: 500,
+  };
+}
+
 function toBoolean(value: FormDataEntryValue | null) {
   return typeof value === "string" && value.toLowerCase() === "true";
 }
@@ -76,17 +107,14 @@ export async function POST(request: Request) {
       statusLookupTokenExpiresAt: result.statusLookupTokenExpiresAt,
     });
   } catch (error) {
-    const message = getErrorMessage(
-      error,
-      "Unable to submit organizer application.",
-    );
+    const { message, status } = toSubmissionErrorPayload(error);
 
     return NextResponse.json(
       {
         code: "submission_failed",
         message,
       },
-      { status: 400 },
+      { status },
     );
   }
 }
