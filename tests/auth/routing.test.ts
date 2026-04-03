@@ -94,6 +94,17 @@ describe("getAuthRedirect", () => {
     ).toBe("/mathlete");
   });
 
+  test("allows authenticated users to open forgot-password", () => {
+    expect(
+      getAuthRedirect({
+        pathname: "/auth/forgot-password",
+        isAuthenticated: true,
+        hasCompletedProfile: true,
+        role: "organizer",
+      }),
+    ).toBeNull();
+  });
+
   test("redirects authenticated users on the home page to their dashboards", () => {
     expect(
       getAuthRedirect({

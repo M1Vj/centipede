@@ -47,6 +47,10 @@ export function getAuthRedirect({
     return null;
   }
 
+  if (matchesPath(pathname, "/auth/forgot-password")) {
+    return null;
+  }
+
   if (!isAuthenticated) {
     return isPublicRoute(pathname) ? null : "/auth/login";
   }
