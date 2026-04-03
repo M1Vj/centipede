@@ -4,6 +4,19 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 
+function isMissingOrganizerSettingsColumn(error: { code?: string | null; message?: string | null } | null | undefined) {
+  if (!error) {
+    return false;
+  }
+
+  if (error.code !== "42703") {
+    return false;
+  }
+
+  const message = error.message?.toLowerCase() ?? "";
+  return message.includes("contact_phone") || message.includes("organization_type");
+}
+
 function createOrganizerAdminClient() {
   const { supabaseUrl, supabaseServiceKey } = getSupabaseEnv();
 
@@ -80,6 +93,18 @@ export async function saveOrganizerSettings(input: {
 
   const admin = createOrganizerAdminClient();
 
+  const persistProfileFallback = async () => {
+    const { error: fallbackError } = await supabase
+      .from("profiles")
+      .update({ organization: organizationType })
+      .eq("id", user.id)
+      .eq("role", "organizer");
+
+    if (fallbackError) {
+      throw new Error(fallbackError.message);
+    }
+  };
+
   const { data: latestApplication, error: latestApplicationError } = await admin
     .from("organizer_applications")
     .select("id")
@@ -89,11 +114,17 @@ export async function saveOrganizerSettings(input: {
     .maybeSingle<{ id: string }>();
 
   if (latestApplicationError) {
+    if (isMissingOrganizerSettingsColumn(latestApplicationError)) {
+      await persistProfileFallback();
+      return;
+    }
+
     throw new Error(latestApplicationError.message);
   }
 
   if (!latestApplication) {
-    throw new Error("Organizer application record was not found.");
+    await persistProfileFallback();
+    return;
   }
 
   const { error: updateError } = await admin
@@ -106,6 +137,11 @@ export async function saveOrganizerSettings(input: {
     .eq("profile_id", user.id);
 
   if (updateError) {
+    if (isMissingOrganizerSettingsColumn(updateError)) {
+      await persistProfileFallback();
+      return;
+    }
+
     throw new Error(updateError.message);
   }
 }
@@ -122,6 +158,23 @@ export async function getOrganizerSettingsSnapshot(profileId: string) {
     .maybeSingle<{ contact_phone: string | null; organization_type: string | null }>();
 
   if (error) {
+    if (isMissingOrganizerSettingsColumn(error)) {
+      const { data: profileData, error: profileError } = await admin
+        .from("profiles")
+        .select("organization")
+        .eq("id", profileId)
+        .maybeSingle<{ organization: string | null }>();
+
+      if (profileError) {
+        throw new Error(profileError.message);
+      }
+
+      return {
+        contactPhone: "",
+        organizationType: profileData?.organization ?? "",
+      };
+    }
+
     throw new Error(error.message);
   }
 
