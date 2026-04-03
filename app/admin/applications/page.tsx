@@ -4,6 +4,7 @@ import {
   approveOrganizerApplication,
   rejectOrganizerApplication,
 } from "@/lib/supabase/admin";
+import { processOrganizerDecisionHandoff } from "@/lib/organizer/lifecycle";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,14 +38,15 @@ async function ApplicationsList() {
     );
   }
 
-  async function handleApprove(applicationId: string, profileId: string) {
+  async function handleApprove(applicationId: string, profileId?: string | null) {
     "use server";
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     try {
-      await approveOrganizerApplication(applicationId, profileId, user?.id);
+      await approveOrganizerApplication(applicationId, profileId ?? undefined, user?.id);
+      await processOrganizerDecisionHandoff(applicationId);
     } catch (err) {
       console.error("Failed to approve application:", err);
     }
@@ -61,6 +63,7 @@ async function ApplicationsList() {
     const reason = formData.get("reason") as string || "Administrative rejection";
     try {
       await rejectOrganizerApplication(appId, reason, user?.id);
+      await processOrganizerDecisionHandoff(appId);
     } catch (err) {
       console.error("Failed to reject application:", err);
     }
@@ -87,15 +90,15 @@ async function ApplicationsList() {
               <div className="grid gap-4 md:grid-cols-3 mb-6">
                 <div className="flex items-center gap-2 text-sm">
                   <User className="size-4 text-muted-foreground" />
-                  <span className="font-semibold">{app.profiles?.full_name}</span>
+                  <span className="font-semibold">{app.applicant_full_name || app.profiles?.full_name || "Unknown applicant"}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Mail className="size-4 text-muted-foreground" />
-                  <span className="text-muted-foreground truncate">{app.profiles?.email}</span>
+                  <span className="text-muted-foreground truncate">{app.contact_email || app.profiles?.email}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Building className="size-4 text-muted-foreground" />
-                  <span className="font-medium">{app.profiles?.organization || "No Organization"}</span>
+                  <span className="font-medium">{app.organization_name || app.profiles?.organization || "No Organization"}</span>
                 </div>
               </div>
 

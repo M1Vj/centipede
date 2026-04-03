@@ -179,7 +179,7 @@ export async function getAdminStats() {
  */
 export async function approveOrganizerApplication(
   applicationId: string,
-  profileId: string,
+  profileId?: string,
   actorId?: string,
 ) {
   const admin = createAdminClient();

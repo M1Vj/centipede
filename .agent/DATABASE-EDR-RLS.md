@@ -16,7 +16,7 @@ This document is the backend source of truth for the rebuild. It describes the f
 
 ### Core Entity Groups
 
-- identity and roles: `profiles`, `organizer_applications`, `notification_preferences`
+- identity and roles: `profiles`, `organizer_applications`, `organizer_application_communications`, `notification_preferences`
 - authoring and content: `problem_banks`, `problems`
 - team system: `teams`, `team_memberships`, `team_invitations`
 - competitions: `competitions`, `competition_problems`, `competition_registrations`, `competition_announcements`, `competition_events`
@@ -89,6 +89,28 @@ Indexes: `organizer_applications_status_idx`, `organizer_applications_profile_id
 Constraints: `profile_id` may remain null until approval; only one active pending application must exist per `contact_email`, enforced by `organizer_applications_pending_contact_email_uq`; status transitions are `pending -> approved` or `pending -> rejected` only through trusted decision functions; once approved or rejected, decision fields (`status`, `reviewed_at`, `rejection_reason`) are immutable; repeated identical decisions must be idempotent no-ops; status lookup tokens are stored hashed rather than in raw form and must include explicit expiry via `status_lookup_token_expires_at`; lookups at or after that boundary are expired; `rejection_reason` must be persisted as safe-public sanitized text (plain text only, no HTML, links, emails, or phone numbers, max 500 characters) and is required only when `status = 'rejected'`.
 
 Organizer decision vs activation ownership contract (canonical): branch `04-admin-user-management` decision flows write only organizer-application terminal decision fields (`status`, `reviewed_at`, `rejection_reason`) and never mutate `profiles.role` or `profiles.approved_at`; branch `05-organizer-registration` trusted activation or provisioning path owns organizer-role activation. For approved rows where `profile_id is null`, the activation path provisions or links the profile first, then sets organizer role and `approved_at`.
+
+### `organizer_application_communications`
+
+Purpose: branch-05 transactional organizer communication ledger for deterministic idempotency across submission, approval, and rejection message delivery.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid pk |
+| `application_id` | uuid fk -> organizer_applications.id |
+| `message_type` | enum organizer_application_message_type | `submission`, `approved`, `rejected` |
+| `recipient_email` | text | lowercased recipient |
+| `payload_json` | jsonb | template context metadata |
+| `send_attempts` | integer | retry counter |
+| `last_attempt_at` | timestamptz nullable |
+| `sent_at` | timestamptz nullable |
+| `last_error` | text nullable |
+| `provider_message_id` | text nullable |
+| `created_at` | timestamptz |
+
+Indexes: unique `(application_id, message_type)` and pending-send index on `created_at where sent_at is null`.
+
+Constraints: one logical communication per `(application_id, message_type)`; retries mutate attempt metadata but must not create duplicate logical rows.
 
 ### `problem_banks`
 
@@ -627,6 +649,7 @@ Purpose: storage is part of the backend contract, not an implementation aftertho
 
 - `profiles`: self read/update for profile fields; admin can read/update all; no self role escalation; self-service updates cannot mutate login identifier/email
 - `organizer_applications`: public applicants submit through a trusted route or RPC; applicant status is exposed only through secure lookup tokens or trusted handlers; admins can review pending rows and write terminal decisions through trusted decision paths. Normal flows preserve reviewed-row immutability (`approved`/`rejected` rows are not mutable or deletable). Hard delete is allowed only through an explicit trusted spam or fraud moderation path with mandatory `admin_audit_logs` write (actor, reason, `application_id`, evidence metadata) before deletion.
+- `organizer_application_communications`: trusted service-role workflows only; no anon or authenticated direct access. Rows are idempotency artifacts for organizer lifecycle communication dispatch and retry metadata.
 - `problem_banks` and `problems`: owner organizer or admin-managed default-bank owner can mutate; other organizers cannot read private banks; admins can read all and mutate only the default bank or explicitly moderated records through trusted server paths
 - `teams`, `team_memberships`, `team_invitations`: members can read their own team data; leaders can invite/remove within policy; admins can read all for moderation
 - `competitions`: organizers can manage their own competitions, but hard delete is allowed only for `draft` through trusted draft-delete paths; organizer pause is allowed only for open competitions and must let active attempts finish while blocking new starts; scheduled competition pause is reserved for trusted admin force-pause moderation; admins can read all and may perform non-draft moderation delete only for abuse or fraud through approved server actions with explicit audit reason; mathletes read only published competitions they are eligible to see
@@ -673,6 +696,9 @@ Required trusted functions:
 - `approve_organizer_application(application_id)`: allows only `pending -> approved`, stamps `reviewed_at`, is idempotent for repeated approve requests on already-approved rows, and writes organizer-application decision fields only (must not mutate `profiles.role` or `profiles.approved_at`)
 - `reject_organizer_application(application_id, rejection_reason)`: allows only `pending -> rejected`, stamps `reviewed_at`, is idempotent for repeated reject requests on already-rejected rows, and writes organizer-application decision fields only (must not mutate `profiles.role` or `profiles.approved_at`)
 - `provision_organizer_account(application_id)` trusted organizer-activation helper: owns organizer-role activation and `approved_at` stamping after approved decisions; if `organizer_applications.profile_id` is null, it must provision or link profile identity first, then set organizer activation fields
+- `claim_organizer_application_communication(application_id, message_type, recipient_email, payload_json)` reserves a single lifecycle communication attempt for deterministic `(application_id, message_type)` dispatch
+- `mark_organizer_application_communication_sent(communication_id, provider_message_id)` marks lifecycle communication sent exactly once
+- `mark_organizer_application_communication_failed(communication_id, error)` records deterministic failure metadata for retry visibility
 - `snapshot_competition_problems(competition_id)`
 - `publish_competition(competition_id, request_idempotency_token)`
 - `start_competition(competition_id, request_idempotency_token)` trusted scheduled-competition promotion from `published` to `live` with idempotent event logging at the server-authoritative start boundary
@@ -744,6 +770,7 @@ Required trusted functions:
 - Effective points precedence policy: effective points for grading or recalculation are deterministic per competition problem: active trusted `points_override` wins; if none is active, fallback is `competition_problems.points`.
 - Leaderboard/export access policy: scheduled visibility depends on organizer publish gate, open visibility follows explicit self-row/full-row timing rules, and export queue/download access is strictly owner organizer or admin only.
 - Notification idempotency policy: retries must de-duplicate by `(recipient_id, event_identity_key)`.
+- Organizer communication idempotency policy: submission, approval, and rejection lifecycle messaging deduplicates by `(application_id, message_type)` through a reserved-send ledger and explicit sent or failed transitions.
 - Competition-control permission policy: admin live support may force-pause and follows a separate moderation delete path; resume, extend, and disconnect-reset controls are organizer-only.
 - Competition-control reason policy: pause, resume, extend, and disconnect-reset control actions require a non-empty reason; organizer manual open end requires a non-empty reason as well.
 - Competition-control idempotency policy: control-action requests (including `end_competition`) de-duplicate by `(competition_id, event_type, actor_user_id, request_idempotency_token)` and return existing results on replay; caller supplies `request_idempotency_token` for control-action RPCs except scheduled `end_competition` system-timer transitions, which must use deterministic server token `system_end:{competition_id}:{effective_end_boundary_iso}`; SQL uniqueness must coalesce nullable `actor_user_id` to the system-actor sentinel (`coalesce(actor_user_id, '00000000-0000-0000-0000-000000000000'::uuid)`) so system-timer dedupe cannot break.
@@ -868,6 +895,7 @@ Risky migrations and backfills:
 - 2026-04-03: Added explicit branch `04` decision-only versus branch `05` activation-only organizer ownership, deterministic points precedence fallback, canonical timer-deadline naming, concrete route and lifecycle migration sequences, and a per-branch schema/function ownership matrix.
 - 2026-04-03: Added explicit status-lookup token expiry contract, canonical `live/paused -> ended` ownership and idempotency semantics, team-attempt authority and concurrency guards, deterministic announcement audience predicates, explicit draft-delete versus non-draft moderation-delete policy, branch-aligned migration sequencing, and non-circular notification versus announcement ownership sequencing.
 - 2026-04-03: Reconciled correction-RPC argument shape with `competition_problem_corrections` schema, documented bootstrap-sequencing caveat for pre-seeded competition/problem tables, and clarified branch `05b` compatibility-backfill scope for evidence-backed drift correction.
+- 2026-04-03: Added branch-05 organizer communication ledger and helper RPC contracts (`claim_organizer_application_communication`, sent or failed markers), plus service-only access boundaries for deterministic organizer lifecycle messaging retries.
 
 
 ### User Deletion Privacy Rule
