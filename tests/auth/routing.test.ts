@@ -41,6 +41,20 @@ describe("getAuthRedirect", () => {
         hasCompletedProfile: false,
       }),
     ).toBeNull();
+    expect(
+      getAuthRedirect({
+        pathname: "/organizer/apply",
+        isAuthenticated: false,
+        hasCompletedProfile: false,
+      }),
+    ).toBeNull();
+    expect(
+      getAuthRedirect({
+        pathname: "/organizer/status",
+        isAuthenticated: false,
+        hasCompletedProfile: false,
+      }),
+    ).toBeNull();
   });
 
   test("redirects authenticated users with incomplete profiles to completion", () => {

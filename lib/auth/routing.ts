@@ -12,7 +12,7 @@ const AUTH_ROUTE_PREFIXES = [
 ];
 
 const PROFILE_COMPLETION_ROUTE = "/profile/complete";
-const PUBLIC_ROUTES = ["/", "/privacy", "/terms"];
+const PUBLIC_ROUTES = ["/", "/privacy", "/terms", "/organizer/apply", "/organizer/status"];
 
 type AuthRedirectArgs = {
   pathname: string;

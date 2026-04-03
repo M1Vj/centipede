@@ -89,6 +89,9 @@ export default function Home() {
               <Button asChild size="lg" variant="outline" className="bg-background/70">
                 <ProgressLink href="/auth/login">Open login</ProgressLink>
               </Button>
+              <Button asChild size="lg" variant="secondary">
+                <ProgressLink href="/organizer/apply">Apply as organizer</ProgressLink>
+              </Button>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
