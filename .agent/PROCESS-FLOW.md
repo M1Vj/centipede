@@ -130,7 +130,7 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 17. Organizers configure scoring using automatic difficulty-based scoring or custom points, optional penalties, tie-breakers, and open-competition multiple-attempt grading policy (`highest_score`, `latest_score`, or `average_score`). The default tie-breaker is earliest final submission timestamp unless the organizer explicitly overrides it.
 18. Organizers configure anti-cheat behavior including question shuffling, option shuffling, tab-switch logging, and offense-tier penalties.
 19. Publish remains unavailable until the full wizard validates successfully.
-20. Organizers can pause only open competitions so active attempts may finish while new attempts cannot start, resume paused owned competitions (including admin force-paused states), monitor live scheduled competitions, broadcast announcements with canonical audience predicates, extend competitions through trusted controls only when the competition status is `live` or `paused`, and reset attempts for legitimate disconnect cases. Pause, resume, extend, and reset controls require explicit reasons. Open manual end requires explicit reason plus `request_idempotency_token`.
+20. Organizers can pause only open competitions so active attempts may finish while new attempts cannot start, resume paused owned competitions (including admin force-paused states), monitor live scheduled competitions, broadcast announcements with canonical audience predicates, extend competitions through trusted controls only when the competition status is `live` or `paused`, and reset attempts only when disconnect-reset criteria pass in fixed order: required non-empty `reason` plus `request_idempotency_token`, valid evidence taxonomy with same-attempt evidence reference, `in_progress` attempt state, evidence observed within 120 seconds, and no approved reset for the same attempt where `happened_at > server_now_at_request - interval '10 minutes'` (first failing gate determines rejected outcome). Pause, resume, extend, and reset controls require explicit reasons. Open manual end requires explicit reason plus `request_idempotency_token`.
 21. Open competitions can be retired only through a trusted archive path after active attempts have finished; hard delete is allowed only for `draft` competitions through trusted draft-delete controls. Non-draft hard delete is admin-only abuse or fraud moderation with mandatory audit evidence.
 22. After competition completion, organizers review disputes, accept or reject them with resolution notes, recalculate scores if answer keys were wrong, publish scheduled leaderboards through an explicit organizer publish action, and export result data with participant/team context from immutable registration snapshots.
 
@@ -139,12 +139,12 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 - The approved organizer login identifier/email must remain immutable in organizer self-service settings after approval; only trusted admin/auth credential paths may mutate it. Password recovery is allowed.
 - Organizer-role activation (`profiles.role = 'organizer'`, `profiles.approved_at`) is owned by trusted organizer activation/provisioning and not by admin decision-write paths.
 - Applicant status lookup must use opaque tokens that are stored hash-only with explicit expiry and validated through trusted handlers or RPCs.
-- Applicant status lookup responses are restricted to safe fields (`status`, `rejection_reason`, `masked_contact_email`) with throttling controls, and expired token responses must be indistinguishable from unknown or invalid token responses.
+- Applicant status lookup responses are restricted to safe fields (`status`, `rejection_reason`, `masked_contact_email`) with deterministic throttling controls keyed by `(client_ip, token_fingerprint)` at one accepted request per rolling 1-second window; violations return `429` with `Retry-After: 1`, and expired token responses must be indistinguishable from unknown or invalid token responses.
 - Problem bank descriptions are capped at 200 words.
 - Competition descriptions are capped at 500 words.
 - Competition names must be unique per organizer for competitions in `draft`, `published`, `live`, `paused`, or `ended` status.
 - Hard delete is allowed only while competition status is `draft`; non-draft hard delete is admin-only abuse or fraud moderation with audit evidence.
-- Organizer pause behavior applies only to open competitions and must let already-active attempts finish while blocking new starts; scheduled pause is admin force-pause only.
+- Organizer pause behavior applies only to open competitions and must let already-active attempts finish while blocking new starts; trusted admin incident force-pause may target any live competition type.
 - Trusted lifecycle end transition (`live` or `paused` to `ended`) is split by competition type: scheduled end is system-timer-owned only (`transition_source = 'system_timer'`), while open manual end is organizer-only (`transition_source = 'trusted_manual_action'`) with required reason and `request_idempotency_token`; all end transitions must be idempotent, and admin live-support controls do not include manual end.
 - Live control actions (`pause`, `resume`, `extend`, `reset`) require explicit reasons and trusted server-side enforcement.
 - Announcement delivery must resolve recipients from canonical `announcement_audience` values only, with explicit withdrawn and ineligible handling.
@@ -157,7 +157,7 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 - Owner boundary: branch `08-competition-wizard` trusted lifecycle handlers own status mutation `live` or `paused` to `ended`.
 - Trigger-source mapping: scheduled competitions use `system_timer` only at the effective server boundary; open manual end uses `trusted_manual_action` by authorized organizer controls only.
 - Idempotency contract: replay with the same request token must return the existing terminal result and must not duplicate side effects; open manual end requires explicit reason plus `request_idempotency_token`.
-- Event contract: branch `08-competition-wizard` introduces baseline `competition_events` lifecycle writes and branch `16` expands consumers and live-control producers; every successful end transition emits `competition_ended` with canonical payload fields (`transition_source`, `transition_reason`, `request_idempotency_token`).
+- Event contract: branch `08-competition-wizard` introduces baseline `competition_events` lifecycle writes and branch `16` expands consumers and live-control producers; every successful end transition emits `competition_ended` with canonical payload fields (`transition_source`, `reason_text`, `request_idempotency_token`) where `reason_text` is required non-empty for `trusted_manual_action` and null for `system_timer`.
 
 ## Mathlete Process Flow
 
@@ -185,14 +185,14 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 9. Team rosters lock once successfully registered for a scheduled team competition, except for defensive handling around account deletion or invalidated eligibility.
 10. If a leader leaves or loses the account, leadership transfers to the next longest-tenured active member.
 11. Mathletes or team leaders register for competitions, and the system validates limits and team-size requirements at registration time.
-12. Invalidated registered teams become ineligible rather than being silently withdrawn.
+12. Invalidated registered teams become ineligible rather than being silently withdrawn; when invalidation drops roster size below minimum constraints during an active attempt, trusted handlers must transition that `in_progress` attempt to `disqualified` with audit evidence.
 13. Mathletes receive reminders and organizer communications through system notifications.
 14. Participant withdrawals are allowed only through trusted paths with server-authoritative timing guards: scheduled competitions allow withdrawal only while `now() < competitions.start_time`; both scheduled and open withdrawals require zero `competition_attempts` rows for the registration. If any attempt row exists for the registration, participant withdrawal is blocked.
 15. The arena entry button for scheduled competitions remains disabled until the exact server start time.
 16. Before entering the arena, mathletes must accept the organizer rules and anti-cheat acknowledgement, including device-responsibility warnings.
 17. During the arena, mathletes answer problems using MathLive editable fields with symbol-toolbox support, while static previews use KaTeX and autosave keeps blank, filled, solved, or reset states synchronized.
 18. Browser focus loss hides the questions, forces a warning acknowledgement overlay, logs the event, and applies the organizer-configured penalty.
-19. Legitimate reconnects do not trigger tab-switch penalties automatically, but offline time must still reduce the remaining trusted time.
+19. Reconnect resume does not trigger tab-switch penalties by itself; only explicit trusted focus-loss signals can create offenses, and offline time still reduces remaining trusted time.
 20. Mathletes review their answers before submission and confirm final submission explicitly.
 21. On timer expiration, the system locks the UI and auto-submits the current state.
 22. Open competitions with remaining attempts can present a re-attempt path and must warn clearly about the selected grading policy.
@@ -234,7 +234,7 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 Transitions:
 
 1. `UNLOCKED` -> `LOCKED_REGISTERED`: registration status transitions to `registered` for a scheduled team competition.
-2. `LOCKED_REGISTERED` -> `UNLOCKED_INELIGIBLE`: trusted flow marks registration `ineligible` with explicit `status_reason`.
+2. `LOCKED_REGISTERED` -> `UNLOCKED_INELIGIBLE`: trusted flow marks registration `ineligible` with explicit `status_reason`; if the team falls below minimum roster constraints during an active attempt, that `in_progress` attempt transitions to `disqualified` with audit evidence.
 3. `LOCKED_REGISTERED` -> `UNLOCKED_TERMINAL`: registration transitions to `withdrawn` or `cancelled`, or competition becomes `ended` or `archived`.
 4. `UNLOCKED_INELIGIBLE` -> `LOCKED_REGISTERED`: repaired roster is re-registered while registration windows still allow entry.
 
@@ -255,22 +255,23 @@ While `LOCKED_REGISTERED`, mathlete-facing flows must block invite creation/acce
 - Competition routes use `[competitionId]` as the dynamic segment name.
 - Team routes use `[teamId]`; problem-bank routes use `[bankId]`; problem routes use `[problemId]`.
 - Avoid introducing generic `[id]` for new competition-facing routes and docs.
-- Existing workspace pages may still contain legacy `[id]` segments in some admin routes; treat them as legacy compatibility paths and do not copy that pattern into new work.
-- If an older guide references `/competition/[id]`, treat it as a legacy alias of `/competition/[competitionId]` and normalize to the canonical name in new work.
+- Existing workspace pages may still contain `[id]` segments in some admin routes; treat them as compatibility paths and do not copy that pattern into new work.
+- If an older guide references `/competition/[id]`, treat it as a compatibility alias of `/competition/[competitionId]` and normalize to the canonical name in new work.
 
-Legacy admin route migration sequence (canonical):
+Admin route migration sequence (canonical):
 
 1. Compatibility phase: keep existing admin `[id]` routes readable while introducing canonical `[competitionId]` and `[bankId]` routes.
 2. Producer cutover phase: migrate all trusted route producers (navigation, redirects, notification links, server responses) to canonical params only.
 3. Validation phase: enforce zero new `/admin/**/[id]` producers via branch `17-testing-bug-fixes` checks.
-4. Removal phase: remove legacy admin `[id]` route handlers after producer cutover is complete; optional redirects may remain as read-only compatibility.
+4. Removal phase: remove deprecated admin `[id]` route handlers after producer cutover is complete; optional redirects may remain as read-only compatibility.
 
 ## Blank-Slate Implementation Boundary Notes
 
-- Current workspace may still contain legacy `[id]` dynamic segments in existing admin pages.
+- Current workspace may still contain existing `[id]` dynamic segments in admin pages.
 - Current migrations may still include earlier boolean lifecycle fields while target enum lifecycle contracts are introduced in later branches.
-- Boolean lifecycle migration must follow explicit compatibility -> deterministic backfill -> dual-write -> enum-only cutover -> legacy drop sequencing from `.agent/DATABASE-EDR-RLS.md`.
+- Boolean lifecycle migration must follow explicit compatibility -> deterministic backfill -> dual-write -> enum-only cutover -> deprecated-field drop sequencing from `.agent/DATABASE-EDR-RLS.md`.
 - This document and `.agent/DATABASE-EDR-RLS.md` define target contracts; branch sequencing controls when target schema/routes become required in code.
+- Migration execution protocol is mandatory from `.agent/DATABASE-EDR-RLS.md` Section G: apply migrations in ascending timestamp order, keep applied migrations append-only, and pass verification gates before branch completion.
 
 ## Cross-Feature Product Rules Captured From Flow
 
@@ -278,9 +279,9 @@ Legacy admin route migration sequence (canonical):
 - Organizer and admin notifications are grouped and role-relevant rather than generic inbox spam.
 - Team ineligibility, leaderboard publication, answer-key visibility, dispute resolution, and score recalculation are all explicit product flows, not optional polish.
 - Competition deletion, pause/resume/extend/reset, end-transition, and publication all require defensive rules to prevent unsafe state transitions.
-- Pause scope is explicit by competition type: organizer pause is open-only, scheduled pause is admin force-pause only; resume/extend/reset remain organizer control actions and require explicit reasons.
+- Pause scope is explicit by competition type: organizer pause is open-only, and trusted admin incident force-pause may target any live competition type; resume/extend/reset remain organizer control actions and require explicit reasons.
 - Competition control actions and emitted competition events must use request idempotency tokens so retried requests do not duplicate side effects.
-- Answer-key visibility must always respect explicit post-competition visibility rules, separate from scheduled leaderboard publication; `after_end` uses trusted server time and `hidden` must never expose participant answer keys.
+- FR14.5 answer-key contract is default-on: new competitions initialize `answer_key_visibility = after_end`. Participant answer keys unlock only after trusted server end-time checks and participant-context ownership checks pass. `hidden` is explicit organizer override and remains independent from `leaderboard_published`.
 - Open-leaderboard visibility is explicit: participant-context readers can see the full leaderboard for any non-draft open competition state, with no organizer publish toggle.
 - Status lookup tokens are opaque, hash-persisted with explicit expiry, and never used as a replacement for organizer authentication beyond applicant-status checks.
 - Announcement delivery audiences are explicit enum predicates with deterministic withdrawn and ineligible inclusion rules.
