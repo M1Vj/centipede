@@ -16,7 +16,7 @@ This document is the backend source of truth for the rebuild. It describes the f
 
 ### Core Entity Groups
 
-- identity and roles: `profiles`, `organizer_applications`, `organizer_application_communications`, `notification_preferences`
+- identity and roles: `profiles`, `organizer_applications`, `organizer_application_communications`, `organizer_status_lookup_throttle`, `notification_preferences`
 - authoring and content: `problem_banks`, `problems`
 - team system: `teams`, `team_memberships`, `team_invitations`
 - competitions: `competitions`, `competition_problems`, `competition_registrations`, `competition_announcements`, `competition_events`
@@ -111,6 +111,21 @@ Purpose: branch-05 transactional organizer communication ledger for deterministi
 Indexes: unique `(application_id, message_type)` and pending-send index on `created_at where sent_at is null`.
 
 Constraints: one logical communication per `(application_id, message_type)`; retries mutate attempt metadata but must not create duplicate logical rows.
+
+### `organizer_status_lookup_throttle`
+
+Purpose: deterministic status-lookup throttle ledger keyed by client IP and token fingerprint.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `client_ip` | inet | request source IP (fallback `0.0.0.0`) |
+| `token_fingerprint` | text | normalized token fingerprint; malformed tokens map to `malformed` bucket |
+| `last_accepted_at` | timestamptz | latest accepted lookup for key |
+| `created_at` | timestamptz | row creation timestamp |
+
+Indexes: `organizer_status_lookup_throttle_last_accepted_idx` on `last_accepted_at`.
+
+Constraints: primary key `(client_ip, token_fingerprint)`; service-role-only RLS access; throttle acceptance window is one request per key per rolling 1 second.
 
 ### `problem_banks`
 
@@ -692,6 +707,7 @@ Required trusted functions:
 - `rotate_session_version(profile_id)` trusted auth-session invalidation helper
 - `update_mathlete_profile_settings(profile_id, school, grade_level)` trusted mathlete self-service settings helper (school and grade-level only)
 - `anonymize_user_account(target_profile_id, reason, request_idempotency_token)` trusted non-spam anonymization helper
+- `insert_organizer_application_intake(applicant_full_name, organization_name, contact_email, contact_phone, organization_type, statement, legal_consent_at, status_lookup_token_hash, status_lookup_token_expires_at, profile_id)` trusted organizer intake writer with deterministic pending-row idempotency by contact-email scope
 - `lookup_organizer_application_status(status_lookup_token)`: accepts raw opaque token from applicant, hashes token for comparison against `status_lookup_token_hash`, validates `now() < status_lookup_token_expires_at`, and returns only safe fields (status, rejection_reason, masked_contact_email). `rejection_reason` must be safe-public sanitized content only. Negative paths (invalid token, unknown token, expired token) must return a single non-disclosing response shape and code so lookup cannot be used as an enumeration oracle. Must never return raw PII. Throttling is deterministic by key dimensions `(client_ip, token_fingerprint)` where `token_fingerprint` is derived from normalized raw token input and malformed token input uses a fixed malformed bucket; enforce one accepted request per key per 1-second rolling window. Rate-limit violations return `429` with machine code `throttled`, `Retry-After: 1`, and no applicant data.
 - `approve_organizer_application(application_id)`: allows only `pending -> approved`, stamps `reviewed_at`, is idempotent for repeated approve requests on already-approved rows, and writes organizer-application decision fields only (must not mutate `profiles.role` or `profiles.approved_at`)
 - `reject_organizer_application(application_id, rejection_reason)`: allows only `pending -> rejected`, stamps `reviewed_at`, is idempotent for repeated reject requests on already-rejected rows, and writes organizer-application decision fields only (must not mutate `profiles.role` or `profiles.approved_at`)
@@ -872,7 +888,7 @@ Risky migrations and backfills:
 | `02-authentication` | no new domain table; auth-session coordination on `profiles.session_version` is consumed but not completed | no new canonical trusted auth-session helper; branch prepares for later hardening |
 | `04-admin-user-management` | `admin_audit_logs`, `system_settings` | `approve_organizer_application`, `reject_organizer_application` |
 | `05b-deferred-foundation-and-auth` | compatibility hardening only; no new canonical domain table, with explicit corrective backfills allowed for pre-existing auth or organizer drift, including `profiles.session_version`, organizer-application contact/consent/status-lookup fields, and safe anonymization | `rotate_session_version`, `update_mathlete_profile_settings`, `anonymize_user_account` |
-| `05-organizer-registration` | organizer onboarding storage-path contract; profile link activation contract for approved applications; status-lookup token expiry contract | `lookup_organizer_application_status`, `provision_organizer_account` |
+| `05-organizer-registration` | organizer onboarding storage-path contract; profile link activation contract for approved applications; status-lookup token expiry contract; `organizer_status_lookup_throttle` rate-limit ledger; `organizer_application_communications` lifecycle dispatch ledger | `insert_organizer_application_intake`, `lookup_organizer_application_status`, `provision_organizer_account`, `claim_organizer_application_communication`, `mark_organizer_application_communication_sent`, `mark_organizer_application_communication_failed` |
 | `06-problem-bank` | `problem_banks`, `problems` | trusted bank or problem mutation helpers as needed |
 | `07-scoring-system` | scoring enums and scoring contract definitions only (no `competitions` table columns introduced in branch `07`) | `grade_attempt`, `recalculate_competition_scores`, `refresh_leaderboard_entries` |
 | `08-competition-wizard` | `competitions`, `competition_problems`, initial `competition_events` (lifecycle or audit baseline) | `snapshot_competition_problems`, `publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `delete_draft_competition` |
