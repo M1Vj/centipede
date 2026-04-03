@@ -34,22 +34,36 @@ Unblocks: review/submission fairness, live monitoring, trustworthy leaderboards.
 - Record every offense event with enough metadata to support organizer review and later disputes.
 - Apply penalties through trusted backend logic so score deductions and disqualifications remain consistent with branch 07 grading rules.
 
+## Anti-Cheat Event Contract (Deterministic)
+
+- Offense writes must execute only through trusted `log_tab_switch_offense(attempt_id, metadata_json)`.
+- `tab_switch_logs` rows must preserve server-authored `offense_number`, `penalty_applied`, and `logged_at`; payload key `metadata_json.client_timestamp` is required and maps to nullable `tab_switch_logs.client_timestamp` (value may be `null`).
+- Required `metadata_json` keys for deterministic review and dispute evidence: `event_source`, `visibility_state`, `route_path`, `user_agent`, and `client_timestamp`.
+- `metadata_json.client_timestamp` must be ISO-8601 when non-null; `null` is valid when client time is unknown.
+- Penalty decisions must read immutable publish-time policy (`competitions.scoring_snapshot_json` and `offense_penalties_json`), not mutable draft state.
+- Reconnect entry through `resume_competition_attempt` and interval reopen flows must not create offenses unless an explicit focus-loss signal was recorded.
+- Forced penalties must map to trusted attempt transitions:
+  - warning or deduction: keep attempt `in_progress`
+  - forced submit: set attempt to `auto_submitted` once and close active interval
+  - disqualification: set attempt to `disqualified` once and close active interval
+- Organizer and admin monitoring surfaces must read trusted projections of offense data, not client-side counters.
+
 ## Requirements
 
 - detect focus loss while the arena is active
 - block interaction until the user acknowledges the warning overlay
 - apply warning, deduction, or auto-submit/disqualification according to competition rules
-- log each offense for organizer review
+- log each offense with deterministic server-authored offense number, penalty result, and audit metadata
 - avoid treating normal reconnect flows as cheating automatically
 - surface organizer-facing offense counts and details for live monitoring
 
 ## Atomic Steps
 
-1. Add client-side focus and visibility listeners scoped to active arena attempts.
+1. Add client-side `visibilitychange`, `focus`, and `blur` listeners scoped to active arena attempts.
 2. Build the full-screen warning overlay and acknowledgement flow.
-3. Implement a trusted `log_tab_switch_offense` backend path that increments offense count and returns the resulting penalty.
-4. Apply score deduction, forced submission, or disqualification behavior based on organizer-configured rules.
-5. Distinguish reconnect-resume events from focus-loss penalties in server logic.
+3. Implement a trusted `log_tab_switch_offense` backend path that increments offense count, writes deterministic log fields, and returns the resulting penalty.
+4. Apply score deduction, forced submission, or disqualification behavior from immutable publish-time anti-cheat policy.
+5. Distinguish reconnect-resume events from focus-loss penalties in server logic, including one-way status transitions and interval closure guards.
 6. Expose offense counts and logs to organizer and admin readers through trusted queries.
 7. Add tests for offense escalation, penalty application, and reconnect exception logic.
 

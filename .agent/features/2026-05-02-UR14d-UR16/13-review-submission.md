@@ -22,8 +22,8 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 - UI flow: review screen, summary counts, jump back to question, final confirmation, result summary, answer key view, dispute dialog.
 - Backend flow: final submission mutation, attempt lock, grading RPC, leaderboard refresh, dispute insert.
 - Related tables/functions: `competition_attempts`, `attempt_answers`, `problem_disputes`, `leaderboard_entries`, grading RPCs.
-- Edge cases: time-expiry auto-submit, submission during network instability, latest-score overwrite warnings, answer key hidden before publication, duplicate submit clicks.
-- Security concerns: final submission and grading are trusted mutations; answer keys must respect publication rules.
+- Edge cases: time-expiry auto-submit, submission during network instability, latest-score overwrite warnings, answer key hidden before the allowed visibility point, duplicate submit clicks.
+- Security concerns: final submission and grading are trusted mutations; answer keys must respect competition-end visibility rules and cannot piggyback on leaderboard publication heuristics.
 - Performance concerns: review summaries should be computed cheaply; grading should not block the UI without clear status.
 - Accessibility/mobile: review tables and jump links must stay usable on small screens; confirmation copy must be clear.
 
@@ -31,8 +31,32 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 
 - Treat submission as a trusted server transition that atomically closes intervals, locks answers, and kicks grading.
 - Use the same review summary model for both manual submit and auto-submit to avoid divergent code paths.
-- Keep answer-key visibility tied to competition and leaderboard publication rules instead of exposing it immediately after grading.
+- Keep answer-key visibility tied to the explicit post-competition rules rather than to scheduled leaderboard publication.
 - Model disputes as first-class records against the snapshotted competition problem, not the mutable source problem.
+
+## Submit and Visibility Contracts (Deterministic)
+
+### Submit-Lock Contract
+
+- Final submit must be idempotent: the first accepted submit locks the attempt, later duplicate requests must return the existing final state without re-grading.
+- Submission transition must close the active interval once, set `submitted_at`, and move attempt status to `submitted` or `auto_submitted` through trusted server logic.
+- Grading orchestration must follow branch `07` contract: `grade_attempt(attempt_id)` then `refresh_leaderboard_entries(competition_id)`.
+- Attempt initialization must pre-seed one `attempt_answers` row per `competition_problem` with `status_flag = 'blank'` so untouched questions are persisted deterministically.
+- Review summary counts must derive from persisted `attempt_answers.status_flag` values (`blank`, `filled`, `solved`, `reset`) with no client-only heuristics.
+- Legacy fallback rule until pre-seed backfill is complete: trusted summary helpers infer additional `blank` count as `total_snapshot_problems - distinct_answer_rows` when older attempts have missing rows.
+
+### Answer-Key Visibility Contract
+
+- Visibility must be enforced by `competitions.answer_key_visibility` and trusted end-state checks, independent from leaderboard publication.
+- `after_end`: participants with a valid competition registration can view answer-key snapshots after competition end.
+- `hidden`: participants cannot view answer-key snapshots.
+- Answer-key and explanation content must come only from `competition_problems` snapshot fields.
+
+### Dispute Contract and Handoff
+
+- Dispute creation writes to `problem_disputes` using `competition_problem_id`, `attempt_id`, and `reporter_id` from the participant context.
+- New disputes start as `status = 'open'` and remain participant-readable through trusted dispute access rules.
+- Organizer accept/reject and recalculation follow-through are owned by branch `14`, but branch `13` must create complete dispute records for that handoff.
 
 ## Requirements
 
@@ -40,22 +64,25 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 - final submission confirmation and double-submit protection
 - trusted grading execution after submission
 - support open-competition additional attempts under the configured policy
-- answer-key access only when the competition allows it
-- dispute submission with status tracking
+- review summary counts must use persisted `attempt_answers.status_flag` values with deterministic untouched-question handling (`blank` pre-seed rows, with trusted legacy inference only for older attempts missing rows)
+- answer-key access only when the explicit post-competition visibility rules allow it
+- answer-key and explanation rendering must use KaTeX from snapshotted LaTeX data (no alternate renderer)
+- dispute submission with `problem_disputes` status tracking from `open` through organizer resolution in branch `14`
 
 ## Atomic Steps
 
-1. Build the review page and summary components.
-2. Implement final submit with trusted attempt-state transition and interval closure.
-3. Trigger grading and leaderboard refresh after submission.
+1. Build the review page and summary components using deterministic persisted-status counting, including untouched-question blank handling from the submit-lock contract.
+2. Implement final submit with trusted attempt-state transition, interval closure, and idempotent duplicate-submit handling.
+3. Trigger grading and leaderboard refresh after submission using the branch `07` RPC orchestration contract.
 4. Implement result summaries for scheduled and open competitions.
-5. Add answer-key pages that respect publication rules and use competition problem snapshots.
-6. Add dispute submission UI and persistence.
-7. Add tests for submit locking, duplicate-submit prevention, and dispute helpers.
+5. Add answer-key pages that enforce `answer_key_visibility` rules, stay separate from scheduled leaderboard publication, and use competition problem snapshots.
+6. Add dispute submission UI and persistence with deterministic `problem_disputes` inserts for organizer handoff.
+7. Add tests for submit locking, duplicate-submit prevention, answer-key visibility enforcement, and dispute helpers.
 
 ## Key Files
 
-- `app/mathlete/competition/[id]/review/page.tsx`
+- `app/mathlete/competition/[competitionId]/review/page.tsx`
+- `app/mathlete/competition/[competitionId]/answer-key/page.tsx`
 - `components/review/*`
 - `components/answer-key/*`
 - `lib/submission/*`
@@ -64,7 +91,7 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 
 ## Verification
 
-- Manual QA: review answers, submit manually, let time expire, open additional attempt where allowed, open answer key after publication, file a dispute.
+- Manual QA: review answers, submit manually, let time expire, open additional attempts where allowed, confirm answer-key visibility at the allowed point without waiting for scheduled leaderboard publication, and file a dispute.
 - Automated: submission-state tests, duplicate-submit protection, dispute helper coverage.
 - Accessibility: summary table semantics, jump links, confirmation dialog clarity.
 - Performance: grading feedback is clear and non-blocking; review page loads from existing answer data efficiently.
@@ -88,5 +115,5 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 ## Definition of Done
 
 - final submission is trusted and non-duplicative
-- answer keys and disputes follow the publication rules correctly
+- answer keys and disputes follow the explicit visibility rules correctly
 - the attempt lifecycle is ready for leaderboard and history surfaces

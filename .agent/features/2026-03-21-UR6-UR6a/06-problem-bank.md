@@ -11,7 +11,7 @@ Build the full problem-bank authoring system for organizers and the admin-manage
 
 This branch exists because problem-bank work is not just CRUD. It must include reusable authoring infrastructure, default-bank governance, immutable competition safety, and import ergonomics.
 
-Depends on: `03-interaction-feedback`, `04-admin-user-management`, `05-organizer-registration`.
+Depends on: `03-interaction-feedback`, `04-admin-user-management`, `05b-deferred-foundation-and-auth`, `05-organizer-registration`.
 
 Unblocks: scoring rules, competition wizard, default-bank moderation, answer-key snapshots.
 
@@ -29,31 +29,53 @@ Unblocks: scoring rules, competition wizard, default-bank moderation, answer-key
 
 ## Research Findings / Implementation Direction
 
-- Use MathLive as the primary editor for authored problem statements, explanations, and accepted answers, with LaTeX persisted as the durable storage format.
+- Use MathLive as the mandatory editable editor for authored problem statements, explanations, and accepted answers, with LaTeX persisted as the durable storage format.
 - Keep bulk import as a guided template flow with row-level validation results rather than silent partial imports.
 - Treat delete as soft-delete on authored banks and problems so published competition snapshots remain historically valid.
 - Reuse the same editor stack for organizer and admin default-bank management to preserve DRY behavior.
+
+### Deterministic Math Tooling Contract (Locked)
+
+- MathLive is mandatory for all editable math fields in this branch (statement, explanation, accepted answers) and in downstream math-input surfaces.
+- KaTeX is mandatory for non-editable rendering (preview cards, review panes, read-only tables, exports that render math).
+- LaTeX is the only persisted math representation. Persist authored values in `content_latex`, `explanation_latex`, and LaTeX payloads inside `answer_key_json`.
+- `content_html` may be used only as a render cache and must never be treated as grading or snapshot source of truth.
+- Conversion flow is fixed: MathLive output -> normalization helpers -> persisted LaTeX. Do not persist editor-specific markup.
+- Prohibited alternatives for release one: MathQuill, Markdown-math parsers, or plain-text-only math entry as the primary authoring input.
+- Branches `07`, `08`, `11`, `13`, and `14` consume this contract unchanged.
 
 ## Requirements
 
 - bank CRUD for organizers and admin-managed default bank
 - problem CRUD supporting MCQ, true/false, numeric, and identification
-- math authoring with live preview and symbol affordances
+- numeric and identification validators must accept one-or-many equivalent accepted answers as a canonical array contract (order-insensitive after normalization)
+- math authoring with MathLive, a visible symbol toolbox, and live KaTeX preview
 - optional image upload for geometry and diagram problems
 - metadata fields for difficulty, tags, explanation, and authoring notes
 - bulk import flow with a downloadable template and validation feedback
 - safe soft-delete behavior when draft and published competitions reference the same source records
+
+### Deterministic Bulk Import Contract
+
+- Template columns and required order: `type,difficulty,tags,content_latex,answer_key_json,options_json,explanation_latex,authoring_notes,image_path`.
+- `type` allowed values: `mcq`, `tf`, `numeric`, `identification`.
+- `difficulty` allowed values: `easy`, `average`, `difficult`.
+- `options_json` is required for `mcq` and `tf`; option labels must be unique and parse deterministically.
+- `answer_key_json` must follow type-specific validation; for `numeric` and `identification`, accepted answers must be normalized into a canonical array contract (one or many accepted values) and deduplicated after normalization.
+- CSV template support for `numeric` and `identification` accepts pipe-delimited answer variants that import into the canonical accepted-answer array.
+- invalid rows are rejected with row number plus reason and do not block valid rows.
+- Import results must always return `total_rows`, `inserted_rows`, `failed_rows`, and per-row error details.
 
 ## Atomic Steps
 
 1. Build the bank list page with owner-scoped and default-bank sections.
 2. Add bank create and edit forms with validation and soft-delete confirmation.
 3. Build the problem list view within a bank with filters by type, difficulty, and tag.
-4. Implement problem create and edit forms using MathLive and static KaTeX preview where needed.
-5. Add answer-shape validation per problem type and enforce unique MCQ choices.
+4. Implement problem create and edit forms using MathLive for editable input and a persistent KaTeX preview panel for every math-enabled field.
+5. Add answer-shape validation per problem type, enforce unique MCQ choices, and enforce canonical multi-answer acceptance for `numeric` and `identification` in both form and import validators.
 6. Integrate image upload with preview, replace, and remove flows.
 7. Add soft-delete behavior and ownership checks for banks and problems.
-8. Build the bulk import template, parser, validation pipeline, and import results UI.
+8. Build the bulk import template, parser, validation pipeline, partial-success write path, and deterministic import result summaries (`total_rows`, `inserted_rows`, `failed_rows`, row-level errors).
 9. Reuse the same authoring experience for the admin-managed default bank where allowed.
 10. Add tests for validators, import parsing helpers, and any extracted ownership logic.
 
@@ -61,14 +83,13 @@ Unblocks: scoring rules, competition wizard, default-bank moderation, answer-key
 
 - `app/organizer/problem-bank/page.tsx`
 - `app/organizer/problem-bank/create/page.tsx`
-- `app/organizer/problem-bank/[id]/page.tsx`
-- `app/organizer/problem-bank/[id]/problem/[problemId]/page.tsx`
+- `app/organizer/problem-bank/[bankId]/page.tsx`
+- `app/organizer/problem-bank/[bankId]/problem/[problemId]/page.tsx`
 - `app/admin/problem-banks/*`
 - `components/problem-bank/*`
 - `components/math-editor/*`
 - `lib/problem-bank/*`
-- `supabase/migrations/*`
-- Storage policy definitions
+- `supabase/migrations/*` (including storage policy SQL for `problem-assets` and related organizer upload paths)
 
 ## Verification
 
