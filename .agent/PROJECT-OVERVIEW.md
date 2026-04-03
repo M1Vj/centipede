@@ -58,7 +58,7 @@ Deliver a secure, mobile-friendly, competition-ready web application for math co
 ## In Scope
 
 - authentication, profile completion, and role-aware redirects
-- organizer application workflow and admin approval
+- organizer application workflow, applicant status visibility, admin approval, and organizer activation handoff
 - admin user management, moderation, audit logs, and resource access
 - organizer profile/settings workspace
 - problem bank CRUD, bulk import, problem snapshots, images, and math authoring
@@ -119,7 +119,8 @@ These choices were validated against current official documentation and maintain
 - RLS must be enabled on every public table, view, and callable surface that exposes data APIs, because Supabase's current security guidance assumes RLS as the core enforcement boundary.
 - Realtime should be reserved for high-value live surfaces like announcements, notifications, leaderboard refreshes, participant monitoring, and active-attempt signals. Supabase documents that Postgres Changes authorization work scales per subscriber, so broad subscriptions must be avoided on hot tables.
 - Complex tables should use shadcn/ui plus `@tanstack/react-table` because the shadcn docs explicitly position the data-table pattern as a custom composition layer rather than a monolithic grid.
-- MathLive is the primary math editor because it has current React guidance, touch-friendly virtual keyboard support, and a modern `math-field` API. MathQuill remains an evaluated fallback but is not the default direction.
+- Open-source-first is required for complex UX and infrastructure surfaces: prefer maintained, well-documented libraries over bespoke implementations unless there is a documented blocker.
+- Math input is a locked v1 stack: MathLive for editable entry (with symbol toolbox and virtual keyboard), KaTeX for static rendering, and LaTeX as the canonical persisted format.
 
 ## Visual Direction
 
@@ -159,15 +160,17 @@ The rebuilt app should preserve that direction while avoiding fragile one-off im
 - service-role keys are server-only and never exposed to the browser
 - every table, view, and RPC in `public` gets explicit access rules
 - profiles and organizer approvals are enforced from trusted server paths
+- strict single-session enforcement is backed by a server-trusted session-version contract rather than client-only sign-out behavior
 - admin self-modification protections are explicit in UI and backend logic
 - competition snapshots prevent mutable problem bank edits from corrupting live or historical data
 - anti-cheat and audit trails are append-oriented and tamper-resistant from normal user roles
+- storage buckets and object-access rules for organizer assets, problem assets, and exports are documented as first-class backend contracts
 
 ## Coverage Summary
 
 The execution plan below covers:
 
-- UR1-UR3: auth, profile completion, single-session behavior, suspended-user handling
+- UR1-UR3: auth, profile completion, organizer/admin credential access, single-session behavior, suspended-user handling
 - UR4-UR5: admin moderation, audit logs, resource access, default-bank governance
 - UR6-UR8: problem banks, scoring rules, competition configuration, tab-switching oversight
 - UR9-UR12: teams, discovery, registration, notifications, and calendar localization

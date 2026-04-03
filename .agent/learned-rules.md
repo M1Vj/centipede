@@ -6,7 +6,7 @@ This file stores project-specific rules learned during planning and implementati
 
 ### 1.1
 
-`.agent/` is the active planning folder. `.agents/` is legacy content kept only for historical reference until the rename is fully reconciled.
+`.agent/` is the only active planning folder. `.agents/` is archival only and must not be used for execution decisions.
 
 ### 1.2
 
@@ -34,7 +34,11 @@ Do not use raw requirement IDs as standalone meaning in feature headers or execu
 
 ### 1.8
 
-Feature-guide `**Assigned to:**` fields are the only ownership signal that implementation agents should rely on. Do not create or maintain a separate ownership source-of-truth document unless the user explicitly asks for one.
+Feature-guide `**Assigned to:**` fields are the implementation-assignment signal for branch execution. The ownership matrix in `.agent/PROCESS-FLOW.md` defines domain-event producer/consumer boundaries only and does not replace assignee ownership. Do not create or maintain another assignee source-of-truth document unless the user explicitly asks for one.
+
+### 1.9
+
+The current `.agent/` numbering is the canonical execution numbering. Preserve traceability through `.agent/ALL-BRANCHES-QUICK-REFERENCE.md` and `.agent/checklist.md` instead of mixing numbering systems.
 
 ## 2. Product Rules
 
@@ -72,6 +76,18 @@ Auth, redirects, and profile completion are platform concerns. They are not isol
 
 Realtime is valuable for notifications, announcements, leaderboards, and monitoring, but broad subscriptions on hot tables are a scalability risk and must be scoped tightly.
 
+### 3.5
+
+Use an open-source-first implementation policy for complex features. Prefer maintained, documented libraries and services instead of custom-building equivalents unless a concrete blocker is documented in the active feature guide.
+
+### 3.6
+
+Math input and rendering are locked in release one: MathLive is the only editable math-input component, KaTeX is the static renderer, and LaTeX is the canonical persisted format. Do not introduce MathQuill or alternate editor stacks in implementation branches.
+
+### 3.7
+
+Do not report documentation edits as complete until they are confirmed by direct file reads or `git diff` output from the current workspace.
+
 ## 4. Workflow Rules
 
 ### 4.1
@@ -80,8 +96,12 @@ Use Gemini CLI at meaningful checkpoints when it is available. If repeated `MODE
 
 ### 4.2
 
-Do not claim a branch is complete until lint, relevant tests, local dev checks, and a manual UI pass have been done.
+Do not claim a branch is complete until `npm run lint`, `npm run test`, `npm run build`, local dev checks, and a manual UI pass have been done.
 
 ### 4.3
 
 If implementation uncovers cross-cutting work that should have been planned earlier, fix the feature guide instead of leaving the knowledge implicit.
+
+### 4.4
+
+Admin approval and organizer activation are separate ownership concerns in the rebuilt plan. Branch `04-admin-user-management` owns the admin review and moderation shell, while branch `05-organizer-registration` owns applicant-facing intake, status visibility, and final organizer activation handoff.

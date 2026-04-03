@@ -33,6 +33,9 @@
 
 - every branch guide must be implementable using only the branch guide itself, referenced repo-local files, and shared `.agent/` docs
 - `.agent/PROCESS-FLOW.md` must be treated as the workflow source of truth when a branch touches role behavior, approvals, arena flow, notifications, publication rules, or post-competition handling
+- `.agent/DATABASE-EDR-RLS.md` and `.agent/PROCESS-FLOW.md` are target-contract sources of truth; if current workspace artifacts differ, follow target contracts and branch sequencing
+- baseline-vs-target audit rule: missing routes or tables that belong to not-yet-executed branches are expected and must be treated as planned sequencing gaps
+- organizer eligibility ownership is split: branch `04-admin-user-management` writes organizer-application decisions only, while branch `05-organizer-registration` owns organizer-role activation/provisioning (`profiles.role`, `profiles.approved_at`, including approved rows with `profile_id` null)
 - the live Figma frame may be used for visual alignment when the feature file allows it
 - current internet research may be used for implementation details and best practices
 - no branch guide may assume access to external local files outside the repository
@@ -44,6 +47,31 @@
 - commit messages follow Conventional Commits
 - documentation references use the feature number and slug exactly as written in `.agent/features`
 
+## Route Parameter Naming Policy
+
+- use explicit dynamic segment names instead of generic `[id]` when defining new routes or updating docs
+- canonical names: `[competitionId]`, `[teamId]`, `[bankId]`, `[problemId]`, `[applicationId]`, `[attemptId]`, `[registrationId]`, `[disputeId]`, `[userId]`
+- existing workspace admin pages may still include legacy `[id]` segments; treat them as legacy compatibility and do not reuse that pattern in new work
+- for competition-facing pages, `[competitionId]` is mandatory; if an older branch guide shows `[id]`, treat it as a legacy alias for `[competitionId]` rather than a different entity
+- downstream branches must reuse upstream parameter names and must not rename route params without updating all affected `.agent/` docs in the same branch
+
+Legacy admin route migration contract (required sequence):
+
+1. compatibility introduce canonical admin routes with `[competitionId]` and `[bankId]` while legacy `[id]` readers still exist
+2. cut over all route producers to canonical params only (navigation, redirects, links, notifications metadata); before this cutover lands, legacy `[id]` producers may still exist as compatibility
+3. after step 2 is merged, verify zero new `/admin/**/[id]` producers during branch `17-testing-bug-fixes`
+4. remove legacy `[id]` handlers only after producer cutover and verification
+
+## Blank-Slate Contract Boundaries
+
+- current workspace may still contain legacy `[id]` routes in existing admin pages
+- current app routes may not yet include future-branch target paths; this is expected until the owning branch executes
+- current migrations may still include earlier boolean lifecycle fields from pre-target schema stages
+- current migrations may not yet include future-branch target tables or RPC-backed artifacts from the ownership matrix; this is expected until the owning branch executes
+- lifecycle enum migration must follow compatibility -> deterministic backfill -> dual-write compatibility -> enum-only cutover -> legacy drop (see `.agent/DATABASE-EDR-RLS.md` Section G)
+- per-branch schema and trusted-function ownership must follow the matrix in `.agent/DATABASE-EDR-RLS.md` Section G; do not introduce a domain table or primary RPC outside its owning branch without updating that matrix first
+- target schema and route contracts are introduced by branch sequence; do not assume current code state already matches target contracts
+
 ## Merge Order Logic
 
 The merge order is strictly sequential unless a later feature explicitly declares a safe parallel start point. The default order is:
@@ -52,19 +80,20 @@ The merge order is strictly sequential unless a later feature explicitly declare
 2. `02-authentication`
 3. `03-interaction-feedback`
 4. `04-admin-user-management`
-5. `05-organizer-registration`
-6. `06-problem-bank`
-7. `07-scoring-system`
-8. `08-competition-wizard`
-9. `09-team-management`
-10. `10-competition-search`
-11. `11-arena`
-12. `12-anti-cheat`
-13. `13-review-submission`
-14. `14-leaderboard-history`
-15. `15-notifications-polish`
-16. `16-participant-monitoring`
-17. `17-testing-bug-fixes`
+5. `05b-deferred-foundation-and-auth`
+6. `05-organizer-registration`
+7. `06-problem-bank`
+8. `07-scoring-system`
+9. `08-competition-wizard`
+10. `09-team-management`
+11. `10-competition-search`
+12. `11-arena`
+13. `12-anti-cheat`
+14. `13-review-submission`
+15. `14-leaderboard-history`
+16. `15-notifications-polish`
+17. `16-participant-monitoring`
+18. `17-testing-bug-fixes`
 
 ## Atomic Commit Rules
 
@@ -77,9 +106,11 @@ The merge order is strictly sequential unless a later feature explicitly declare
 
 Before a feature branch is considered complete:
 
-- run lint
-- run relevant unit and integration tests
-- run local dev and perform manual route checks
+- run `npm run lint`
+- run `npm run test`
+- run `npm run build`
+- run `npm run dev` and manually verify all routes touched by the branch
+- if a branch modifies `supabase/migrations/*`, run `npm run supabase:status` and `npm run supabase:db:reset`
 - inspect the changed database migration and RLS logic
 - perform an accessibility pass on the touched flows
 - verify mobile layouts for any new page or modal
