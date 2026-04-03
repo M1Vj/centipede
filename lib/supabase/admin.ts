@@ -192,13 +192,6 @@ export async function approveOrganizerApplication(
 
   if (appError) throw appError;
 
-  const { error: roleError } = await admin
-    .from("profiles")
-    .update({ role: "organizer", approved_at: new Date().toISOString() })
-    .eq("id", profileId);
-
-  if (roleError) throw roleError;
-
   await logAdminAction({
     actorId,
     actionType: "organizer_application_approved",
@@ -241,6 +234,103 @@ export async function rejectOrganizerApplication(
   });
 }
 
+export async function rotateSessionVersion(profileId: string) {
+  const admin = createAdminClient();
+  if (!admin) return null;
+
+  const { data, error } = await admin.rpc("rotate_session_version", {
+    profile_id: profileId,
+  });
+
+  if (error) throw error;
+
+  return data as number | null;
+}
+
+export async function updateMathleteProfileSettings(
+  profileId: string,
+  school: string,
+  gradeLevel: string,
+) {
+  const admin = createAdminClient();
+  if (!admin) return null;
+
+  const { data, error } = await admin.rpc("update_mathlete_profile_settings", {
+    profile_id: profileId,
+    next_school: school,
+    next_grade_level: gradeLevel,
+  });
+
+  if (error) throw error;
+
+  return data;
+}
+
+export async function anonymizeUserAccount(
+  targetProfileId: string,
+  reason: string,
+  requestIdempotencyToken: string,
+  actorId?: string,
+) {
+  const admin = createAdminClient();
+  if (!admin) return null;
+
+  const trimmedReason = reason.trim();
+  const trimmedToken = requestIdempotencyToken.trim();
+
+  if (!trimmedReason) {
+    throw new Error("Anonymization reason is required.");
+  }
+
+  if (!trimmedToken) {
+    throw new Error("Anonymization idempotency token is required.");
+  }
+
+  const { data, error } = await admin.rpc("anonymize_user_account", {
+    target_profile_id: targetProfileId,
+    reason: trimmedReason,
+    request_idempotency_token: trimmedToken,
+  });
+
+  if (error) throw error;
+
+  const anonymizedProfile =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? (data as { email?: string | null })
+      : null;
+
+  if (anonymizedProfile?.email) {
+    const { error: authUpdateError } = await admin.auth.admin.updateUserById(
+      targetProfileId,
+      {
+        email: anonymizedProfile.email,
+        email_confirm: true,
+        user_metadata: {
+          full_name: "Deleted User",
+        },
+      },
+    );
+
+    if (authUpdateError) {
+      throw authUpdateError;
+    }
+  }
+
+  await logAdminAction({
+    actorId,
+    actionType: "user_anonymized",
+    targetTable: "profiles",
+    targetId: targetProfileId,
+    description: "Anonymized user account",
+    metadata: {
+      reason: trimmedReason,
+      requestIdempotencyToken: trimmedToken,
+    },
+  });
+
+  return data;
+}
+
 export async function setUserActiveStatus(
   userId: string,
   isActive: boolean,
@@ -269,25 +359,17 @@ export async function purgeUser(
   userId: string,
   actorId?: string,
 ) {
-  const admin = createAdminClient();
-  if (!admin) return;
-
-  const { error } = await admin.auth.admin.deleteUser(userId);
-  if (error) throw error;
-
-  await logAdminAction({
+  return anonymizeUserAccount(
+    userId,
+    "Administrative non-spam account removal",
+    `purge-user:${userId}`,
     actorId,
-    actionType: "user_purged",
-    targetTable: "auth.users",
-    targetId: userId,
-    description: "Permanently deleted user",
-  });
+  );
 }
 
 type UpdateUserInput = {
   userId: string;
   fullName: string;
-  email: string;
   role: string;
   actorId?: string;
 };
@@ -295,20 +377,17 @@ type UpdateUserInput = {
 export async function updateUserProfile({
   userId,
   fullName,
-  email,
   role,
   actorId,
 }: UpdateUserInput) {
   const admin = createAdminClient();
   if (!admin) return;
 
-  const normalizedEmail = email.trim().toLowerCase();
   const normalizedName = fullName.trim();
   const { error } = await admin
     .from("profiles")
     .update({
       full_name: normalizedName,
-      email: normalizedEmail,
       role,
     })
     .eq("id", userId);
