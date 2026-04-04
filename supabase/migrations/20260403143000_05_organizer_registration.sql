@@ -1,9 +1,18 @@
 begin;
 
 alter table public.organizer_applications
+  alter column profile_id drop not null;
+
+alter table public.organizer_applications
   add column if not exists applicant_full_name text,
   add column if not exists organization_name text,
-  add column if not exists logo_path text;
+  add column if not exists logo_path text,
+  add column if not exists contact_email text,
+  add column if not exists contact_phone text,
+  add column if not exists organization_type text,
+  add column if not exists legal_consent_at timestamptz,
+  add column if not exists status_lookup_token_hash text,
+  add column if not exists status_lookup_token_expires_at timestamptz;
 
 update public.organizer_applications as oa
 set
@@ -44,12 +53,20 @@ where applicant_full_name is null
   or organization_name = '';
 
 alter table public.organizer_applications
+  drop constraint if exists organizer_applications_contact_email_lower_ck,
+  drop constraint if exists organizer_applications_logo_path_format_ck,
+  drop constraint if exists organizer_applications_status_lookup_hash_format_ck,
+  drop constraint if exists organizer_applications_status_lookup_pair_ck,
+  drop constraint if exists organizer_applications_status_lookup_expiry_ck,
+  drop constraint if exists organizer_applications_rejection_reason_safety_ck;
+
+alter table public.organizer_applications
   add constraint organizer_applications_contact_email_lower_ck
     check (contact_email is null or contact_email = lower(contact_email)) not valid,
   add constraint organizer_applications_logo_path_format_ck
     check (
       logo_path is null
-      or logo_path ~ '^organizer-applications/[0-9a-f-]{36}/logo\\.(jpg|png)$'
+      or logo_path ~ '^organizer-applications/[0-9a-f-]{36}/logo\.(jpg|png)$'
     ) not valid,
   add constraint organizer_applications_status_lookup_hash_format_ck
     check (
@@ -255,6 +272,9 @@ begin
     || v_domain;
 end;
 $$;
+
+drop function if exists public.insert_organizer_application_intake(text,text,text,text,text,text,timestamptz,text,timestamptz,uuid);
+drop function if exists public.insert_organizer_application_intake(uuid,text,text,text,text,text,text,timestamptz,text,timestamptz);
 
 create or replace function public.insert_organizer_application_intake(
   p_applicant_full_name text,

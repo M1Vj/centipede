@@ -126,7 +126,7 @@ export function OrganizerStatusLookup({ initialToken }: StatusLookupProps) {
           <CardTitle className="text-2xl">Secure status lookup</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4" aria-busy={isLoading}>
+          <form onSubmit={handleSubmit} noValidate className="space-y-4" aria-busy={isLoading}>
             <div className="grid gap-2">
               <Label htmlFor="statusToken">Status token</Label>
               <Input
@@ -134,7 +134,6 @@ export function OrganizerStatusLookup({ initialToken }: StatusLookupProps) {
                 value={token}
                 onChange={(event) => setToken(event.target.value)}
                 placeholder="Paste your organizer status token"
-                required
               />
             </div>
             <div className="flex justify-end">

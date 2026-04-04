@@ -31,6 +31,7 @@ export function OrganizerApplicationForm() {
   const [hasAcceptedDataPrivacyAct, setHasAcceptedDataPrivacyAct] = useState(false);
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [status, setStatus] = useState<{
     type: "error" | "pending" | "success";
@@ -62,18 +63,32 @@ export function OrganizerApplicationForm() {
     }
   };
 
+  const fieldInvalidClass = hasAttemptedSubmit
+    ? "border-destructive ring-destructive/30 focus-visible:ring-destructive/50"
+    : "";
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setHasAttemptedSubmit(true);
 
     if (isSubmitting) {
       return;
     }
 
-    if (!hasAcceptedDataPrivacyAct || !hasAcceptedTerms) {
+    const missingFields: string[] = [];
+    if (!applicantFullName.trim()) missingFields.push("Full name");
+    if (!organizationName.trim()) missingFields.push("Organization name");
+    if (!contactEmail.trim()) missingFields.push("Contact email");
+    if (!contactPhone.trim()) missingFields.push("Contact phone");
+    if (!organizationType.trim()) missingFields.push("Organization type");
+    if (!statement.trim()) missingFields.push("Organizer statement");
+    if (!hasAcceptedDataPrivacyAct) missingFields.push("Data Privacy Act consent");
+    if (!hasAcceptedTerms) missingFields.push("Terms & Conditions consent");
+
+    if (missingFields.length > 0) {
       setStatus({
         type: "error",
-        message:
-          "You must accept the Data Privacy Act of 2012 and the Terms & Conditions before submitting.",
+        message: `Please complete the following required fields: ${missingFields.join(", ")}.`,
       });
       return;
     }
@@ -191,7 +206,7 @@ export function OrganizerApplicationForm() {
         <CardTitle className="text-3xl">Organizer application</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-8" aria-busy={isSubmitting}>
+        <form onSubmit={handleSubmit} noValidate className="space-y-8" aria-busy={isSubmitting}>
           <fieldset className="space-y-4">
             <legend className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Applicant identity
@@ -204,7 +219,11 @@ export function OrganizerApplicationForm() {
                   value={applicantFullName}
                   onChange={(event) => setApplicantFullName(event.target.value)}
                   required
+                  className={hasAttemptedSubmit && !applicantFullName.trim() ? fieldInvalidClass : ""}
                 />
+                {hasAttemptedSubmit && !applicantFullName.trim() && (
+                  <p className="text-xs text-destructive">Full name is required.</p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="organizationName">Organization name</Label>
@@ -213,7 +232,11 @@ export function OrganizerApplicationForm() {
                   value={organizationName}
                   onChange={(event) => setOrganizationName(event.target.value)}
                   required
+                  className={hasAttemptedSubmit && !organizationName.trim() ? fieldInvalidClass : ""}
                 />
+                {hasAttemptedSubmit && !organizationName.trim() && (
+                  <p className="text-xs text-destructive">Organization name is required.</p>
+                )}
               </div>
             </div>
           </fieldset>
@@ -232,7 +255,11 @@ export function OrganizerApplicationForm() {
                   value={contactEmail}
                   onChange={(event) => setContactEmail(event.target.value)}
                   required
+                  className={hasAttemptedSubmit && !contactEmail.trim() ? fieldInvalidClass : ""}
                 />
+                {hasAttemptedSubmit && !contactEmail.trim() && (
+                  <p className="text-xs text-destructive">Contact email is required.</p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="contactPhone">Contact phone</Label>
@@ -240,8 +267,12 @@ export function OrganizerApplicationForm() {
                   id="contactPhone"
                   value={contactPhone}
                   onChange={(event) => setContactPhone(event.target.value)}
+                  className={hasAttemptedSubmit && !contactPhone.trim() ? fieldInvalidClass : ""}
                   required
                 />
+                {hasAttemptedSubmit && !contactPhone.trim() && (
+                  <p className="text-xs text-destructive">Contact phone is required.</p>
+                )}
               </div>
               <div className="grid gap-2 md:col-span-2">
                 <Label htmlFor="organizationType">Organization type</Label>
@@ -251,7 +282,11 @@ export function OrganizerApplicationForm() {
                   onChange={(event) => setOrganizationType(event.target.value)}
                   placeholder="School, district office, club, or academy"
                   required
+                  className={hasAttemptedSubmit && !organizationType.trim() ? fieldInvalidClass : ""}
                 />
+                {hasAttemptedSubmit && !organizationType.trim() && (
+                  <p className="text-xs text-destructive">Organization type is required.</p>
+                )}
               </div>
             </div>
           </fieldset>
@@ -266,9 +301,16 @@ export function OrganizerApplicationForm() {
                 id="statement"
                 value={statement}
                 onChange={(event) => setStatement(event.target.value)}
-                className="min-h-40 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className={`min-h-40 w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring ${
+                  hasAttemptedSubmit && !statement.trim()
+                    ? "border-destructive ring-destructive/30 focus-visible:ring-destructive/50"
+                    : "border-input"
+                }`}
                 required
               />
+              {hasAttemptedSubmit && !statement.trim() && (
+                <p className="text-xs text-destructive">Organizer statement is required.</p>
+              )}
               <p className="text-xs text-muted-foreground">
                 Current word count: {statementWordCount}
               </p>
@@ -305,7 +347,7 @@ export function OrganizerApplicationForm() {
             <legend className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Legal consent
             </legend>
-            <label className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+            <label className={`flex items-start gap-3 rounded-md border p-3 ${hasAttemptedSubmit && !hasAcceptedDataPrivacyAct ? "border-destructive bg-destructive/5" : "border-border/60"}`}>
               <input
                 type="checkbox"
                 checked={hasAcceptedDataPrivacyAct}
@@ -317,7 +359,7 @@ export function OrganizerApplicationForm() {
                 I explicitly agree to the Data Privacy Act of 2012 for organizer-application processing.
               </span>
             </label>
-            <label className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+            <label className={`flex items-start gap-3 rounded-md border p-3 ${hasAttemptedSubmit && !hasAcceptedTerms ? "border-destructive bg-destructive/5" : "border-border/60"}`}>
               <input
                 type="checkbox"
                 checked={hasAcceptedTerms}

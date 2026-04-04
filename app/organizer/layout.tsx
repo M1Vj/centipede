@@ -1,18 +1,26 @@
 import { ProgressLink } from "@/components/ui/progress-link";
+import { createClient } from "@/lib/supabase/server";
 
-const navItems = [
-  { href: "/organizer/apply", label: "Apply" },
-  { href: "/organizer/status", label: "Status" },
-  { href: "/organizer", label: "Dashboard" },
-  { href: "/organizer/profile", label: "Profile" },
-  { href: "/organizer/settings", label: "Settings" },
-];
-
-export default function OrganizerLayout({
+export default async function OrganizerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  // Decide which navigation items to show based on login status
+  const navItems = user 
+    ? [
+        { href: "/organizer", label: "Dashboard" },
+        { href: "/organizer/profile", label: "Profile" },
+        { href: "/organizer/settings", label: "Settings" },
+      ]
+    : [
+        { href: "/organizer/apply", label: "Apply" },
+        { href: "/organizer/status", label: "Status" },
+      ];
+
   return (
     <div className="min-h-screen bg-muted/20">
       <header className="border-b bg-background/95 backdrop-blur">
