@@ -9,9 +9,24 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 
 | Release Code | Date Released |
 | ------------ | ------------- |
+| CP.010.004   | 2026-04-05    |
 | CP.010.003   | 2026-04-02    |
 | CP.010.002   | 2026-03-14    |
 | CP.010.001   | 2026-02-28    |
+
+---
+
+## CP.010.004 Release Notes
+
+- Implemented the full organizer eligibility lifecycle including public application entry, legal consent, logo file uploads, and secure status tracking.
+- Added encrypted status lookup with strict rate limiting, safeguarding applicant tracking queries.
+- Integrated automated communication processes, delivering submission, approval, and rejection messaging effectively.
+- Built the organizer-first-run dashboard along with comprehensive profile and settings pages for smooth onboarding.
+- Hardened deferred authentication handling, refined form validation, and optimized DB migration idempotency.
+
+Known Issues:
+
+- None at this time.
 
 ---
 
