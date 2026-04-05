@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getErrorMessage } from "@/lib/errors";
 import { submitOrganizerApplication } from "@/lib/organizer/lifecycle";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const KNOWN_SUBMISSION_ERRORS = new Set([
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             code: "suspended",
-            message: "Suspended users cannot submit organizer applications.",
+            message: "This account is inactive or pending approval. Additional applications cannot be submitted at this time.",
           },
           { status: 403 },
         );
@@ -80,6 +81,34 @@ export async function POST(request: Request) {
       }
 
       profileId = profile?.id ?? user.id;
+    }
+
+    const contactEmail = String(formData.get("contactEmail") ?? "").trim();
+    if (contactEmail) {
+      const duplicateCheckWindow = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+      const adminSupabase = createAdminClient();
+      if (adminSupabase) {
+        const { count: recentCount, error: recentError } = await adminSupabase
+          .from("organizer_applications")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "pending")
+          .ilike("contact_email", contactEmail)
+          .gt("submitted_at", duplicateCheckWindow);
+
+        if (recentError) {
+          throw recentError;
+        }
+
+        if (recentCount && recentCount > 0) {
+          return NextResponse.json(
+            {
+              code: "too_many_requests",
+              message: "Application actively pending. Please check your existing status token before submitting again.",
+            },
+            { status: 429 },
+          );
+        }
+      }
     }
 
     const logoEntry = formData.get("logo");

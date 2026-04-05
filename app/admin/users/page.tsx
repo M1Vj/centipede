@@ -41,6 +41,12 @@ async function UsersList({ role, status, search }: FilterParams) {
       .select("*")
       .order("created_at", { ascending: false });
 
+    if (status === "anonymized") {
+      query = query.like("email", "%@anon.invalid");
+    } else {
+      query = query.not("email", "like", "%@anon.invalid");
+    }
+
     if (role && role !== "all") {
       query = query.eq("role", role);
     }
@@ -304,6 +310,7 @@ export default async function AdminUsersPage({
     { value: "all", label: "All Status" },
     { value: "active", label: "Active" },
     { value: "suspended", label: "Suspended" },
+    { value: "anonymized", label: "Anonymized" },
   ];
 
   return (

@@ -11,8 +11,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Check, X, FileText, User, Mail, Building } from "lucide-react";
+import { FileText, User, Mail, Building } from "lucide-react";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getErrorMessage } from "@/lib/errors";
@@ -21,6 +20,7 @@ import {
   needsProvisioningRetry,
   type OrganizerProvisioningSnapshot,
 } from "@/lib/admin/organizer-provisioning";
+import { ApproveButton, RejectButton, RetryProvisioningButton } from "./application-actions";
 
 type ApplicationProfile = {
   full_name: string | null;
@@ -94,7 +94,7 @@ function toPublicActionErrorMessage(error: unknown, fallback: string) {
     return "Application contact email is required before this action can continue.";
   }
 
-  if ((error as any)?.__isAuthError) {
+  if ((error as Record<string, unknown>)?.__isAuthError) {
     return message;
   }
 
@@ -364,10 +364,7 @@ async function ApplicationsList() {
                   <form action={handleApprove} className="w-full">
                     <input type="hidden" name="applicationId" value={app.id} />
                     {app.profile_id ? <input type="hidden" name="profileId" value={app.profile_id} /> : null}
-                    <Button type="submit" variant="default" className="w-full gap-2 shadow-sm">
-                      <Check className="size-4" />
-                      Approve
-                    </Button>
+                    <ApproveButton />
                   </form>
                   <form action={handleReject} className="w-full space-y-2">
                     <input type="hidden" name="applicationId" value={app.id} />
@@ -376,10 +373,7 @@ async function ApplicationsList() {
                       placeholder="Rejection reason..."
                       className="w-full text-xs rounded-md border border-input bg-background px-2 py-1 focus:ring-1 focus:ring-primary outline-none h-16 resize-none"
                     />
-                    <Button type="submit" variant="outline" className="w-full gap-2 text-destructive hover:bg-destructive/10">
-                      <X className="size-4" />
-                      Reject
-                    </Button>
+                    <RejectButton />
                   </form>
                 </div>
               )}
@@ -391,10 +385,7 @@ async function ApplicationsList() {
                   </p>
                   <form action={handleRetryHandoff} className="w-full">
                     <input type="hidden" name="applicationId" value={app.id} />
-                    <Button type="submit" variant="secondary" className="w-full gap-2 shadow-sm">
-                      <Check className="size-4" />
-                      Retry provisioning
-                    </Button>
+                    <RetryProvisioningButton />
                   </form>
                 </div>
               )}

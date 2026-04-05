@@ -634,6 +634,13 @@ export async function prepareOrganizerIdentityForApproval(
     throw new Error("Rejected applications cannot be approved.");
   }
 
+  if (application.status === "approved" && application.profile_id) {
+    return {
+      profileId: application.profile_id,
+      invitedIdentity: false,
+    };
+  }
+
   if (!application.contact_email?.trim()) {
     throw new Error("Application contact email is required for approval.");
   }

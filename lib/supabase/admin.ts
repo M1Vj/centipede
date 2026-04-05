@@ -159,7 +159,7 @@ export async function getAdminStats() {
     { count: competitionCount },
     { count: bankCount }
   ] = await Promise.all([
-    admin.from("profiles").select("*", { count: "exact", head: true }),
+    admin.from("profiles").select("*", { count: "exact", head: true }).not("email", "like", "%@anon.invalid"),
     admin.from("organizer_applications").select("*", { count: "exact", head: true }).eq("status", "pending"),
     admin.from("competitions").select("*", { count: "exact", head: true }),
     admin.from("problem_banks").select("*", { count: "exact", head: true }).eq("is_deleted", false)
@@ -449,6 +449,17 @@ export async function setUserActiveStatus(
   const admin = createAdminClient();
   if (!admin) return;
 
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("email")
+    .eq("id", userId)
+    .single();
+
+  if (profileError) throw profileError;
+  if (profile.email?.endsWith("@anon.invalid")) {
+    throw new Error("Cannot explicitly change activation status of an anonymized account.");
+  }
+
   const { error } = await admin
     .from("profiles")
     .update({ is_active: isActive })
@@ -492,6 +503,17 @@ export async function updateUserProfile({
 }: UpdateUserInput) {
   const admin = createAdminClient();
   if (!admin) return;
+
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("email")
+    .eq("id", userId)
+    .single();
+
+  if (profileError) throw profileError;
+  if (profile.email?.endsWith("@anon.invalid")) {
+    throw new Error("Cannot update an anonymized account.");
+  }
 
   const normalizedName = fullName.trim();
   const { error } = await admin

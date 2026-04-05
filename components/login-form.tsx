@@ -57,7 +57,7 @@ export function LoginForm({
     const errorParam = searchParams.get("error");
     if (errorParam === "suspended") {
       setStatus({
-        message: "Your account is suspended. Please contact support.",
+        message: "Your account is pending organizer approval or has been suspended. Please contact support if you believe this is an error.",
         type: "error",
       });
     }
@@ -77,7 +77,13 @@ export function LoginForm({
 
     if (profile && profile.is_active === false) {
       await supabase.auth.signOut();
-      feedbackRouter.push("/auth/suspended");
+      
+      // Give a more specific inline error instead of full redirect for better UX
+      setStatus({
+        message: "This account is inactive or pending approval. Please check your application status or contact support.",
+        type: "error",
+      });
+      setPendingAction(null);
       return;
     }
 

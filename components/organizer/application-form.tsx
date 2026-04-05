@@ -207,7 +207,9 @@ export function OrganizerApplicationForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} noValidate className="space-y-8" aria-busy={isSubmitting}>
-          <fieldset className="space-y-4">
+          {!submissionState ? (
+            <>
+              <fieldset className="space-y-4">
             <legend className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Applicant identity
             </legend>
@@ -390,6 +392,8 @@ export function OrganizerApplicationForm() {
             message={status.message}
             icon={status.type === "error" ? CircleAlert : status.type === "success" ? CircleCheck : undefined}
           />
+            </>
+          ) : null}
 
           {submissionState ? (
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm">
@@ -414,11 +418,13 @@ export function OrganizerApplicationForm() {
             </div>
           ) : null}
 
-          <div className="flex justify-end">
-            <Button type="submit" pending={isSubmitting} pendingText="Submitting application...">
-              Submit organizer application
-            </Button>
-          </div>
+          {!submissionState ? (
+            <div className="flex justify-end mt-6">
+              <Button type="submit" pending={isSubmitting} pendingText="Submitting application...">
+                Submit organizer application
+              </Button>
+            </div>
+          ) : null}
         </form>
       </CardContent>
     </Card>

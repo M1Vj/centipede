@@ -67,6 +67,8 @@ export function UserActions({
     [user.full_name],
   );
 
+  const isAnonymized = user.email.endsWith("@anon.invalid");
+
   useEffect(() => {
     setFullName(user.full_name ?? "");
     setRole(user.role ?? "mathlete");
@@ -135,6 +137,19 @@ export function UserActions({
         setAction(null);
       }
     });
+  }
+
+  if (isAnonymized) {
+    return (
+      <div className="flex justify-end gap-2 pr-1 pt-1">
+        <span 
+          className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground ring-1 ring-inset ring-border/20 cursor-not-allowed"
+          title="This account has been anonymized and scrubbed of details."
+        >
+          Anonymized
+        </span>
+      </div>
+    );
   }
 
   if (currentUserId === user.id) {
