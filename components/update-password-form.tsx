@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@/lib/supabaseClient";
 import { useFeedbackRouter } from "@/hooks/use-feedback-router";
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ export function UpdatePasswordForm({
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    const supabase = createClient();
+    const supabase = getSupabaseClient();
     setIsLoading(true);
     setStatus({
       message: "Saving your new password...",

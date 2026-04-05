@@ -55,7 +55,7 @@ Unblocks: team registration, discovery, arena, monitoring, leaderboard publicati
 
 Allowed status transitions:
 - `draft` -> `published` (trusted publish action only).
-- `published` -> `live` (trusted scheduled-competition start transition).
+- `published` -> `live` (trusted start transition: scheduled competitions start at trusted server boundary, open competitions start through organizer-owned trusted controls).
 - `live` -> `paused` (organizer path is open-only; admin incident force-pause may target any live competition type) and `paused` -> `live` (organizer-owned resume on organizer-owned competitions, including recovery after admin force-pause).
 - `live` or `paused` -> `ended` (trusted lifecycle transition only; never direct client-side table mutation).
 - `paused` (open only, no active attempts) -> `archived` (trusted retire action).
@@ -75,7 +75,7 @@ Mutation guards by status:
 ### Publish-Time Snapshot Semantics (Non-Negotiable)
 
 - `publish_competition(competition_id, request_idempotency_token)` is the single trusted publish entry point.
-- `start_competition(competition_id, request_idempotency_token)` is the trusted scheduled-competition start entry point that promotes `published` competitions to `live` idempotently at the server-authoritative start boundary.
+- `start_competition(competition_id, request_idempotency_token)` is the trusted start entry point that promotes `published` competitions to `live` idempotently; scheduled competitions use server-authoritative start boundary and open competitions use organizer-owned trusted control invocation.
 - `archive_competition(competition_id, request_idempotency_token)` is the trusted retirement entry point for non-draft competitions and must record an archive event idempotently.
 - End transition policy is split and canonical: scheduled end is server-boundary driven with `transition_source = 'system_timer'` only, while open end is organizer-triggered through trusted lifecycle controls with required non-empty reason and `request_idempotency_token`; both paths must be idempotent and event-audited.
 - Publish runs as one transaction-level contract:
@@ -107,7 +107,7 @@ Mutation guards by status:
 - configure scoring, penalties, shuffling, anti-cheat, and multiple-attempt grading
 - configure answer-key visibility using `after_end` or `hidden`, independently from leaderboard publication, with default `after_end` at draft creation and trusted server-time enforcement at reveal time
 - enforce lifecycle transitions with `competition_status` constants and trusted status guards
-- assign trusted owner/trigger paths for scheduled start (`published -> live`), scheduled server-time end (`live/paused -> ended`), open trusted end control (`live/paused -> ended`) with required reason plus `request_idempotency_token`, and archive/retirement (`ended -> archived`, plus paused open retirements with no active attempts)
+- assign trusted owner/trigger paths for scheduled start (`published -> live`, system-owned server boundary), open start (`published -> live`, organizer-owned trusted control), scheduled server-time end (`live/paused -> ended`), open trusted end control (`live/paused -> ended`) with required reason plus `request_idempotency_token`, and archive or retirement (`ended -> archived`, plus paused open retirements with no active attempts)
 - require a summary review and defensive confirmation before publish
 - block duplicate competition names for the same organizer when status is one of `draft`, `published`, `live`, `paused`, or `ended`, with reuse allowed only for `archived` or soft-deleted records
 - block invalid edits or deletes for live and historically significant competitions
@@ -122,7 +122,7 @@ Mutation guards by status:
 6. Add scoring and anti-cheat configuration steps using the rules from branch 07.
 7. Add the review and publish step with full validation summary, edit jump-links, and explicit confirmation.
 8. Snapshot selected problems into `competition_problems` at publish time with frozen snapshot columns and immutable post-publish behavior.
-9. Implement organizer controls for draft edit, publish, trusted scheduled start, safe draft delete, open trusted end control (required reason plus `request_idempotency_token`), archive/retire, and lifecycle state guards that enforce the allowed `competition_status` transitions.
+9. Implement organizer controls for draft edit, publish, open trusted start, safe draft delete, open trusted end control (required reason plus `request_idempotency_token`), archive/retire, and lifecycle state guards that enforce the allowed `competition_status` transitions; scheduled start remains system-owned at trusted server boundary.
 10. Record baseline `competition_events` for publish, start, end, and archive lifecycle actions in branch 08, with end events emitted only by the canonical scheduled-system or open-organizer trusted paths; defer pause, resume, extend, and reset producer event writes to branch 16 control actions.
 
 ## Key Files
@@ -142,6 +142,20 @@ Mutation guards by status:
 - Accessibility: step navigation, summary review, error messaging, and confirmation dialogs are keyboard-safe.
 - Performance: with a 2,000-problem bank, filter/search interactions stay at p95 <= 400 ms and draft autosave stays at p95 <= 800 ms without full-page reload.
 - Edge cases: duplicate names, invalid time windows, format switching after selected problems, deleting active open competitions.
+
+## Security and Reliability Addendum (2026-04)
+
+- require draft-write concurrency guards to prevent stale multi-tab overwrite (`draft_write_conflict` on stale revisions)
+- require deterministic token-source policy for lifecycle transitions, including canonical system token behavior for scheduled system-timer end
+- require publish transaction evidence artifact (snapshot counts/hashes and lifecycle event linkage) for forensic traceability
+- require trusted transition helper enforcement for actor, state, and transition-source validation across publish/start/end/archive paths
+- require immutable scoring/anti-cheat snapshot usage in downstream runtime and grading paths only
+
+### Additional Verification Gates
+
+- concurrency QA: same-token retries are idempotent; competing lifecycle requests produce deterministic conflict behavior
+- lifecycle QA: prohibited transitions are blocked with deterministic machine-code outcomes
+- audit QA: publish/start/end/archive writes produce expected lifecycle events and metadata
 
 ## Git Branching
 

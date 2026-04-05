@@ -34,6 +34,27 @@ export async function saveMathleteSettings({
   });
 
   if (error) {
+    const isMissingHelper =
+      error.code === "42883"
+      || error.message.toLowerCase().includes("update_mathlete_profile_settings");
+
+    if (isMissingHelper) {
+      const { error: fallbackError } = await supabase
+        .from("profiles")
+        .update({
+          school: normalizedSchool,
+          grade_level: normalizedGradeLevel,
+        })
+        .eq("id", user.id)
+        .eq("role", "mathlete");
+
+      if (fallbackError) {
+        throw new Error(fallbackError.message);
+      }
+
+      return null;
+    }
+
     throw new Error(error.message);
   }
 

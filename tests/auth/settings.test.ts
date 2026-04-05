@@ -46,4 +46,48 @@ describe("saveMathleteSettings", () => {
       }),
     ).rejects.toThrow("Unauthorized");
   });
+
+  test("falls back to direct profile update when RPC is unavailable", async () => {
+    const update = vi.fn().mockResolvedValue({ error: null });
+    const eqRole = vi.fn().mockImplementation(() => ({
+      eq: update,
+    }));
+    const eqId = vi.fn().mockImplementation(() => ({
+      eq: eqRole,
+    }));
+    const updateProfile = vi.fn().mockImplementation(() => ({
+      eq: eqId,
+    }));
+    const from = vi.fn().mockImplementation(() => ({
+      update: updateProfile,
+    }));
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "42883",
+        message: "Could not find the function public.update_mathlete_profile_settings(...) in the schema cache",
+      },
+    });
+
+    const client = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }),
+      },
+      rpc,
+      from,
+    };
+
+    vi.mocked(createClient).mockResolvedValue(client as never);
+
+    await saveMathleteSettings({
+      school: "Mathwiz Academy",
+      gradeLevel: "10",
+    });
+
+    expect(from).toHaveBeenCalledWith("profiles");
+    expect(updateProfile).toHaveBeenCalledWith({
+      school: "Mathwiz Academy",
+      grade_level: "10",
+    });
+  });
 });

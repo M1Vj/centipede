@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { CircleAlert } from "lucide-react";
+import type { Session } from "@supabase/supabase-js";
 import { cn } from "@/lib/utils";
 import { isProfileComplete, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
 import { getSupabaseClient } from "@/lib/supabaseClient";
@@ -56,7 +57,7 @@ export function LoginForm({
     const errorParam = searchParams.get("error");
     if (errorParam === "suspended") {
       setStatus({
-        message: "Your account is suspended. Please contact support.",
+        message: "Your account is pending organizer approval or has been suspended. Please contact support if you believe this is an error.",
         type: "error",
       });
     }
@@ -76,7 +77,13 @@ export function LoginForm({
 
     if (profile && profile.is_active === false) {
       await supabase.auth.signOut();
-      feedbackRouter.push("/auth/suspended");
+      
+      // Give a more specific inline error instead of full redirect for better UX
+      setStatus({
+        message: "This account is inactive or pending approval. Please check your application status or contact support.",
+        type: "error",
+      });
+      setPendingAction(null);
       return;
     }
 
@@ -91,13 +98,20 @@ export function LoginForm({
     } else if (profile.role === "organizer") {
       feedbackRouter.push("/organizer");
     } else {
-      feedbackRouter.push("/");
+      feedbackRouter.push("/mathlete");
     }
   };
 
-  const refreshAcceptedSession = async () => {
+  const refreshAcceptedSession = async (session: Session) => {
     const response = await fetch("/auth/session", {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        accessToken: session.access_token,
+        refreshToken: session.refresh_token,
+      }),
     });
 
     if (!response.ok) {
@@ -146,7 +160,7 @@ export function LoginForm({
     });
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -163,7 +177,11 @@ export function LoginForm({
         throw new Error("Login succeeded but no user session was returned.");
       }
 
-      await refreshAcceptedSession();
+      if (!signInData.session) {
+        throw new Error("Login succeeded but no active session was returned.");
+      }
+
+      await refreshAcceptedSession(signInData.session);
       await redirectAfterLogin(user.id);
     } catch (nextError: unknown) {
       const raw = getErrorMessage(nextError, "An error occurred during login.");

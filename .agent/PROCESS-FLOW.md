@@ -59,7 +59,7 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 2. Admins review organizer-eligibility submissions and approve or reject them; rejection reason is required, and approval rationale is not persisted or required in release one.
 3. After admin review, branch `04-admin-user-management` trusted admin actions record organizer-application decision fields only (`status`, `reviewed_at`, `rejection_reason`).
 4. If approved, branch `05-organizer-registration` trusted activation/provisioning path performs organizer-role activation (`profiles.role = 'organizer'`, `profiles.approved_at`) and sends one idempotent activation email with a password-set/reset link through the approved contact email.
-5. If rejected, the system keeps organizer access blocked and sends a rejection email with the rejection reason.
+5. If rejected, branch `05-organizer-registration` keeps organizer access blocked and sends one idempotent rejection email with the rejection reason.
 6. Admins can update, suspend, or anonymize organizer and mathlete accounts through trusted, auditable flows. Hard-delete is reserved for explicit spam/fake abuse moderation.
 7. Admins have global read access to organizer-created problem banks and competitions.
 8. Admins can moderate inappropriate content and use only this live-support allow list: `force_pause` and `abuse_or_fraud_non_draft_delete`; both allowed actions require explicit reason plus `request_idempotency_token`, with mandatory audit evidence, and executable ownership belongs to branch `16` while branch `04` remains the decision/admin shell and must not over-claim implementation ownership. Admins are prohibited from `manual_end`, `resume`, `extend`, and `reset_attempt_for_disconnect`, and can inspect live competition state, monitor high-traffic scheduled events, and support operational incidents.
@@ -67,7 +67,7 @@ This file restates the operational process flow for Mathwiz Arena inside the rep
 
 ### Admin Implementation Rules
 
-- Organizer approval must be a trusted backend mutation with audit logging.
+- Organizer approval and rejection must be trusted backend mutations with audit logging.
 - Admin approval or rejection writes organizer-application decision fields only and must never mutate organizer-role activation fields on `profiles`.
 - Rejection must preserve a reason and surface clear status to the applicant.
 - Admin self-destructive actions must be blocked in both UI and backend logic.
@@ -294,7 +294,39 @@ Admin route migration sequence (canonical):
 
 - Validation failure (`400` or `422`): return deterministic machine code plus field-level errors; write structured warning logs with `request_id` and actor context when available; do not write `admin_audit_logs`.
 - Authorization failure (`401`, `403`, or security-scoped `404`): return generic deny response with no policy internals; write structured warning logs and an `admin_audit_logs` row with `action_type = 'access_denied_attempt'`, target metadata, and `request_id`.
+- Idempotency replay while processing (`409`): return deterministic `idempotency_request_in_progress` with `Retry-After: 1`; clients retry no sooner than one second, cap at five attempts per request, and must not duplicate side effects.
+- Idempotency payload mismatch (`422`): when an existing idempotency key is reused with a different payload fingerprint, return deterministic `idempotency_key_reused_with_different_payload` and do not execute mutation.
 - Unexpected server failure (`5xx` or uncaught error): return generic failure response with `request_id` and no stack trace; write structured error logs with request context; for trusted mutations and admin or organizer control actions, also write `admin_audit_logs` with `action_type = 'server_failure'` and sanitized `error_class` metadata.
+
+## Security and Resilience Control Pack (2026-04)
+
+- Mutation-method policy: all state-changing paths use `POST`, `PUT`, `PATCH`, or `DELETE`; `GET` is read-only by contract.
+- CSRF and same-origin policy: browser-callable state-changing routes enforce same-origin safeguards and deterministic rejection behavior.
+- Safe-redirect policy: all `next` or return-target parameters must be parsed by one canonical helper that allows in-app relative paths only and rejects absolute or protocol-relative targets.
+- Session-token policy: session identifiers must never be accepted from URL parameters for auth state, must be rotated on authentication boundaries, and must use secure cookie semantics (`Secure`, `HttpOnly`, `SameSite`) in production.
+- Action-level authorization policy: privileged server actions and trusted route handlers enforce role/ownership checks inside mutation code, not only at route-entry shells.
+- Sensitive-operation freshness policy: high-impact actions must enforce recent-auth/session-freshness gates where appropriate (for example destructive moderation and account-impacting changes).
+- Abuse-control policy: endpoints and control actions with retry or brute-force risk must define deterministic throttling behavior and user-safe error mapping.
+- Auth anti-automation policy: login, password reset, and account-recovery routes must define stricter per-account plus per-origin thresholds than baseline API limits and emit deterministic security telemetry on threshold breaches.
+- Idempotency-key policy: documented key-protected mutation paths require `request_idempotency_token` or `Idempotency-Key`; missing keys fail with deterministic validation error and mismatched payload replay is rejected.
+- Structured-audit policy: privileged allows and denies must be reconstructable with `request_id`, actor, action, target, outcome, and reason/machine code.
+- Privacy-by-default policy: user-facing responses and logs must never expose raw tokens, secret keys, or internal error payloads.
+- Accessibility-security joint policy: auth and high-risk forms remain keyboard-safe and screen-reader-safe, including failure states and confirmations.
+- Performance-security joint policy: required security checks must not regress approved p95 route or action budgets without explicit blocker approval.
+
+## Incident Readiness Contract
+
+- Incident classes are fixed to `sev1`, `sev2`, `sev3`, and `sev4` with deterministic owner escalation rules.
+- Every critical incident runbook must define `incident_commander`, `ops_lead`, `comms_lead`, escalation channel, containment steps, rollback-forward-fix decision rule, and recovery validation checklist.
+- Rehearsal evidence is mandatory at release boundary: incident class exercised, scenario, start and end timestamps, participants, gaps found, and follow-up owners.
+
+## Reliability SLI/SLO Contract
+
+- Every branch that changes user-facing reliability behavior must declare SLI definitions, SLO targets, and measurement window in QA evidence.
+- Route latency SLI uses p95 from branch performance matrix; reliability SLI uses successful-request ratio over rolling 28 days.
+- Canonical release-one reliability target is successful-request ratio >= 99.5% over rolling 28 days (error budget <= 0.5%).
+- Reliability evidence artifact path is fixed to `.agent/evidence/release/<branch>/sli-slo.md`; performance evidence artifact path is fixed to `.agent/evidence/release/<branch>/performance-matrix.md`.
+- Error-budget enforcement gate: when rolling error budget is exhausted, release proceeds only for security fixes or approved `out_of_scope_blocker` entries in `CORE_PATCH_REQUESTS`.
 
 ## CORE_PATCH_REQUESTS Registry Contract
 
@@ -303,12 +335,14 @@ Admin route migration sequence (canonical):
 - Entry format: one table row per request with required fields `request_id`, `created_at_utc`, `branch`, `request_type`, `reason`, `requested_scope`, `approval_source`, `approved_by`, `status`, `evidence_link`, `notes`.
 - Allowed `status` values: `proposed`, `approved`, `rejected`, `completed`.
 - Browser-automation gate: Playwright or other browser-automation tooling may run only after an entry with `request_type = browser_automation_exception` and `status = approved` exists.
+- Branch-scoped approval rule: approved `CORE_PATCH_REQUESTS` entries are valid only for the exact `branch` value in that row; approvals cannot be reused by other branches.
 
 ## CORE_PATCH_REQUESTS
 
 | request_id | created_at_utc | branch | request_type | reason | requested_scope | approval_source | approved_by | status | evidence_link | notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `CPR-YYYYMMDD-001` | `YYYY-MM-DDTHH:MM:SSZ` | `feature/<name>` | `browser_automation_exception` or `out_of_scope_blocker` | short deterministic reason | exact tool, route, and command scope | policy or stakeholder source | approver name or role | `proposed` | PR or QA note link | optional follow-up or closure note |
+| `CPR-20260403-001` | `2026-04-03T15:12:00Z` | `feature/organizer-registration` | `browser_automation_exception` | user-requested full Playwright UI and workflow regression across breakpoints | Playwright MCP end-to-end UI traversal, form interaction, workflow validation, and responsive visual QA on desktop, tablet, and mobile for all reachable routes | direct user instruction in current chat turn | Mabansag, Vj (user) | `approved` | chat request 2026-04-03 organizer-registration full QA | execute browser automation immediately and mark completed after QA handoff |
 
 ## Notification Producer/Consumer Boundary Matrix
 
@@ -318,10 +352,12 @@ Admin route migration sequence (canonical):
 | `organizer_application_approved` / `organizer_application_rejected` | Branch `04` trusted admin decision mutation | Branch `05` activation/rejection handoff and applicant transactional lifecycle messaging, branch `15` account-linked inbox/channel behavior | Branch `04` owns decision write only (`organizer_applications` decision fields); branch `05` owns organizer activation/provisioning (`profiles.role`, `profiles.approved_at`, including `profile_id` null cases) plus single applicant transactional lifecycle messaging; branch `15` owns account-linked preference-aware channel behavior only and must not duplicate applicant transactional decision email delivery |
 | `team_invite_sent` / `team_invite_accepted` / `team_invite_declined` / `team_roster_invalidated` | Branch `09` team domain trusted flows | Team lifecycle UI in branches `09` and `10`, inbox/email delivery in branch `15` | Branch `09` emits events via shared dispatch helpers; branch `15` owns inbox UX, copy normalization, and email fan-out |
 | `competition_registration_confirmed` / `competition_registration_withdrawn` | Branch `10` registration trusted flows | Branch `11` pre-entry context, branch `15` inbox/email delivery | Branch `10` emits registration-domain events only; branch `15` owns preference evaluation and delivery channels |
-| `competition_announcement_posted` | Branch `16` announcement trusted flow | Participant and organizer live surfaces in branch `16`, plus deterministic inbox delivery and channel-policy email handling via branch `15` shared notification helpers | Branch `16` owns durable announcement write, canonical audience resolution, realtime trigger, and announcement producer dispatch; for valid consumed producer events, branch `15` must provide deterministic minimum inbox delivery for resolved recipients and apply email delivery per channel policy using shared notification preferences, templates, and infrastructure |
+| `competition_schedule_changed` / `competition_cancelled` | Branch `08` lifecycle trusted flows | Branch `10` discovery and calendar read surfaces, branch `15` inbox/email delivery | Branch `08` owns producer writes for lifecycle schedule/cancel outcomes; branch `10` remains consumer-only for these event names; branch `15` owns preference-aware delivery |
+| `competition_announcement_posted` | Branch `16` announcement trusted flow | Participant and organizer live surfaces in branch `16`, plus deterministic inbox delivery and channel-policy email handling via branch `15` shared notification helpers | Branch `16` owns durable announcement write, canonical audience resolution, realtime trigger, and announcement producer dispatch; for valid consumed producer events, branch `15` must provide deterministic minimum inbox delivery of exactly one row per `(recipient_id, event_identity_key)` for resolved recipients and apply email delivery per channel policy using shared notification preferences, templates, and infrastructure |
 | `dispute_resolved` / `score_recalculated` | Branch `14` dispute-resolution and recalculation surfaces | Mathlete/organizer result surfaces, branch `15` notification delivery | Branch `14` owns dispute-resolution event truth and recalculation trigger from leaderboard/history workflows; branch `07` owns scoring RPC contracts (`recalculate_competition_scores`, `refresh_leaderboard_entries`); branch `15` owns inbox/email formatting and preferences |
 | `leaderboard_published` | Branch `14` organizer publish action | Branch `14` leaderboard/history read paths, branch `15` participant notifications | Branch `14` owns publication state transition; branch `15` owns downstream message delivery behavior |
 
 Boundary rule: only the producer boundary writes domain events for its row; consumer boundaries may read, transform, and deliver through shared helpers but must not duplicate producer writes.
 Sequencing rule: branch `15` delivers shared notification infrastructure without requiring `competition_announcements` schema, and branch `16` consumes that infrastructure when announcement producers are introduced.
+Consumer acceptance rule: valid consumed producer events are only those explicitly listed in this matrix; unknown event names must fail trusted dispatch validation.
 This matrix defines domain-event ownership only. Branch execution ownership still comes from each feature guide's `Assigned to` field and the checklist.

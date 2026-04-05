@@ -2,6 +2,7 @@
 
 import type { Session, User } from "@supabase/supabase-js";
 import {
+  useCallback,
   createContext,
   useContext,
   useEffect,
@@ -66,28 +67,18 @@ export function AuthProvider({
   const [isLoading, setIsLoading] = useState(false);
   const currentUserIdRef = useRef<string | undefined>(initialUser?.id);
 
-  async function syncProfile(nextUser: User | null) {
-    console.log("[AuthProvider] syncProfile starting for user:", nextUser?.id);
+  const syncProfile = useCallback(async (nextUser: User | null) => {
     if (!nextUser || !hasEnvVars) {
-      console.log("[AuthProvider] No user or env, clearing profile.");
       setProfile(null);
       return null;
     }
 
-    try {
-      console.log("[AuthProvider] Fetching profile from DB...");
-      const nextProfile = await fetchProfile(nextUser.id);
-      console.log("[AuthProvider] Profile fetched:", nextProfile);
-      setProfile(nextProfile);
-      return nextProfile;
-    } catch (error) {
-      console.error("[AuthProvider] Profile fetch error:", error);
-      throw error;
-    }
-  }
+    const nextProfile = await fetchProfile(nextUser.id);
+    setProfile(nextProfile);
+    return nextProfile;
+  }, []);
 
   async function refreshProfile() {
-    console.log("[AuthProvider] refreshProfile triggered.");
     return syncProfile(user);
   }
 
@@ -109,8 +100,7 @@ export function AuthProvider({
       await fetch("/auth/sign-out", {
         method: "POST",
       });
-    } catch (error) {
-      console.error("[AuthProvider] Sign out error:", error);
+    } catch {
     } finally {
       // Smooth client-side transition instead of hard full page reload
       router.refresh();
@@ -161,7 +151,7 @@ export function AuthProvider({
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [router]);
+  }, [syncProfile]);
 
   return (
     <AuthContext.Provider

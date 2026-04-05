@@ -11,6 +11,7 @@ export async function updateSession(request: NextRequest) {
   // to avoid unnecessary Supabase client creation or database hits.
   const path = request.nextUrl.pathname;
   if (
+    path.startsWith("/api/") ||
     path.startsWith("/_next") ||
     path.startsWith("/favicon.ico") ||
     path === "/robots.txt" ||
@@ -24,8 +25,8 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Skip proxy for auth sign-out route to prevent redundant checks or redirect loops
-  if (path === "/auth/sign-out" || !hasEnvVars) {
+  // Skip proxy for auth session or sign-out routes to prevent redundant checks or redirect loops
+  if (path === "/auth/session" || path === "/auth/sign-out" || !hasEnvVars) {
     return supabaseResponse;
   }
 

@@ -6,6 +6,11 @@ type SessionAwareProfile = {
   session_version?: number | string | null;
 };
 
+type SessionSchemaError = {
+  code?: string | null;
+  message?: string | null;
+};
+
 type CookieLikeStore = {
   get(name: string): { value: string } | undefined;
 };
@@ -60,7 +65,7 @@ export function getSafeNextPath(
 
 export function getSessionSignOutHref(nextPath = "/auth/login") {
   const safeNext = getSafeNextPath(nextPath);
-  return `/auth/sign-out?next=${encodeURIComponent(safeNext)}&reason=session_replaced`;
+  return `/auth/session-replaced?next=${encodeURIComponent(safeNext)}&reason=session_replaced`;
 }
 
 export function setSessionVersionCookie(response: NextResponse, version: number) {
@@ -81,6 +86,19 @@ export function clearSessionVersionCookie(response: NextResponse) {
     maxAge: 0,
     secure: process.env.NODE_ENV === "production",
   });
+}
+
+export function isSessionVersionSchemaError(error: SessionSchemaError | null | undefined) {
+  if (!error) {
+    return false;
+  }
+
+  if (error.code === "42703" || error.code === "42883") {
+    return true;
+  }
+
+  const message = error.message?.toLowerCase() ?? "";
+  return message.includes("session_version") || message.includes("rotate_session_version");
 }
 
 function extractRotatedVersion(data: unknown) {
@@ -105,7 +123,13 @@ type SessionRotationClient = {
   rpc(
     name: string,
     args: { profile_id: string },
-  ): PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  ): PromiseLike<{
+    data: unknown;
+    error: {
+      message: string;
+      code?: string | null;
+    } | null;
+  }>;
 };
 
 export async function rotateSessionVersionForUser(
@@ -118,6 +142,11 @@ export async function rotateSessionVersionForUser(
   });
 
   if (error) {
+    if (isSessionVersionSchemaError(error)) {
+      setSessionVersionCookie(response, 1);
+      return 1;
+    }
+
     throw new Error(error.message);
   }
 

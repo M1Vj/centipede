@@ -4,6 +4,7 @@ const AUTH_ROUTE_PREFIXES = [
   "/auth/error",
   "/auth/forgot-password",
   "/auth/login",
+  "/auth/session-replaced",
   "/auth/sign-out",
   "/auth/sign-up",
   "/auth/sign-up-success",
@@ -12,7 +13,7 @@ const AUTH_ROUTE_PREFIXES = [
 ];
 
 const PROFILE_COMPLETION_ROUTE = "/profile/complete";
-const PUBLIC_ROUTES = ["/", "/privacy", "/terms"];
+const PUBLIC_ROUTES = ["/", "/privacy", "/terms", "/organizer/apply", "/organizer/status"];
 
 type AuthRedirectArgs = {
   pathname: string;
@@ -44,6 +45,14 @@ export function getAuthRedirect({
   role,
 }: AuthRedirectArgs) {
   if (pathname === "/auth/suspended") {
+    return null;
+  }
+
+  if (matchesPath(pathname, "/auth/forgot-password")) {
+    return null;
+  }
+
+  if (matchesPath(pathname, "/auth/session-replaced")) {
     return null;
   }
 

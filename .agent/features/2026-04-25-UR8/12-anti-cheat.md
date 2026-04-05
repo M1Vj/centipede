@@ -83,6 +83,20 @@ Unblocks: review/submission fairness, live monitoring, trustworthy leaderboards.
 - Performance: offense logging is debounced enough to avoid duplicates from noisy browser events.
 - Edge cases: browser crash vs focus switch, late-stage offense, open competition with future attempts remaining.
 
+## Security and Reliability Addendum (2026-04)
+
+- enforce offense-ingest dedupe window and server-side throttling so noisy client events cannot multiply penalties
+- enforce metadata sanitization and minimization before persistence (no query-string leakage or secret-token fragments)
+- enforce deterministic rejection behavior for malformed offense payloads with no offense-count mutation
+- enforce anti-cheat evidence retention and purge policy with auditable purge evidence
+- enforce incident containment mode contract (temporary warning-only mode requires explicit reason and audit evidence)
+
+### Additional Verification Gates
+
+- security QA: malformed/replayed payloads are rejected deterministically without penalty side effects
+- reliability QA: rapid visibility-event bursts do not create duplicate offense increments in one dedupe window
+- ops QA: retention/purge jobs for anti-cheat metadata are idempotent and auditable
+
 ## Git Branching
 
 - Branch from: `develop`

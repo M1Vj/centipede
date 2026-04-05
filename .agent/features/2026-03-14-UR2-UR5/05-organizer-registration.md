@@ -41,7 +41,8 @@ Unblocks: problem banks, competition authoring, organizer notification polish (b
 - Use Supabase Storage bucket `organizer-assets`; persist only `organizer_applications.logo_path` storage path values, never ad hoc public URLs.
 - Hash status lookup tokens into `organizer_applications.status_lookup_token_hash`; never persist raw tokens.
 - Keep status lookup responses minimal and safe (`status`, `rejection_reason`, `masked_contact_email`) with rate limiting to reduce brute-force risk.
-- Treat branch 04 reviewed decision fields as immutable handoff input; branch 05 runs trusted activation/provisioning for approved rows and handles applicant communication idempotently per `(application_id, status)`.
+- If branch-05 organizer intake or status RPCs are unavailable in under-migrated environments, use deterministic server fallbacks when safe and preserve non-disclosing outcomes (`not_found` or throttled) rather than surfacing raw database errors.
+- Treat branch 04 reviewed decision fields as immutable handoff input; branch 05 runs trusted activation/provisioning for approved rows and handles applicant communication idempotently per `(application_id, message_type)`.
 - Treat organizer profile/settings as part of onboarding so later feature branches are not forced to create the organizer shell retroactively.
 - Use secure status lookup plus submission, approval, or rejection email communication as the immediate applicant feedback path.
 - Account-linked inbox and in-app notification delivery are owned by branch 15 after profile linkage.
@@ -49,8 +50,8 @@ Unblocks: problem banks, competition authoring, organizer notification polish (b
 ## Organizer Communication Contract
 
 - Submission: after a successful application insert with `status = 'pending'`, send a submission-confirmation email to `contact_email`.
-- Approval: when branch 04 marks an application `approved`, run trusted activation/provisioning in this branch (including null `profile_id` cases) and write `profiles.role = 'organizer'` plus `profiles.approved_at` idempotently, then send one activation email with a password-set/reset link exactly once per `(application_id, approved)`.
-- Rejection: when branch 04 marks an application `rejected`, keep organizer access blocked and send a rejection email with reason exactly once per `(application_id, rejected)`.
+- Approval: when branch 04 marks an application `approved`, run trusted activation/provisioning in this branch (including null `profile_id` cases) and write `profiles.role = 'organizer'` plus `profiles.approved_at` idempotently, then send one activation email with a password-set/reset link exactly once per `(application_id, message_type='approved')`.
+- Rejection: when branch 04 marks an application `rejected`, keep organizer access blocked and send a rejection email with reason exactly once per `(application_id, message_type='rejected')`.
 - Decision-reason contract: `rejection_reason` is required for rejected outcomes; approval rationale is not persisted or required in release one.
 - This branch does not write `notifications` or `notification_preferences`; account-linked notification delivery belongs to branch 15.
 - This branch must not write `organizer_applications.status`, `rejection_reason`, or `reviewed_at`.

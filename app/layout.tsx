@@ -33,7 +33,11 @@ const fraunces = Fraunces({
 import { createClient } from "@/lib/supabase/server";
 import { type AuthProfile, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
 import { cookies } from "next/headers";
-import { getSessionVersionCookieValue, isSessionStale } from "@/lib/auth/session";
+import {
+  getSessionVersionCookieValue,
+  isSessionStale,
+  isSessionVersionSchemaError,
+} from "@/lib/auth/session";
 
 async function AuthHydrator({
   children,
@@ -48,12 +52,22 @@ async function AuthHydrator({
 
   let profile: AuthProfile | null = null;
   if (user) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
       .select(`${PROFILE_SELECT_FIELDS}, session_version`)
       .eq("id", user.id)
       .maybeSingle();
-    const nextProfile = data as (AuthProfile & { session_version?: number | null }) | null;
+    let nextProfile = data as (AuthProfile & { session_version?: number | null }) | null;
+
+    if (error && isSessionVersionSchemaError(error)) {
+      const { data: fallbackData } = await supabase
+        .from("profiles")
+        .select(PROFILE_SELECT_FIELDS)
+        .eq("id", user.id)
+        .maybeSingle<AuthProfile>();
+      nextProfile = (fallbackData as (AuthProfile & { session_version?: number | null }) | null) ?? null;
+    }
+
     const cookieStore = await cookies();
     const sessionVersion = getSessionVersionCookieValue(cookieStore);
 
@@ -81,7 +95,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
       <body className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased`}>
         <ThemeProvider
           attribute="class"

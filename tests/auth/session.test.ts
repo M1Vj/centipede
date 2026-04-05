@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   SESSION_VERSION_COOKIE,
+  getSessionSignOutHref,
   getSessionVersionCookieValue,
   isSessionStale,
   parseSessionVersion,
@@ -52,5 +53,11 @@ describe("session helpers", () => {
         { sessionVersion: null },
       ),
     ).toBe(false);
+  });
+
+  test("builds stale-session sign-out href through the session-replaced page", () => {
+    expect(getSessionSignOutHref("/auth/login")).toBe(
+      "/auth/session-replaced?next=%2Fauth%2Flogin&reason=session_replaced",
+    );
   });
 });

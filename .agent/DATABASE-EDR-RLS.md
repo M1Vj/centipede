@@ -16,7 +16,7 @@ This document is the backend source of truth for the rebuild. It describes the f
 
 ### Core Entity Groups
 
-- identity and roles: `profiles`, `organizer_applications`, `notification_preferences`
+- identity and roles: `profiles`, `organizer_applications`, `organizer_application_communications`, `organizer_status_lookup_throttle`, `notification_preferences`
 - authoring and content: `problem_banks`, `problems`
 - team system: `teams`, `team_memberships`, `team_invitations`
 - competitions: `competitions`, `competition_problems`, `competition_registrations`, `competition_announcements`, `competition_events`
@@ -89,6 +89,43 @@ Indexes: `organizer_applications_status_idx`, `organizer_applications_profile_id
 Constraints: `profile_id` may remain null until approval; only one active pending application must exist per `contact_email`, enforced by `organizer_applications_pending_contact_email_uq`; status transitions are `pending -> approved` or `pending -> rejected` only through trusted decision functions; once approved or rejected, decision fields (`status`, `reviewed_at`, `rejection_reason`) are immutable; repeated identical decisions must be idempotent no-ops; status lookup tokens are stored hashed rather than in raw form and must include explicit expiry via `status_lookup_token_expires_at`; lookups at or after that boundary are expired; `rejection_reason` must be persisted as safe-public sanitized text (plain text only, no HTML, links, emails, or phone numbers, max 500 characters) and is required only when `status = 'rejected'`.
 
 Organizer decision vs activation ownership contract (canonical): branch `04-admin-user-management` decision flows write only organizer-application terminal decision fields (`status`, `reviewed_at`, `rejection_reason`) and never mutate `profiles.role` or `profiles.approved_at`; branch `05-organizer-registration` trusted activation or provisioning path owns organizer-role activation. For approved rows where `profile_id is null`, the activation path provisions or links the profile first, then sets organizer role and `approved_at`.
+
+### `organizer_application_communications`
+
+Purpose: branch-05 transactional organizer communication ledger for deterministic idempotency across submission, approval, and rejection message delivery.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid pk |
+| `application_id` | uuid fk -> organizer_applications.id |
+| `message_type` | enum organizer_application_message_type | `submission`, `approved`, `rejected` |
+| `recipient_email` | text | lowercased recipient |
+| `payload_json` | jsonb | template context metadata |
+| `send_attempts` | integer | retry counter |
+| `last_attempt_at` | timestamptz nullable |
+| `sent_at` | timestamptz nullable |
+| `last_error` | text nullable |
+| `provider_message_id` | text nullable |
+| `created_at` | timestamptz |
+
+Indexes: unique `(application_id, message_type)` and pending-send index on `created_at where sent_at is null`.
+
+Constraints: one logical communication per `(application_id, message_type)`; retries mutate attempt metadata but must not create duplicate logical rows.
+
+### `organizer_status_lookup_throttle`
+
+Purpose: deterministic status-lookup throttle ledger keyed by client IP and token fingerprint.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `client_ip` | inet | request source IP (fallback `0.0.0.0`) |
+| `token_fingerprint` | text | normalized token fingerprint; malformed tokens map to `malformed` bucket |
+| `last_accepted_at` | timestamptz | latest accepted lookup for key |
+| `created_at` | timestamptz | row creation timestamp |
+
+Indexes: `organizer_status_lookup_throttle_last_accepted_idx` on `last_accepted_at`.
+
+Constraints: primary key `(client_ip, token_fingerprint)`; service-role-only RLS access; throttle acceptance window is one request per key per rolling 1 second.
 
 ### `problem_banks`
 
@@ -348,7 +385,7 @@ Reset decision event contract: approved resets must emit `event_type = 'attempt_
 Duplicate-window contract: deny reset when an approved reset event exists for the same `attempt_id` with `happened_at > server_now_at_request - interval '10 minutes'`; exactly 10 minutes old is eligible.
 Rejection precedence contract (first failing gate wins): `rejected_missing_required_tuple` -> `rejected_invalid_evidence_taxonomy` -> `rejected_ineligible_attempt_state` -> `rejected_stale_evidence` -> `rejected_duplicate_window`.
 
-Idempotency contract: event-producing RPCs (`publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `publish_leaderboard`, `pause_competition`, `resume_competition`, `extend_competition`, `reset_attempt_for_disconnect`, `resolve_problem_dispute`) must require `request_idempotency_token`. Token-source rule is canonical: caller supplies the token for every event-producing RPC except scheduled `end_competition` transitions with `transition_source = 'system_timer'`, which must use deterministic server token `system_end:{competition_id}:{effective_end_boundary_iso}`. `pause_competition`, `resume_competition`, `extend_competition`, `reset_attempt_for_disconnect`, and manual open `end_competition` must also require a non-empty reason. `end_competition` must enforce `transition_source in ('system_timer','trusted_manual_action')` with deterministic mapping: scheduled competitions must use `system_timer` only, while organizer manual end for open competitions must use `trusted_manual_action` and is not an admin live-support control. Duplicate `(competition_id, event_type, actor_user_id, request_idempotency_token)` requests return the existing event and must not re-apply side effects. SQL uniqueness for this dedupe key must coalesce nullable `actor_user_id` to the system-actor sentinel in the unique key (`coalesce(actor_user_id, '00000000-0000-0000-0000-000000000000'::uuid)`). Branch-14 dispute/publication orchestration events must write canonical payload fields (`dispute_id`, `competition_problem_id`, `correction_artifact_ids`, `leaderboard_published`, `request_idempotency_token`), and `competition_ended` events must write (`transition_source`, `reason_text`, `request_idempotency_token`) where `reason_text` is required non-empty for `trusted_manual_action` and null for `system_timer` so notification fan-out and audit reads do not infer state indirectly. `recalculate_competition_scores(competition_id, request_idempotency_token)` remains compute-only and is not an event-producing RPC; `score_recalculated` event emission belongs to branch `14` orchestration.
+Idempotency contract: event-producing RPCs (`publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `moderate_delete_competition`, `publish_leaderboard`, `pause_competition`, `resume_competition`, `extend_competition`, `reset_attempt_for_disconnect`, `resolve_problem_dispute`) must require `request_idempotency_token`. Token-source rule is canonical: caller supplies the token for every event-producing RPC except scheduled `end_competition` transitions with `transition_source = 'system_timer'`, which must use deterministic server token `system_end:{competition_id}:{effective_end_boundary_iso}`. `pause_competition`, `resume_competition`, `extend_competition`, `reset_attempt_for_disconnect`, `moderate_delete_competition`, and manual open `end_competition` must also require a non-empty reason. `end_competition` must enforce `transition_source in ('system_timer','trusted_manual_action')` with deterministic mapping: scheduled competitions must use `system_timer` only, while organizer manual end for open competitions must use `trusted_manual_action` and is not an admin live-support control. Duplicate `(competition_id, control_action, actor_user_id, request_idempotency_token)` requests return the existing outcome and must not re-apply side effects. For disconnect resets, both `attempt_disconnect_reset_applied` and `attempt_disconnect_reset_rejected` outcomes map to `control_action = 'reset_attempt_for_disconnect'` for replay safety. For moderation delete, both accepted and rejected moderation decisions map to `control_action = 'moderate_delete_competition'` for replay safety and audit parity. SQL uniqueness for this dedupe key must coalesce nullable `actor_user_id` to the system-actor sentinel in the unique key (`coalesce(actor_user_id, '00000000-0000-0000-0000-000000000000'::uuid)`). Branch-14 dispute/publication orchestration events must write canonical payload fields (`dispute_id`, `competition_problem_id`, `correction_artifact_ids`, `leaderboard_published`, `request_idempotency_token`), and `competition_ended` events must write (`transition_source`, `reason_text`, `request_idempotency_token`) where `reason_text` is required non-empty for `trusted_manual_action` and null for `system_timer` so notification fan-out and audit reads do not infer state indirectly. `recalculate_competition_scores(competition_id, request_idempotency_token)` remains compute-only and is not an event-producing RPC; `score_recalculated` event emission belongs to branch `14` orchestration.
 
 ### `competition_attempts`
 
@@ -539,6 +576,13 @@ Purpose: per-user channel and event preferences.
 
 Default contract: `in_app_enabled = true`, `email_enabled = false`, and all event-category toggles default to `true` so the inbox is guaranteed by default while email remains opt-in.
 
+Deterministic channel-precedence contract:
+
+- Mandatory inbox class events (`in_app_only`) must always write exactly one inbox row per `(recipient_id, event_identity_key)` regardless of `in_app_enabled`.
+- `competition_announcement_posted` must always write exactly one inbox row per `(recipient_id, event_identity_key)` for resolved recipients; email remains preference-governed.
+- `email_eligible` events outside mandatory inbox classes write inbox only when `in_app_enabled = true` and the mapped event-category toggle is enabled.
+- Email delivery always requires `email_enabled = true` and the mapped event-category toggle enabled.
+
 Deterministic event-to-toggle mapping:
 
 - `team_invite_sent`, `team_invite_accepted`, `team_invite_declined`, `team_roster_invalidated` -> `team_invites`
@@ -627,6 +671,7 @@ Purpose: storage is part of the backend contract, not an implementation aftertho
 
 - `profiles`: self read/update for profile fields; admin can read/update all; no self role escalation; self-service updates cannot mutate login identifier/email
 - `organizer_applications`: public applicants submit through a trusted route or RPC; applicant status is exposed only through secure lookup tokens or trusted handlers; admins can review pending rows and write terminal decisions through trusted decision paths. Normal flows preserve reviewed-row immutability (`approved`/`rejected` rows are not mutable or deletable). Hard delete is allowed only through an explicit trusted spam or fraud moderation path with mandatory `admin_audit_logs` write (actor, reason, `application_id`, evidence metadata) before deletion.
+- `organizer_application_communications`: trusted service-role workflows only; no anon or authenticated direct access. Rows are idempotency artifacts for organizer lifecycle communication dispatch and retry metadata.
 - `problem_banks` and `problems`: owner organizer or admin-managed default-bank owner can mutate; other organizers cannot read private banks; admins can read all and mutate only the default bank or explicitly moderated records through trusted server paths
 - `teams`, `team_memberships`, `team_invitations`: members can read their own team data; leaders can invite/remove within policy; admins can read all for moderation
 - `competitions`: organizers can manage their own competitions, but hard delete is allowed only for `draft` through trusted draft-delete paths; organizer pause is allowed only for open competitions and must let active attempts finish while blocking new starts; scheduled competition pause is reserved for trusted admin force-pause moderation; admins can read all and may perform non-draft moderation delete only for abuse or fraud through approved server actions with explicit audit reason; mathletes read only published competitions they are eligible to see
@@ -669,10 +714,14 @@ Required trusted functions:
 - `rotate_session_version(profile_id)` trusted auth-session invalidation helper
 - `update_mathlete_profile_settings(profile_id, school, grade_level)` trusted mathlete self-service settings helper (school and grade-level only)
 - `anonymize_user_account(target_profile_id, reason, request_idempotency_token)` trusted non-spam anonymization helper
+- `insert_organizer_application_intake(applicant_full_name, organization_name, contact_email, contact_phone, organization_type, statement, legal_consent_at, status_lookup_token_hash, status_lookup_token_expires_at, profile_id)` trusted organizer intake writer with deterministic pending-row idempotency by contact-email scope
 - `lookup_organizer_application_status(status_lookup_token)`: accepts raw opaque token from applicant, hashes token for comparison against `status_lookup_token_hash`, validates `now() < status_lookup_token_expires_at`, and returns only safe fields (status, rejection_reason, masked_contact_email). `rejection_reason` must be safe-public sanitized content only. Negative paths (invalid token, unknown token, expired token) must return a single non-disclosing response shape and code so lookup cannot be used as an enumeration oracle. Must never return raw PII. Throttling is deterministic by key dimensions `(client_ip, token_fingerprint)` where `token_fingerprint` is derived from normalized raw token input and malformed token input uses a fixed malformed bucket; enforce one accepted request per key per 1-second rolling window. Rate-limit violations return `429` with machine code `throttled`, `Retry-After: 1`, and no applicant data.
-- `approve_organizer_application(application_id)`: allows only `pending -> approved`, stamps `reviewed_at`, is idempotent for repeated approve requests on already-approved rows, and writes organizer-application decision fields only (must not mutate `profiles.role` or `profiles.approved_at`)
-- `reject_organizer_application(application_id, rejection_reason)`: allows only `pending -> rejected`, stamps `reviewed_at`, is idempotent for repeated reject requests on already-rejected rows, and writes organizer-application decision fields only (must not mutate `profiles.role` or `profiles.approved_at`)
+- `approve_organizer_application(application_id)`: allows only `pending -> approved`, stamps `reviewed_at`, is idempotent for repeated approve requests on already-approved rows, writes organizer-application decision fields only (must not mutate `profiles.role` or `profiles.approved_at`), and must emit one deterministic admin audit record for first terminal decision write
+- `reject_organizer_application(application_id, rejection_reason)`: allows only `pending -> rejected`, stamps `reviewed_at`, is idempotent for repeated reject requests on already-rejected rows, writes organizer-application decision fields only (must not mutate `profiles.role` or `profiles.approved_at`), and must emit one deterministic admin audit record for first terminal decision write
 - `provision_organizer_account(application_id)` trusted organizer-activation helper: owns organizer-role activation and `approved_at` stamping after approved decisions; if `organizer_applications.profile_id` is null, it must provision or link profile identity first, then set organizer activation fields
+- `claim_organizer_application_communication(application_id, message_type, recipient_email, payload_json)` reserves a single lifecycle communication attempt for deterministic `(application_id, message_type)` dispatch
+- `mark_organizer_application_communication_sent(communication_id, provider_message_id)` marks lifecycle communication sent exactly once
+- `mark_organizer_application_communication_failed(communication_id, error)` records deterministic failure metadata for retry visibility
 - `snapshot_competition_problems(competition_id)`
 - `publish_competition(competition_id, request_idempotency_token)`
 - `start_competition(competition_id, request_idempotency_token)` trusted scheduled-competition promotion from `published` to `live` with idempotent event logging at the server-authoritative start boundary
@@ -683,8 +732,8 @@ Required trusted functions:
 - `register_for_competition(competition_id, team_id default null)`
 - `withdraw_registration(registration_id)`
 - `validate_team_registration(team_id, competition_id)`
-- `start_competition_attempt(registration_id)` pre-seeds `attempt_answers` blank rows for all `competition_problems`
-- `resume_competition_attempt(attempt_id)`
+- `start_competition_attempt(registration_id, request_idempotency_token)` pre-seeds `attempt_answers` blank rows for all `competition_problems` and replays deterministically by token
+- `resume_competition_attempt(attempt_id, request_idempotency_token)` replays deterministically by token
 - `close_active_attempt_interval(attempt_id)`
 - `save_attempt_answer(attempt_id, competition_problem_id, answer_payload, status_flag)` where `answer_payload` is canonical LaTeX or normalized text derived from MathLive input
 - `submit_competition_attempt(attempt_id, request_idempotency_token)` canonical final-submit mutation with deterministic authority and concurrency guards for individual and team registrations
@@ -702,7 +751,7 @@ Required trusted functions:
 - `reset_attempt_for_disconnect(attempt_id, reason, request_idempotency_token)` organizer-only control action
 - `resolve_problem_dispute(dispute_id, resolution_status, resolution_note, request_idempotency_token)` (branch `14-leaderboard-history` dispute-resolution ownership contract)
 - `record_competition_problem_correction(competition_problem_id, dispute_id, correction_type, corrected_answer_key_json, corrected_points, reason, request_idempotency_token)` (branch `14-leaderboard-history` correction ownership contract)
-- `queue_export_job(competition_id, format)` owner organizer or admin only
+- `queue_export_job(competition_id, format, request_idempotency_token)` owner organizer or admin only with deterministic replay and per-competition-format active-job concurrency guard
 - `enqueue_notification(recipient_id, type, title, body, link_path, event_identity_key, metadata_json)` de-duplicates by `(recipient_id, event_identity_key)`
 - `mark_notification_read(notification_id)`
 - `mark_all_notifications_read()`
@@ -736,7 +785,7 @@ Required trusted functions:
 - Registration snapshot policy: `competition_registrations.entry_snapshot_json` is written at registration acceptance and remains immutable even if profile, school, grade-level, team name, or roster data later changes.
 - Notification preference defaults policy: default rows must enable in-app delivery and all event categories while keeping email globally disabled until the user opts in.
 - Timer and interval policy: `attempt_intervals` support reconnect auditability only and never pause consumed time; offline gaps consume remaining trusted competition time.
-- Team-attempt authority policy: team-registration attempt lifecycle mutations (`start`, `resume`, `submit`) are leader-authorized only; non-leader team members are read-only for lifecycle writes.
+- Team-attempt authority policy: team-registration attempt lifecycle mutations (`start`, `resume`, `save`, `submit`) are leader-authorized only; non-leader team members are read-only for lifecycle writes.
 - Team-attempt concurrency policy: attempt lifecycle mutations serialize by registration or attempt lock and return deterministic `attempt_lifecycle_conflict` on concurrent races.
 - Anti-cheat metadata policy: canonical client time field is `metadata_json.client_timestamp` (nullable value required key); `tab_switch_logs.client_timestamp` is a normalized mirror for query/index use.
 - Answer-status counting policy: untouched-question counts come from pre-seeded `attempt_answers.status_flag = 'blank'`, with deterministic blank inference fallback only for older compatibility rows.
@@ -744,9 +793,10 @@ Required trusted functions:
 - Effective points precedence policy: effective points for grading or recalculation are deterministic per competition problem: active trusted `points_override` wins; if none is active, fallback is `competition_problems.points`.
 - Leaderboard/export access policy: scheduled visibility depends on organizer publish gate, open visibility follows explicit self-row/full-row timing rules, and export queue/download access is strictly owner organizer or admin only.
 - Notification idempotency policy: retries must de-duplicate by `(recipient_id, event_identity_key)`.
+- Organizer communication idempotency policy: submission, approval, and rejection lifecycle messaging deduplicates by `(application_id, message_type)` through a reserved-send ledger and explicit sent or failed transitions.
 - Competition-control permission policy: admin live support may force-pause and follows a separate moderation delete path; resume, extend, and disconnect-reset controls are organizer-only.
 - Competition-control reason policy: pause, resume, extend, and disconnect-reset control actions require a non-empty reason; organizer manual open end requires a non-empty reason as well.
-- Competition-control idempotency policy: control-action requests (including `end_competition`) de-duplicate by `(competition_id, event_type, actor_user_id, request_idempotency_token)` and return existing results on replay; caller supplies `request_idempotency_token` for control-action RPCs except scheduled `end_competition` system-timer transitions, which must use deterministic server token `system_end:{competition_id}:{effective_end_boundary_iso}`; SQL uniqueness must coalesce nullable `actor_user_id` to the system-actor sentinel (`coalesce(actor_user_id, '00000000-0000-0000-0000-000000000000'::uuid)`) so system-timer dedupe cannot break.
+- Competition-control idempotency policy: control-action requests (including `end_competition`) de-duplicate by `(competition_id, control_action, actor_user_id, request_idempotency_token)` and return existing results on replay; caller supplies `request_idempotency_token` for control-action RPCs except scheduled `end_competition` system-timer transitions, which must use deterministic server token `system_end:{competition_id}:{effective_end_boundary_iso}`; SQL uniqueness must coalesce nullable `actor_user_id` to the system-actor sentinel (`coalesce(actor_user_id, '00000000-0000-0000-0000-000000000000'::uuid)`) so system-timer dedupe cannot break.
 - Account-removal policy: non-spam/fake account removals are anonymization-only; hard-delete is reserved for explicit spam/fake abuse paths with admin audit trace.
 - Formula stack policy: editable math input uses MathLive, static rendering uses KaTeX, and persisted canonical math values remain LaTeX.
 - Timer naming policy: trusted timing logic must use canonical names and derivations `attempt_base_deadline_at`, `scheduled_competition_end_cap_at`, and `effective_attempt_deadline_at`; scheduled attempts are capped by the scheduled competition end cap.
@@ -845,7 +895,7 @@ Risky migrations and backfills:
 | `02-authentication` | no new domain table; auth-session coordination on `profiles.session_version` is consumed but not completed | no new canonical trusted auth-session helper; branch prepares for later hardening |
 | `04-admin-user-management` | `admin_audit_logs`, `system_settings` | `approve_organizer_application`, `reject_organizer_application` |
 | `05b-deferred-foundation-and-auth` | compatibility hardening only; no new canonical domain table, with explicit corrective backfills allowed for pre-existing auth or organizer drift, including `profiles.session_version`, organizer-application contact/consent/status-lookup fields, and safe anonymization | `rotate_session_version`, `update_mathlete_profile_settings`, `anonymize_user_account` |
-| `05-organizer-registration` | organizer onboarding storage-path contract; profile link activation contract for approved applications; status-lookup token expiry contract | `lookup_organizer_application_status`, `provision_organizer_account` |
+| `05-organizer-registration` | organizer onboarding storage-path contract; profile link activation contract for approved applications; status-lookup token expiry contract; `organizer_status_lookup_throttle` rate-limit ledger; `organizer_application_communications` lifecycle dispatch ledger | `insert_organizer_application_intake`, `lookup_organizer_application_status`, `provision_organizer_account`, `claim_organizer_application_communication`, `mark_organizer_application_communication_sent`, `mark_organizer_application_communication_failed` |
 | `06-problem-bank` | `problem_banks`, `problems` | trusted bank or problem mutation helpers as needed |
 | `07-scoring-system` | scoring enums and scoring contract definitions only (no `competitions` table columns introduced in branch `07`) | `grade_attempt`, `recalculate_competition_scores`, `refresh_leaderboard_entries` |
 | `08-competition-wizard` | `competitions`, `competition_problems`, initial `competition_events` (lifecycle or audit baseline) | `snapshot_competition_problems`, `publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `delete_draft_competition` |
@@ -868,6 +918,39 @@ Risky migrations and backfills:
 - 2026-04-03: Added explicit branch `04` decision-only versus branch `05` activation-only organizer ownership, deterministic points precedence fallback, canonical timer-deadline naming, concrete route and lifecycle migration sequences, and a per-branch schema/function ownership matrix.
 - 2026-04-03: Added explicit status-lookup token expiry contract, canonical `live/paused -> ended` ownership and idempotency semantics, team-attempt authority and concurrency guards, deterministic announcement audience predicates, explicit draft-delete versus non-draft moderation-delete policy, branch-aligned migration sequencing, and non-circular notification versus announcement ownership sequencing.
 - 2026-04-03: Reconciled correction-RPC argument shape with `competition_problem_corrections` schema, documented bootstrap-sequencing caveat for pre-seeded competition/problem tables, and clarified branch `05b` compatibility-backfill scope for evidence-backed drift correction.
+- 2026-04-03: Added branch-05 organizer communication ledger and helper RPC contracts (`claim_organizer_application_communication`, sent or failed markers), plus service-only access boundaries for deterministic organizer lifecycle messaging retries.
+- 2026-04-05: Added a forward drift-correction migration to restore `public.profiles.avatar_url` when remote history showed branch `05b` as applied but the column was missing, because `anonymize_user_account(...)` depends on that field for deterministic non-spam account anonymization.
+
+## Section I - Security Operations and Data Lifecycle Hardening
+
+### Security-Definer and Privilege Boundary Contract
+
+- every security-definer function must use explicit schema qualification and locked `search_path` behavior
+- function execute grants must be least-privilege by role and never broad default grants
+- service-role credentials remain server-only and must never be required by browser code paths
+
+### Upload and Storage Integrity Contract
+
+- trusted upload handlers must validate MIME and file-size server-side before persisting canonical storage paths
+- signed upload/download URLs must be scoped and short-lived; expired URLs must fail deterministically
+- canonical storage-path persistence remains mandatory (`logo_path`, problem assets, export paths); do not persist public URL variants as source of truth
+
+### Retention and Purge Contract
+
+- lifecycle and anti-cheat diagnostics retain raw detail only for the required forensic window; purge jobs must be idempotent and auditable
+- export artifacts must have explicit TTL and secure deletion policy while job metadata remains available for audit and retry evidence
+- retention jobs must emit evidence fields (window applied, rows scanned, rows deleted, actor/system source)
+
+### Observability and Incident Forensics Contract
+
+- privileged and high-risk mutation flows must emit traceable correlation fields (`request_id`, actor, action, target, outcome, reason/machine code)
+- failure paths for trusted control actions must preserve deterministic error categories without leaking internal payloads
+- event/audit data must support reconstruction of dispute, recalculation, publication, monitoring control, and moderation timelines
+
+### Release Gate Contract for Database Changes
+
+- migration batches touching RLS, trusted RPCs, or privileged tables must include explicit policy verification evidence and replay/idempotency checks
+- release readiness requires zero unresolved high-severity access-control or data-exposure findings tied to database contracts
 
 
 ### User Deletion Privacy Rule

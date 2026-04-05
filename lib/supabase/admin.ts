@@ -159,7 +159,7 @@ export async function getAdminStats() {
     { count: competitionCount },
     { count: bankCount }
   ] = await Promise.all([
-    admin.from("profiles").select("*", { count: "exact", head: true }),
+    admin.from("profiles").select("*", { count: "exact", head: true }).not("email", "like", "%@anon.invalid"),
     admin.from("organizer_applications").select("*", { count: "exact", head: true }).eq("status", "pending"),
     admin.from("competitions").select("*", { count: "exact", head: true }),
     admin.from("problem_banks").select("*", { count: "exact", head: true }).eq("is_deleted", false)
@@ -173,24 +173,77 @@ export async function getAdminStats() {
   };
 }
 
+type ApproveAndProvisionMachineCode =
+  | "ok"
+  | "not_found"
+  | "not_pending"
+  | "profile_required"
+  | "profile_not_found"
+  | "profile_email_mismatch";
+
+type ApproveAndProvisionRpcRow = {
+  machine_code: ApproveAndProvisionMachineCode;
+  application_id: string;
+  profile_id?: string | null;
+  resolved_profile_id?: string | null;
+  activated: boolean;
+};
+
+type OrganizerApplicationStatus = "pending" | "approved" | "rejected";
+
+type OrganizerApplicationStatusRow = {
+  id: string;
+  status: OrganizerApplicationStatus;
+};
+
+function getApproveProvisionError(machineCode: Exclude<ApproveAndProvisionMachineCode, "ok">) {
+  switch (machineCode) {
+    case "not_found":
+      return "Application not found.";
+    case "not_pending":
+      return "Only pending applications can be approved.";
+    case "profile_required":
+      return "A linked profile is required before approval can continue.";
+    case "profile_not_found":
+      return "Linked profile could not be found. Retry after syncing identity.";
+    case "profile_email_mismatch":
+      return "Profile email does not match the application contact email.";
+  }
+}
+
 /**
  * Approve an organizer application.
- * Promotes the user to 'organizer' and updates application status.
+ * Records an approval decision and audit trail for the application.
  */
 export async function approveOrganizerApplication(
   applicationId: string,
-  profileId: string,
+  profileId?: string,
   actorId?: string,
 ) {
   const admin = createAdminClient();
-  if (!admin) return;
+  if (!admin) {
+    throw new Error("Admin service is unavailable.");
+  }
 
-  const { error: appError } = await admin
-    .from("organizer_applications")
-    .update({ status: "approved", reviewed_at: new Date().toISOString() })
-    .eq("id", applicationId);
+  const { data, error } = await admin.rpc("approve_and_provision_organizer_application", {
+    p_application_id: applicationId,
+    p_profile_id: profileId ?? null,
+  });
 
-  if (appError) throw appError;
+  if (error) {
+    throw error;
+  }
+
+  const result = (data as ApproveAndProvisionRpcRow[] | null)?.[0];
+  if (!result) {
+    throw new Error("Unable to approve organizer application.");
+  }
+
+  if (result.machine_code !== "ok") {
+    throw new Error(getApproveProvisionError(result.machine_code));
+  }
+
+  const resolvedProfileId = result.profile_id ?? result.resolved_profile_id ?? null;
 
   await logAdminAction({
     actorId,
@@ -198,8 +251,19 @@ export async function approveOrganizerApplication(
     targetTable: "organizer_applications",
     targetId: applicationId,
     description: "Approved organizer application",
-    metadata: { profileId },
+    metadata: {
+      profileId: resolvedProfileId,
+      activated: result.activated,
+      machineCode: result.machine_code,
+    },
   });
+
+  return {
+    applicationId: result.application_id,
+    profileId: resolvedProfileId,
+    activated: result.activated,
+    machineCode: result.machine_code,
+  };
 }
 
 /**
@@ -211,18 +275,64 @@ export async function rejectOrganizerApplication(
   actorId?: string,
 ) {
   const admin = createAdminClient();
-  if (!admin) return;
+  if (!admin) {
+    throw new Error("Admin service is unavailable.");
+  }
 
-  const { error } = await admin
+  const normalizedReason = reason.trim();
+  if (!normalizedReason) {
+    throw new Error("Rejection reason is required.");
+  }
+
+  const { data, error } = await admin
     .from("organizer_applications")
     .update({
       status: "rejected",
-      rejection_reason: reason,
+      rejection_reason: normalizedReason,
       reviewed_at: new Date().toISOString(),
     })
-    .eq("id", applicationId);
+    .eq("id", applicationId)
+    .eq("status", "pending")
+    .select("id,status")
+    .maybeSingle<OrganizerApplicationStatusRow>();
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    const { data: existingApplication, error: loadError } = await admin
+      .from("organizer_applications")
+      .select("id,status")
+      .eq("id", applicationId)
+      .maybeSingle<OrganizerApplicationStatusRow>();
+
+    if (loadError) {
+      throw loadError;
+    }
+
+    if (!existingApplication) {
+      throw new Error("Application not found.");
+    }
+
+    if (existingApplication.status === "rejected") {
+      await logAdminAction({
+        actorId,
+        actionType: "organizer_application_rejected",
+        targetTable: "organizer_applications",
+        targetId: applicationId,
+        description: "Rejected organizer application",
+        metadata: {
+          reason: normalizedReason,
+          idempotentReplay: true,
+        },
+      });
+
+      return;
+    }
+
+    throw new Error("Only pending applications can be rejected.");
+  }
 
   await logAdminAction({
     actorId,
@@ -230,7 +340,7 @@ export async function rejectOrganizerApplication(
     targetTable: "organizer_applications",
     targetId: applicationId,
     description: "Rejected organizer application",
-    metadata: { reason },
+    metadata: { reason: normalizedReason },
   });
 }
 
@@ -339,6 +449,17 @@ export async function setUserActiveStatus(
   const admin = createAdminClient();
   if (!admin) return;
 
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("email")
+    .eq("id", userId)
+    .single();
+
+  if (profileError) throw profileError;
+  if (profile.email?.endsWith("@anon.invalid")) {
+    throw new Error("Cannot explicitly change activation status of an anonymized account.");
+  }
+
   const { error } = await admin
     .from("profiles")
     .update({ is_active: isActive })
@@ -382,6 +503,17 @@ export async function updateUserProfile({
 }: UpdateUserInput) {
   const admin = createAdminClient();
   if (!admin) return;
+
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("email")
+    .eq("id", userId)
+    .single();
+
+  if (profileError) throw profileError;
+  if (profile.email?.endsWith("@anon.invalid")) {
+    throw new Error("Cannot update an anonymized account.");
+  }
 
   const normalizedName = fullName.trim();
   const { error } = await admin

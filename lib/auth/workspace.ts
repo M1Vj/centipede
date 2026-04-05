@@ -4,7 +4,12 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isProfileComplete, PROFILE_SELECT_FIELDS, type AuthProfile } from "@/lib/auth/profile";
-import { getSessionSignOutHref, getSessionVersionCookieValue, isSessionStale } from "@/lib/auth/session";
+import {
+  getSessionSignOutHref,
+  getSessionVersionCookieValue,
+  isSessionStale,
+  isSessionVersionSchemaError,
+} from "@/lib/auth/session";
 import { hasEnvVars } from "@/lib/supabase/env";
 
 const PROFILE_WITH_SESSION_FIELDS = `${PROFILE_SELECT_FIELDS}, session_version`;
@@ -22,8 +27,22 @@ async function fetchWorkspaceProfile(userId: string) {
     .eq("id", userId)
     .maybeSingle<AuthProfile & { session_version?: number | null }>();
 
-  if (error) {
+  if (error && !isSessionVersionSchemaError(error)) {
     throw error;
+  }
+
+  if (error) {
+    const { data: fallbackProfile, error: fallbackError } = await supabase
+      .from("profiles")
+      .select(PROFILE_SELECT_FIELDS)
+      .eq("id", userId)
+      .maybeSingle<AuthProfile>();
+
+    if (fallbackError) {
+      throw fallbackError;
+    }
+
+    return (fallbackProfile as (AuthProfile & { session_version?: number | null }) | null) ?? null;
   }
 
   return profile ?? null;
