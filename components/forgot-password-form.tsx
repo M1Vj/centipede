@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@/lib/supabaseClient";
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +36,7 @@ export function ForgotPasswordForm({
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    const supabase = createClient();
+    const supabase = getSupabaseClient();
     setIsLoading(true);
     setStatus({
       message: "Sending your reset link...",

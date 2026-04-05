@@ -105,6 +105,17 @@ describe("getAuthRedirect", () => {
     ).toBeNull();
   });
 
+  test("allows authenticated users to open session-replaced", () => {
+    expect(
+      getAuthRedirect({
+        pathname: "/auth/session-replaced",
+        isAuthenticated: true,
+        hasCompletedProfile: true,
+        role: "mathlete",
+      }),
+    ).toBeNull();
+  });
+
   test("redirects authenticated users on the home page to their dashboards", () => {
     expect(
       getAuthRedirect({

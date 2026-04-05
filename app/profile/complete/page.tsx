@@ -7,7 +7,7 @@ import { isProfileComplete } from "@/lib/auth/profile";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 
 async function getProfileCompletionContext() {
-  const { profile, userEmail } = await getWorkspaceContext({
+  const { profile } = await getWorkspaceContext({
     requireCompleteProfile: false,
   });
 
@@ -24,8 +24,6 @@ async function getProfileCompletionContext() {
   }
 
   return {
-    userId: profile?.id ?? "",
-    userEmail: userEmail ?? "",
     profile: profile ?? null,
   };
 }
@@ -40,7 +38,7 @@ async function ProfileCompletionContent() {
       description="A complete profile unlocks protected routes and gives the platform the context it needs for registrations, team management, and future role-based experiences."
     >
       <div className="w-full max-w-md">
-        <ProfileCompletionForm userId={context.userId} userEmail={context.userEmail} profile={context.profile} />
+        <ProfileCompletionForm profile={context.profile} />
       </div>
     </AuthShell>
   );

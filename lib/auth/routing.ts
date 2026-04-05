@@ -4,6 +4,7 @@ const AUTH_ROUTE_PREFIXES = [
   "/auth/error",
   "/auth/forgot-password",
   "/auth/login",
+  "/auth/session-replaced",
   "/auth/sign-out",
   "/auth/sign-up",
   "/auth/sign-up-success",
@@ -48,6 +49,10 @@ export function getAuthRedirect({
   }
 
   if (matchesPath(pathname, "/auth/forgot-password")) {
+    return null;
+  }
+
+  if (matchesPath(pathname, "/auth/session-replaced")) {
     return null;
   }
 

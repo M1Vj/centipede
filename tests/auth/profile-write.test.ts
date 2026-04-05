@@ -1,6 +1,7 @@
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { saveProfile } from "@/lib/auth/profile-write";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(),
@@ -11,6 +12,10 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 describe("saveProfile", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   test("upserts the profile row so first-time users can complete onboarding", async () => {
     const upsert = vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
@@ -24,16 +29,13 @@ describe("saveProfile", () => {
 
     vi.mocked(createAdminClient).mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
 
-    const mockAuthUser = { id: "user-123" };
+    const mockAuthUser = { id: "user-123", email: "Mathlete@Gmail.com" };
     const authClient = {
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockAuthUser } }) }
     };
-    // @ts-expect-error: Mocking dynamic module import
-    (await import("@/lib/supabase/server")).createClient.mockResolvedValue(authClient);
+    vi.mocked(createClient).mockResolvedValue(authClient as never);
 
     await saveProfile({
-      userId: "user-123",
-      email: "mathlete@gmail.com",
       fullName: "  VJ Mabansag ",
       school: " Mathwiz Academy ",
       gradeLevel: " 10 ",
@@ -67,17 +69,14 @@ describe("saveProfile", () => {
 
     vi.mocked(createAdminClient).mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
 
-    const mockAuthUser = { id: "user-123" };
+    const mockAuthUser = { id: "user-123", email: "mathlete@gmail.com" };
     const authClient = {
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockAuthUser } }) }
     };
-    // @ts-expect-error: Mocking dynamic module import
-    (await import("@/lib/supabase/server")).createClient.mockResolvedValue(authClient);
+    vi.mocked(createClient).mockResolvedValue(authClient as never);
 
     await expect(
       saveProfile({
-        userId: "user-123",
-        email: "mathlete@gmail.com",
         fullName: "VJ Mabansag",
         school: "Mathwiz Academy",
         gradeLevel: "10",
@@ -85,7 +84,7 @@ describe("saveProfile", () => {
     ).rejects.toThrow("row level security blocked update");
   });
 
-  test("SECURITY: drops client payload userId and ONLY writes to the server-validated user ID", async () => {
+  test("SECURITY: always persists the server-auth email", async () => {
     const upsert = vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: { id: "server-validated-123", role: "mathlete" }, error: null }),
@@ -97,26 +96,22 @@ describe("saveProfile", () => {
     };
     vi.mocked(createAdminClient).mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
 
-    // Auth client mock WITH A DIFFERENT ID
-    const mockAuthUser = { id: "server-validated-123" };
+    const mockAuthUser = { id: "server-validated-123", email: "server-auth@email.com" };
     const authClient = {
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockAuthUser } }) }
     };
-    // @ts-expect-error: Mocking dynamic module import
-    (await import("@/lib/supabase/server")).createClient.mockResolvedValue(authClient);
+    vi.mocked(createClient).mockResolvedValue(authClient as never);
 
     await saveProfile({
-      userId: "spoofed-hacker-target", // 🚨 Attacker tries to target someone else
-      email: "hacker@gmail.com",
       fullName: "Hacker Man",
       school: "Hacker School",
       gradeLevel: "10",
     });
 
-    // 🔒 The action should upsert for "server-validated-123" and IGNORE "spoofed-hacker-target"
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "server-validated-123",
+        email: "server-auth@email.com",
       }),
       expect.any(Object),
     );

@@ -65,7 +65,7 @@ export function getSafeNextPath(
 
 export function getSessionSignOutHref(nextPath = "/auth/login") {
   const safeNext = getSafeNextPath(nextPath);
-  return `/auth/sign-out?next=${encodeURIComponent(safeNext)}&reason=session_replaced`;
+  return `/auth/session-replaced?next=${encodeURIComponent(safeNext)}&reason=session_replaced`;
 }
 
 export function setSessionVersionCookie(response: NextResponse, version: number) {

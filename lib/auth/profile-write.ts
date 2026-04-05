@@ -7,8 +7,6 @@ type SaveProfileParams = {
   fullName: string;
   gradeLevel: string;
   school: string;
-  userId: string;
-  email: string;
 };
 
 /**
@@ -19,8 +17,6 @@ export async function saveProfile({
   fullName,
   gradeLevel,
   school,
-  // userId parameter is ignored for security, using server-side session instead
-  email,
 }: SaveProfileParams) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -30,8 +26,11 @@ export async function saveProfile({
   }
 
   const serverUserId = user.id;
+  const serverEmail = user.email?.toLowerCase().trim();
 
-  console.log("[saveProfile] Server Action starting for userId:", serverUserId);
+  if (!serverEmail) {
+    throw new Error("Authenticated user email is required.");
+  }
 
   const admin = createAdminClient();
   if (!admin) {
@@ -44,12 +43,12 @@ export async function saveProfile({
   }
 
   // 2. Perform upsert using service role
-  const { data, error, status, statusText } = await admin
+  const { data, error } = await admin
     .from("profiles")
     .upsert(
       {
         id: serverUserId,
-        email: email.toLowerCase().trim(),
+        email: serverEmail,
         full_name: fullName.trim(),
         school: school.trim(),
         grade_level: gradeLevel.trim(),
@@ -62,10 +61,7 @@ export async function saveProfile({
     .select()
     .single();
 
-  console.log("[saveProfile] Database response:", { status, statusText, error, data });
-
   if (error) {
-    console.error("[saveProfile] Upsert error:", error);
     throw new Error(error.message);
   }
 

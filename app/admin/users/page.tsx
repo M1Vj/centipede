@@ -12,11 +12,19 @@ import type { AdminUserRecord } from "./user-actions";
 import { UserActions } from "./user-actions";
 import { revalidatePath } from "next/cache";
 import { User, Shield, ShieldAlert, Mail, Calendar } from "lucide-react";
+import {
+  mergeDedupeSortUsersByCreatedAtDesc,
+  sanitizeUserSearchTerm,
+} from "@/lib/admin/user-search";
 
 type FilterParams = {
   role?: string;
   status?: string;
   search?: string;
+};
+
+type UsersListRecord = AdminUserRecord & {
+  created_at: string | null;
 };
 
 async function UsersList({ role, status, search }: FilterParams) {
@@ -26,26 +34,52 @@ async function UsersList({ role, status, search }: FilterParams) {
   
   if (!admin) return <div className="p-4 text-muted-foreground bg-muted/5 rounded-xl border border-border/20 font-medium text-center">System is initializing. Please wait.</div>;
 
-  let query = admin.from("profiles").select("*").order("created_at", { ascending: false });
+  const sanitizedSearch = search ? sanitizeUserSearchTerm(search) : "";
+  const createFilteredQuery = () => {
+    let query = admin
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-  if (role && role !== "all") {
-    query = query.eq("role", role);
+    if (role && role !== "all") {
+      query = query.eq("role", role);
+    }
+
+    if (status === "active") {
+      query = query.eq("is_active", true);
+    }
+
+    if (status === "suspended") {
+      query = query.eq("is_active", false);
+    }
+
+    return query;
+  };
+
+  let users: UsersListRecord[] | null = null;
+  let error: Error | null = null;
+
+  if (!sanitizedSearch) {
+    const result = await createFilteredQuery();
+    users = (result.data as UsersListRecord[] | null) ?? null;
+    error = result.error;
+  } else {
+    const wildcardSearch = `%${sanitizedSearch}%`;
+
+    const [nameResult, emailResult] = await Promise.all([
+      createFilteredQuery().ilike("full_name", wildcardSearch),
+      createFilteredQuery().ilike("email", wildcardSearch),
+    ]);
+
+    if (nameResult.error || emailResult.error) {
+      error = (nameResult.error ?? emailResult.error) as Error;
+    } else {
+      users = mergeDedupeSortUsersByCreatedAtDesc(
+        (nameResult.data as UsersListRecord[] | null) ?? [],
+        (emailResult.data as UsersListRecord[] | null) ?? [],
+      );
+    }
   }
-
-  if (status === "active") {
-    query = query.eq("is_active", true);
-  }
-
-  if (status === "suspended") {
-    query = query.eq("is_active", false);
-  }
-
-  const trimmedSearch = search?.trim();
-  if (trimmedSearch) {
-    query = query.or(`full_name.ilike.%${trimmedSearch}%,email.ilike.%${trimmedSearch}%`);
-  }
-
-  const { data: users, error } = await query;
 
   if (error) {
     return <div className="p-4 text-destructive bg-destructive/5 rounded-xl border border-destructive/20 font-medium">Failed to load users.</div>;
@@ -189,7 +223,7 @@ async function UsersList({ role, status, search }: FilterParams) {
                 <td className="px-6 py-4 text-left text-muted-foreground">
                     <div className="flex items-center gap-1">
                         <Calendar className="size-3" />
-                        {new Date(user.created_at).toLocaleDateString()}
+                    {user.created_at ? new Date(user.created_at).toLocaleDateString() : "Unknown"}
                     </div>
                 </td>
                 <td className="px-6 py-4 text-right">

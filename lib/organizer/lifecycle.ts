@@ -52,6 +52,7 @@ type SubmitOrganizerApplicationInput = OrganizerApplicationInput & {
 type SupabaseError = {
   code?: string | null;
   message?: string | null;
+  status?: number | null;
 };
 
 const FALLBACK_STATUS_LOOKUP_WINDOW_MS = 1_000;
@@ -95,6 +96,63 @@ function isMissingOrganizerLifecycleColumn(error: SupabaseError | null | undefin
     message.includes("status_lookup_token_hash") ||
     message.includes("status_lookup_token_expires_at")
   );
+}
+
+function isAuthEmailSendRateLimitError(error: SupabaseError | null | undefined) {
+  if (!error) {
+    return false;
+  }
+
+  const message = error.message?.toLowerCase() ?? "";
+
+  return (
+    error.status === 429 ||
+    error.code === "over_email_send_rate_limit" ||
+    message.includes("rate limit")
+  );
+}
+
+function isExistingAuthIdentityError(error: SupabaseError | null | undefined) {
+  if (!error) {
+    return false;
+  }
+
+  const message = error.message?.toLowerCase() ?? "";
+
+  return error.code === "email_exists" || message.includes("already");
+}
+
+async function findAuthUserIdByEmail(
+  admin: ReturnType<typeof createOrganizerAdminClient>,
+  email: string,
+) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const perPage = 200;
+
+  for (let page = 1; page <= 20; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({
+      page,
+      perPage,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const matchedUser = data.users.find(
+      (user) => user.email?.trim().toLowerCase() === normalizedEmail,
+    );
+
+    if (matchedUser?.id) {
+      return matchedUser.id;
+    }
+
+    if (!data.nextPage) {
+      break;
+    }
+  }
+
+  return null;
 }
 
 function sanitizeSafePublicRejectionReason(reason: string | null) {
@@ -490,9 +548,29 @@ async function resolveProfileForApprovedApplication(application: OrganizerApplic
   let invitedUserId: string | null = null;
 
   if (inviteResult.error) {
-    const inviteMessage = inviteResult.error.message.toLowerCase();
+    const inviteError = inviteResult.error as SupabaseError;
 
-    if (!inviteMessage.includes("already")) {
+    if (isAuthEmailSendRateLimitError(inviteError)) {
+      const createUserResult = await admin.auth.admin.createUser({
+        email: contactEmail,
+        email_confirm: true,
+        user_metadata: {
+          full_name: application.applicant_full_name || "",
+        },
+      });
+
+      if (createUserResult.error) {
+        if (isExistingAuthIdentityError(createUserResult.error as SupabaseError)) {
+          invitedUserId = await findAuthUserIdByEmail(admin, contactEmail);
+        } else {
+          throw createUserResult.error;
+        }
+      } else {
+        invitedUserId = createUserResult.data.user?.id || null;
+      }
+    } else if (isExistingAuthIdentityError(inviteError)) {
+      invitedUserId = await findAuthUserIdByEmail(admin, contactEmail);
+    } else {
       throw inviteResult.error;
     }
   } else {
@@ -536,6 +614,47 @@ async function resolveProfileForApprovedApplication(application: OrganizerApplic
   return {
     profileId: profileAfterInvite?.id ?? null,
     invitedIdentity,
+  };
+}
+
+export async function prepareOrganizerIdentityForApproval(
+  applicationId: string,
+  providedProfileId?: string | null,
+): Promise<{
+  profileId: string;
+  invitedIdentity: boolean;
+}> {
+  const application = await loadApplicationById(applicationId);
+
+  if (!application) {
+    throw new Error("Application not found.");
+  }
+
+  if (application.status === "rejected") {
+    throw new Error("Rejected applications cannot be approved.");
+  }
+
+  if (!application.contact_email?.trim()) {
+    throw new Error("Application contact email is required for approval.");
+  }
+
+  if (providedProfileId?.trim()) {
+    return {
+      profileId: providedProfileId.trim(),
+      invitedIdentity: false,
+    };
+  }
+
+  const resolvedIdentity = await resolveProfileForApprovedApplication(application);
+  if (!resolvedIdentity.profileId) {
+    throw new Error(
+      "A linked profile is required before approval can continue. Verify contact email and identity provisioning.",
+    );
+  }
+
+  return {
+    profileId: resolvedIdentity.profileId,
+    invitedIdentity: resolvedIdentity.invitedIdentity,
   };
 }
 
@@ -762,7 +881,13 @@ export async function lookupOrganizerApplicationStatus(
   };
 }
 
-export async function processOrganizerDecisionHandoff(applicationId: string) {
+export async function processOrganizerDecisionHandoff(
+  applicationId: string,
+  options?: {
+    skipProvisioning?: boolean;
+    invitedIdentity?: boolean;
+  },
+) {
   const application = await loadApplicationById(applicationId);
 
   if (!application || application.status === "pending") {
@@ -771,7 +896,7 @@ export async function processOrganizerDecisionHandoff(applicationId: string) {
 
   const contactEmail = application.contact_email?.toLowerCase();
   if (!contactEmail) {
-    return;
+    throw new Error("Application contact email is required for decision handoff.");
   }
 
   if (application.status === "rejected") {
@@ -796,24 +921,29 @@ export async function processOrganizerDecisionHandoff(applicationId: string) {
     return;
   }
 
-  const { profileId, invitedIdentity } = await resolveProfileForApprovedApplication(application);
+  let invitedIdentity = options?.invitedIdentity ?? false;
 
-  const admin = createOrganizerAdminClient();
-  const { data: provisionResult, error: provisionError } = await admin.rpc("provision_organizer_account", {
-    p_application_id: application.id,
-    p_profile_id: profileId,
-  });
+  if (!options?.skipProvisioning) {
+    const resolvedIdentity = await resolveProfileForApprovedApplication(application);
+    invitedIdentity = resolvedIdentity.invitedIdentity;
 
-  if (provisionError) {
-    throw provisionError;
-  }
+    const admin = createOrganizerAdminClient();
+    const { data: provisionResult, error: provisionError } = await admin.rpc("provision_organizer_account", {
+      p_application_id: application.id,
+      p_profile_id: resolvedIdentity.profileId,
+    });
 
-  const provisionRow = (provisionResult as Array<{ machine_code: string }> | null)?.[0];
+    if (provisionError) {
+      throw provisionError;
+    }
 
-  if (!provisionRow || provisionRow.machine_code !== "ok") {
-    throw new Error(
-      `Organizer provisioning failed with machine code: ${provisionRow?.machine_code || "unknown"}`,
-    );
+    const provisionRow = (provisionResult as Array<{ machine_code: string }> | null)?.[0];
+
+    if (!provisionRow || provisionRow.machine_code !== "ok") {
+      throw new Error(
+        `Organizer provisioning failed with machine code: ${provisionRow?.machine_code || "unknown"}`,
+      );
+    }
   }
 
   const communicationId = await claimCommunication(application.id, "approved", contactEmail, {

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import * as AlertDialog from "@radix-ui/react-alert-dialog";
+import * as Dialog from "@radix-ui/react-dialog";
+import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -56,6 +58,9 @@ export function UserActions({
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [fullName, setFullName] = useState(user.full_name ?? "");
   const [role, setRole] = useState(user.role ?? "mathlete");
+  const deleteConfirmFieldId = useId();
+  const fullNameFieldId = useId();
+  const roleFieldId = useId();
 
   const displayName = useMemo(
     () => user.full_name || "Anonymous",
@@ -153,6 +158,7 @@ export function UserActions({
         size="icon"
         className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
         title="Edit user details"
+        aria-label="Edit user details"
         onClick={() => setDetailOpen(true)}
       >
         <Edit3 className="size-4" />
@@ -164,6 +170,7 @@ export function UserActions({
           size="icon"
           className="h-8 w-8 text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10"
           title="Suspend user"
+          aria-label="Suspend user"
           onClick={() => setSuspendOpen(true)}
         >
           <Ban className="size-4" />
@@ -175,6 +182,7 @@ export function UserActions({
           size="icon"
           className="h-8 w-8 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10"
           title="Reactivate user"
+          aria-label="Reactivate user"
           onClick={handleReactivate}
           disabled={isPending}
         >
@@ -187,6 +195,7 @@ export function UserActions({
         size="icon"
         className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
         title="Anonymize user account"
+        aria-label="Anonymize user account"
         onClick={() => setDeleteOpen(true)}
       >
         <Trash2 className="size-4" />
@@ -203,27 +212,45 @@ export function UserActions({
         onConfirm={handleSuspendConfirm}
       />
 
-      {deleteOpen ? (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-foreground/25 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-border/60 bg-background p-6 shadow-[0_30px_90px_-32px_hsl(var(--shadow)/0.5)]">
+      <AlertDialog.Root
+        open={deleteOpen}
+        onOpenChange={(nextOpen) => {
+          if (isPending && action === "delete" && !nextOpen) {
+            return;
+          }
+
+          setDeleteOpen(nextOpen);
+        }}
+      >
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="fixed inset-0 z-[110] bg-foreground/25 backdrop-blur-sm" />
+          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-[120] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border/60 bg-background p-6 shadow-[0_30px_90px_-32px_hsl(var(--shadow)/0.5)]">
             <div className="space-y-2">
               <p className="text-xs font-bold uppercase tracking-widest text-rose-600">Irreversible anonymization</p>
-              <h2 className="text-xl font-semibold">Anonymize {displayName}?</h2>
-              <p className="text-sm text-muted-foreground">
+              <AlertDialog.Title className="text-xl font-semibold">Anonymize {displayName}?</AlertDialog.Title>
+              <AlertDialog.Description className="text-sm text-muted-foreground">
                 This scrubs personal profile data, disables the account, and preserves historical competition records. Type DELETE to confirm.
-              </p>
+              </AlertDialog.Description>
             </div>
+
             <div className="mt-4 space-y-2">
+              <label htmlFor={deleteConfirmFieldId} className="text-xs font-semibold text-muted-foreground">
+                Confirmation keyword
+              </label>
               <Input
+                id={deleteConfirmFieldId}
                 value={deleteConfirmText}
                 onChange={(event) => setDeleteConfirmText(event.target.value)}
                 placeholder="Type DELETE to confirm"
               />
             </div>
+
             <div className="mt-6 flex items-center justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)}>
-                Cancel
-              </Button>
+              <AlertDialog.Cancel asChild>
+                <Button type="button" variant="outline" disabled={isPending && action === "delete"}>
+                  Cancel
+                </Button>
+              </AlertDialog.Cancel>
               <Button
                 type="button"
                 variant="destructive"
@@ -235,28 +262,49 @@ export function UserActions({
                 Anonymize account
               </Button>
             </div>
-          </div>
-        </div>
-      ) : null}
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
 
-      {detailOpen ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-foreground/25 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-border/60 bg-background p-6 shadow-[0_30px_90px_-32px_hsl(var(--shadow)/0.5)]">
+      <Dialog.Root
+        open={detailOpen}
+        onOpenChange={(nextOpen) => {
+          if (isPending && action === "update" && !nextOpen) {
+            return;
+          }
+
+          setDetailOpen(nextOpen);
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[100] bg-foreground/25 backdrop-blur-sm" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-[110] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border/60 bg-background p-6 shadow-[0_30px_90px_-32px_hsl(var(--shadow)/0.5)]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">User Details</p>
-                <h2 className="text-xl font-semibold mt-2">{displayName}</h2>
-                <p className="text-sm text-muted-foreground">Edit profile fields and permissions.</p>
+                <Dialog.Title className="mt-2 text-xl font-semibold">{displayName}</Dialog.Title>
+                <Dialog.Description className="text-sm text-muted-foreground">
+                  Edit profile fields and permissions.
+                </Dialog.Description>
               </div>
-              <Button type="button" variant="ghost" size="icon" onClick={() => setDetailOpen(false)}>
-                X
-              </Button>
+              <Dialog.Close asChild>
+                <Button type="button" variant="ghost" size="icon" aria-label="Close user details dialog">
+                  X
+                </Button>
+              </Dialog.Close>
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={handleUpdate}>
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground">Full name</label>
-                <Input value={fullName} onChange={(event) => setFullName(event.target.value)} required />
+                <label htmlFor={fullNameFieldId} className="text-xs font-semibold text-muted-foreground">
+                  Full name
+                </label>
+                <Input
+                  id={fullNameFieldId}
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  required
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-muted-foreground">Email</label>
@@ -266,8 +314,11 @@ export function UserActions({
                 </p>
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground">Role</label>
+                <label htmlFor={roleFieldId} className="text-xs font-semibold text-muted-foreground">
+                  Role
+                </label>
                 <select
+                  id={roleFieldId}
                   value={role}
                   onChange={(event) => setRole(event.target.value)}
                   className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -281,17 +332,19 @@ export function UserActions({
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setDetailOpen(false)}>
-                  Cancel
-                </Button>
+                <Dialog.Close asChild>
+                  <Button type="button" variant="outline" disabled={isPending && action === "update"}>
+                    Cancel
+                  </Button>
+                </Dialog.Close>
                 <Button type="submit" pending={isPending && action === "update"} pendingText="Saving...">
                   Save changes
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      ) : null}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

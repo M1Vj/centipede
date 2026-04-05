@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import {
   lookupOrganizerApplicationStatus,
+  prepareOrganizerIdentityForApproval,
   submitOrganizerApplication,
 } from "@/lib/organizer/lifecycle";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
@@ -179,6 +180,264 @@ describe("organizer lifecycle RPC fallbacks", () => {
       expect(result.rejectionReason).not.toContain("admin@example.com");
       expect(result.rejectionReason).not.toContain("https://example.com");
     }
+  });
+
+  test("prepareOrganizerIdentityForApproval rejects approval when contact email is missing", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: "app-123",
+        status: "pending",
+        profile_id: null,
+        applicant_full_name: "Organizer Applicant",
+        organization_name: "Mathwiz Academy",
+        contact_email: null,
+        rejection_reason: null,
+      },
+      error: null,
+    });
+    const eq = vi.fn().mockImplementation(() => ({ maybeSingle }));
+    const select = vi.fn().mockImplementation(() => ({ eq }));
+    const from = vi.fn().mockImplementation(() => ({ select }));
+
+    const adminClient = {
+      rpc: vi.fn(),
+      from,
+      storage: {
+        from: vi.fn(),
+      },
+      auth: {
+        admin: {
+          inviteUserByEmail: vi.fn(),
+          generateLink: vi.fn(),
+          resetPasswordForEmail: vi.fn(),
+        },
+      },
+    };
+
+    vi.mocked(createSupabaseClient).mockReturnValue(adminClient as never);
+
+    await expect(
+      prepareOrganizerIdentityForApproval("app-123", "profile-123"),
+    ).rejects.toThrow("Application contact email is required for approval.");
+  });
+
+  test("prepareOrganizerIdentityForApproval provisions an auth user when invite email hits the send rate limit", async () => {
+    const applicationMaybeSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: "app-123",
+        status: "pending",
+        profile_id: null,
+        applicant_full_name: "QA Comprehensive Test",
+        organization_name: "Comprehensive Testing Org",
+        contact_email: "comprehensive-test@example.com",
+        rejection_reason: null,
+      },
+      error: null,
+    });
+    const applicationEq = vi.fn().mockImplementation(() => ({
+      maybeSingle: applicationMaybeSingle,
+    }));
+    const applicationSelect = vi.fn().mockImplementation(() => ({ eq: applicationEq }));
+
+    const profileMaybeSingle = vi.fn().mockResolvedValue({
+      data: null,
+      error: null,
+    });
+    const profileEq = vi.fn().mockImplementation(() => ({
+      maybeSingle: profileMaybeSingle,
+    }));
+    const profileSelect = vi.fn().mockImplementation(() => ({ eq: profileEq }));
+    const profileUpsert = vi.fn().mockResolvedValue({ error: null });
+
+    const from = vi.fn().mockImplementation((table: string) => {
+      if (table === "organizer_applications") {
+        return {
+          select: applicationSelect,
+        };
+      }
+
+      if (table === "profiles") {
+        return {
+          select: profileSelect,
+          upsert: profileUpsert,
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const inviteUserByEmail = vi.fn().mockResolvedValue({
+      data: { user: null },
+      error: {
+        status: 429,
+        code: "over_email_send_rate_limit",
+        message: "email rate limit exceeded",
+      },
+    });
+    const createUser = vi.fn().mockResolvedValue({
+      data: {
+        user: {
+          id: "profile-123",
+        },
+      },
+      error: null,
+    });
+
+    const adminClient = {
+      rpc: vi.fn(),
+      from,
+      storage: {
+        from: vi.fn(),
+      },
+      auth: {
+        admin: {
+          inviteUserByEmail,
+          createUser,
+          listUsers: vi.fn(),
+          generateLink: vi.fn(),
+          resetPasswordForEmail: vi.fn(),
+        },
+      },
+    };
+
+    vi.mocked(createSupabaseClient).mockReturnValue(adminClient as never);
+
+    await expect(
+      prepareOrganizerIdentityForApproval("app-123"),
+    ).resolves.toEqual({
+      profileId: "profile-123",
+      invitedIdentity: false,
+    });
+
+    expect(inviteUserByEmail).toHaveBeenCalledWith("comprehensive-test@example.com", {
+      data: {
+        full_name: "QA Comprehensive Test",
+      },
+      redirectTo: "http://localhost:3000/auth/confirm?next=/auth/update-password",
+    });
+    expect(createUser).toHaveBeenCalledWith({
+      email: "comprehensive-test@example.com",
+      email_confirm: true,
+      user_metadata: {
+        full_name: "QA Comprehensive Test",
+      },
+    });
+    expect(profileUpsert).toHaveBeenCalledWith(
+      {
+        id: "profile-123",
+        email: "comprehensive-test@example.com",
+        full_name: "QA Comprehensive Test",
+        organization: "Comprehensive Testing Org",
+      },
+      { onConflict: "id" },
+    );
+  });
+
+  test("prepareOrganizerIdentityForApproval re-links an auth-only user when the email already exists", async () => {
+    const applicationMaybeSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: "app-456",
+        status: "pending",
+        profile_id: null,
+        applicant_full_name: "Existing Auth Organizer",
+        organization_name: "Existing Auth Org",
+        contact_email: "existing-auth@example.com",
+        rejection_reason: null,
+      },
+      error: null,
+    });
+    const applicationEq = vi.fn().mockImplementation(() => ({
+      maybeSingle: applicationMaybeSingle,
+    }));
+    const applicationSelect = vi.fn().mockImplementation(() => ({ eq: applicationEq }));
+
+    const profileMaybeSingle = vi.fn().mockResolvedValue({
+      data: null,
+      error: null,
+    });
+    const profileEq = vi.fn().mockImplementation(() => ({
+      maybeSingle: profileMaybeSingle,
+    }));
+    const profileSelect = vi.fn().mockImplementation(() => ({ eq: profileEq }));
+    const profileUpsert = vi.fn().mockResolvedValue({ error: null });
+
+    const from = vi.fn().mockImplementation((table: string) => {
+      if (table === "organizer_applications") {
+        return {
+          select: applicationSelect,
+        };
+      }
+
+      if (table === "profiles") {
+        return {
+          select: profileSelect,
+          upsert: profileUpsert,
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const inviteUserByEmail = vi.fn().mockResolvedValue({
+      data: { user: null },
+      error: {
+        status: 422,
+        code: "email_exists",
+        message: "A user with this email address has already been registered",
+      },
+    });
+    const listUsers = vi.fn().mockResolvedValue({
+      data: {
+        users: [
+          {
+            id: "profile-456",
+            email: "existing-auth@example.com",
+          },
+        ],
+        aud: "authenticated",
+        nextPage: null,
+        lastPage: 0,
+        total: 1,
+      },
+      error: null,
+    });
+
+    const adminClient = {
+      rpc: vi.fn(),
+      from,
+      storage: {
+        from: vi.fn(),
+      },
+      auth: {
+        admin: {
+          inviteUserByEmail,
+          createUser: vi.fn(),
+          listUsers,
+          generateLink: vi.fn(),
+          resetPasswordForEmail: vi.fn(),
+        },
+      },
+    };
+
+    vi.mocked(createSupabaseClient).mockReturnValue(adminClient as never);
+
+    await expect(
+      prepareOrganizerIdentityForApproval("app-456"),
+    ).resolves.toEqual({
+      profileId: "profile-456",
+      invitedIdentity: false,
+    });
+
+    expect(listUsers).toHaveBeenCalledWith({ page: 1, perPage: 200 });
+    expect(profileUpsert).toHaveBeenCalledWith(
+      {
+        id: "profile-456",
+        email: "existing-auth@example.com",
+        full_name: "Existing Auth Organizer",
+        organization: "Existing Auth Org",
+      },
+      { onConflict: "id" },
+    );
   });
 
   test("lookupOrganizerApplicationStatus fallback returns not_found for malformed tokens", async () => {

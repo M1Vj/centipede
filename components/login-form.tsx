@@ -92,7 +92,7 @@ export function LoginForm({
     } else if (profile.role === "organizer") {
       feedbackRouter.push("/organizer");
     } else {
-      feedbackRouter.push("/");
+      feedbackRouter.push("/mathlete");
     }
   };
 

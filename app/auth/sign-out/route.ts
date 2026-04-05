@@ -4,14 +4,22 @@ import { type NextRequest, NextResponse } from "next/server";
 import { clearSessionVersionCookie, getSafeNextPath } from "@/lib/auth/session";
 
 export async function POST(request: NextRequest) {
-  return handleSignOut(request);
+  return signOutWithPost(request);
 }
 
-export async function GET(request: NextRequest) {
-  return handleSignOut(request);
+export async function GET() {
+  return NextResponse.json(
+    { error: "Method Not Allowed" },
+    {
+      status: 405,
+      headers: {
+        Allow: "POST",
+      },
+    },
+  );
 }
 
-async function handleSignOut(request: NextRequest) {
+async function signOutWithPost(request: NextRequest) {
   const supabase = await createClient();
 
   const {
