@@ -106,6 +106,20 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 - Performance: grading feedback is clear and non-blocking; review page loads from existing answer data efficiently.
 - Edge cases: auto-submit, network retry, answer key still hidden, latest-score overwrite warning for open competitions.
 
+## Security and Reliability Addendum (2026-04)
+
+- enforce submit-path anti-replay and anti-spam behavior while preserving idempotent duplicate-submit outcomes
+- enforce dispute anti-spam constraints with deterministic limits per participant/attempt/problem scope
+- enforce privacy-safe submission/dispute logging by default (no raw answer payload dumps in standard logs)
+- enforce grading-degraded handling contract: locked attempt state, deterministic user status messaging, and retry-safe backend orchestration
+- enforce participant response minimization so organizer-only resolution internals are never exposed before allowed visibility states
+
+### Additional Verification Gates
+
+- security QA: duplicate submit and dispute spam attempts do not create duplicate terminal side effects
+- reliability QA: grading outage/degradation paths preserve locked attempt semantics and deterministic recovery behavior
+- privacy QA: submission/dispute logs and user-facing errors remain non-disclosing
+
 ## Git Branching
 
 - Branch from: `develop`

@@ -169,6 +169,17 @@ The rebuilt app should preserve that direction while avoiding fragile one-off im
 - anti-cheat and audit trails are append-oriented and tamper-resistant from normal user roles
 - storage buckets and object-access rules for organizer assets, problem assets, and exports are documented as first-class backend contracts
 
+## Security, Operations, and Release Baseline (2026-04)
+
+- use ASVS-style control verification depth for release: baseline controls for all branches, elevated rigor for auth, access-control, and admin/operator control paths
+- treat broken access control, session invalidation regressions, injection risk, and sensitive data leakage as merge-blocking defects
+- require deterministic state-mutation behavior under retry and concurrency for every high-impact flow (auth/session, organizer lifecycle, registration, submission, live controls, dispute/recalc, exports)
+- require explicit abuse controls for high-frequency endpoints and controls, including deterministic `429` responses where throttling applies
+- require structured observability for privileged actions with `request_id`, actor, action, target, and machine-code outcomes, plus redaction of tokens and direct PII
+- require incident-readiness artifacts before release: owner, severity model, communication path, containment steps, and replay-safe recovery procedures
+- require WCAG 2.2 AA verification for core auth, organizer, admin, competition, and monitoring interactions
+- require performance evidence on critical routes and control actions with explicit p95 targets and two-pass stability checks
+
 ## Coverage Summary
 
 The execution plan below covers:

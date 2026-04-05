@@ -43,11 +43,28 @@ Unblocks: release branch creation and deployment.
 
 ## Performance Gate Matrix (Deterministic)
 
-- Profiling baseline: production build (`npm run build` then `npm run dev`) with representative seeded data and warm-cache rerun.
+- Profiling baseline: production runtime (`npm run build` then `npm run start`) with representative seeded data and warm-cache rerun.
 - Required routes for performance verification: `/`, `/mathlete`, `/organizer`, `/admin`, `/notifications`, `/mathlete/competition/[competitionId]/leaderboard`, `/organizer/competition/[competitionId]/participants`.
 - Route budgets (p95): first response/render <= 1500 ms; interactive action response <= 500 ms.
 - Stability budget: no uncaught runtime errors and no repeated console error loops on required routes.
-- Fail condition: any required route exceeding budget in two consecutive measurements or violating stability budget blocks merge until fixed or documented as approved out-of-scope blocker.
+- Fail condition: any required route exceeding budget in two consecutive measurements or violating stability budget blocks merge until fixed or documented as approved `CORE_PATCH_REQUESTS` `out_of_scope_blocker` for this branch.
+
+## SLI and SLO Evidence Contract
+
+- Required SLI definitions:
+  - latency SLI: route p95 measured from the Performance Gate Matrix routes
+  - reliability SLI: successful request ratio over a rolling 28-day window
+- Required evidence fields per SLI: `metric_name`, `source`, `measurement_window`, `target`, `observed_value`, `pass_or_fail`, `captured_at_utc`.
+- Reliability target is deterministic for release one: successful request ratio `>= 99.5%` over a rolling 28-day window (error budget `<= 0.5%`).
+- Evidence artifacts are fixed to `.agent/evidence/release/<branch>/sli-slo.md` and `.agent/evidence/release/<branch>/performance-matrix.md`.
+- Release gate: if reliability error budget is exhausted, only security fixes and approved blocker work may merge until budget recovery is documented.
+
+## Incident Readiness Evidence Contract
+
+- Required runbook fields for critical incidents: `incident_commander`, `ops_lead`, `comms_lead`, escalation path, containment steps, recovery validation checklist, and handoff rules.
+- Required rehearsal evidence fields: `scenario`, `incident_class`, `participants`, `start_at_utc`, `end_at_utc`, `gaps_found`, `owner_assignments`, and `follow_up_due_at`.
+- Incident readiness artifact path is fixed to `.agent/evidence/release/<branch>/incident-readiness.md`.
+- Missing runbook or rehearsal evidence is a release-blocking defect.
 
 ## Release Severity Rubric (Deterministic)
 
@@ -126,6 +143,27 @@ Unblocks: release branch creation and deployment.
 - Accessibility verification: touched routes pass keyboard-only traversal for all interactive controls, maintain visible focus indicators, satisfy WCAG 2.2 AA contrast thresholds (`>= 4.5:1` normal text, `>= 3:1` large text and UI components), and remain operable at required mobile viewports.
 - Performance verification: every required route in the branch performance gate matrix meets stated p95 budgets and stability requirements.
 - Edge-case verification: each listed edge case must record expected outcome assertions (`expected_status_or_error_code`, `expected_state_transition`, `required_audit_or_event_artifact`) and is fail if any assertion mismatches.
+
+## Endgame Hardening Release Gates (2026-04)
+
+- abuse-prevention gate: verify deterministic anti-abuse behavior across anti-cheat, submission/dispute, notifications, monitoring controls, publication/recalculation, and export flows
+- privacy-by-default gate: verify no sensitive data leakage in participant surfaces, logs, exports, and notification payloads
+- retention gate: verify retention policies and purge evidence for anti-cheat logs, disputes, notifications, announcements, events, and export artifacts
+- auditability gate: verify end-to-end traceability from request to durable artifact for all high-risk trusted mutations
+- incident-readiness gate: verify actionable runbooks and at least one recorded rehearsal for critical incident classes
+- SLO/SLI gate: verify declared reliability/latency SLOs and fail release when breached without an approved `CORE_PATCH_REQUESTS` `out_of_scope_blocker` entry for this branch
+- UI/UX final-polish gate: verify accessibility, consistency, reduced-motion compliance, responsiveness, and stress-state behavior across role shells
+
+## Cross-Branch Release Hardening Checklist
+
+- [ ] Abuse controls verified across UR8-UR16 high-risk flows
+- [ ] Privacy-by-default verified for participant, organizer, and admin surfaces
+- [ ] Retention and purge evidence captured for required data classes
+- [ ] Audit reconstruction validated for privileged mutations and control actions
+- [ ] Incident runbooks and rehearsal evidence captured
+- [ ] SLI/SLO snapshots captured and evaluated against release gates
+- [ ] Accessibility, responsiveness, and stress-state UX checks passed on critical routes
+- [ ] Zero unresolved `critical`/`high` defects; `medium` defects have owner and target date
 
 ## Git Branching
 

@@ -103,6 +103,20 @@ Unblocks: anti-cheat, submission/review, leaderboards, monitoring.
 - Performance: autosave debounce interval stays within 400 to 800 ms idle window, answer-entry interaction latency stays at p95 <= 120 ms, and problem snapshots are fetched once on entry/resume with zero additional snapshot refetches per answer update.
 - Edge cases: start-time boundary, timer expiry during network lag, reconnect after browser crash, open competition with remaining attempts.
 
+## Security and Reliability Addendum (2026-04)
+
+- enforce team-attempt lifecycle authority strictly: only active team leaders may perform start/resume/save/submit trusted writes for team registrations
+- enforce autosave write-order protection so stale writes cannot overwrite newer acknowledged answers (`answer_write_conflict` deterministic outcome)
+- enforce submit idempotency with deterministic replay-safe outcomes under duplicate click/network retry behavior
+- enforce realtime subscription scope boundaries to active-attempt/competition context only; broad table subscriptions are prohibited
+- enforce immutable trusted deadline behavior (`effective_attempt_deadline_at`) across refresh/reconnect/interval transitions
+
+### Additional Verification Gates
+
+- security QA: unauthorized actors and post-submission write attempts are rejected deterministically
+- concurrency QA: multi-tab save/submit races preserve consistency and do not lose acknowledged writes
+- reliability QA: reconnect and resume paths preserve immutable deadline behavior and deterministic lock states
+
 ## Git Branching
 
 - Branch from: `develop`

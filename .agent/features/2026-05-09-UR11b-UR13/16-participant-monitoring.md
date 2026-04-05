@@ -66,6 +66,7 @@ Unblocks: final QA and release readiness.
 
 - Allowed actors and actions:
   - owning organizer: open-competition pause, organizer-owned resume, extend, and legitimate-disconnection reset on owned competitions under the guard rules below
+- Admin non-draft abuse/fraud moderation delete in this branch must call `moderate_delete_competition(competition_id, reason, request_idempotency_token)` with non-empty reason and deterministic replay behavior.
   - admin: incident force-pause and non-draft abuse/fraud moderation delete through trusted moderation paths only; never manual end, resume, extend, or disconnect-reset
 - Guard rules:
   - organizer pause is allowed only for `open` competitions when competition state is `live`; it blocks new attempt starts while allowing already-active attempts to finish
@@ -106,12 +107,15 @@ Unblocks: final QA and release readiness.
   - `reset_attempt_for_disconnect(attempt_id, reason, request_idempotency_token)` requires non-empty `reason`
 - Every control action must write one durable `competition_events` row with actor, action, and before or after state metadata, including `request_idempotency_token` and required reason fields.
 - Every control action request must include `request_idempotency_token`.
-- Control invocations must dedupe by `(competition_id, event_type, actor_user_id, request_idempotency_token)` so retried requests do not create duplicate state transitions or duplicate `competition_events` rows.
+- Control invocations must dedupe by `(competition_id, control_action, actor_user_id, request_idempotency_token)` so retried requests do not create duplicate state transitions or duplicate `competition_events` rows.
+- For disconnect reset, both approved and rejected outcomes must map to `control_action = 'reset_attempt_for_disconnect'` for deterministic replay.
+- Accepted or rejected admin moderation delete requests must emit durable evidence in both `competition_events` and `admin_audit_logs`.
 
 ## Competition Control Idempotency Key Contract
 
 - Required token: `request_idempotency_token` on every pause, resume, extend, and legitimate-disconnection-reset request.
-- Control-event dedupe key: `(competition_id, event_type, actor_user_id, request_idempotency_token)`.
+- Control-event dedupe key: `(competition_id, control_action, actor_user_id, request_idempotency_token)`.
+- Moderation delete dedupe mapping: accepted and rejected admin moderation delete outcomes map to `control_action = 'moderate_delete_competition'` under the same dedupe key.
 - Retry behavior: repeated requests with the same token must return the original outcome and must not append a second control-event row.
 
 ## Requirements
@@ -123,7 +127,7 @@ Unblocks: final QA and release readiness.
 - implement organizer-owned open-competition pause plus organizer-owned resume, extend, and legitimate-disconnection reset controls with mandatory confirmation, canonical reason-capture rules, and objective disconnect-reset legitimacy criteria
 - implement admin live-support hooks for trusted force-pause and non-draft abuse/fraud moderation delete only, reusing the same guard and event contracts
 - implement durable event timeline for lifecycle and intervention actions from `competition_events`
-- enforce canonical control tuple (`reason`, `request_idempotency_token`) and idempotent dedupe behavior using `(competition_id, event_type, actor_user_id, request_idempotency_token)`
+- enforce canonical control tuple (`reason`, `request_idempotency_token`) and idempotent dedupe behavior using `(competition_id, control_action, actor_user_id, request_idempotency_token)`
 
 ## Atomic Steps
 
@@ -158,6 +162,20 @@ Unblocks: final QA and release readiness.
 - Accessibility: controls and tables are keyboard operable, announcements are labeled, and state changes are readable.
 - Performance: subscriptions remain competition-scoped and use summarized datasets.
 - Edge cases: extend during active attempts, paused-open behavior, withdrawn or ineligible participants, and retried control requests.
+
+## Security and Reliability Addendum (2026-04)
+
+- enforce control-action abuse limits and deterministic cooldown behavior for pause/resume/extend/reset and announcement actions
+- enforce least-data monitoring projections by default; sensitive participant details require explicit privileged context and audit trace
+- enforce durable control-event evidence minimum for every accepted or rejected live control request
+- enforce incident communication and containment playbooks for cheating spikes, realtime degradation, and moderation events
+- enforce admin live-support boundary permanence (force-pause plus non-draft abuse/fraud moderation delete only)
+
+### Additional Verification Gates
+
+- security QA: denied control actions record deterministic rejection outcomes and required audit metadata
+- reliability QA: retrying control requests with the same token returns original outcome without duplicate state transitions
+- ops QA: incident playbook rehearsal validates owner/escalation/communication paths with captured evidence
 
 ## Git Branching
 

@@ -114,6 +114,20 @@ Unblocks: team competition registration, team arena participation, participant m
 - Performance: user search is indexed and invite-state refreshes are efficient.
 - Edge cases: deleted member, suspended member, conflicting team registration, duplicate invite submissions.
 
+## Security and Reliability Addendum (2026-04)
+
+- require idempotency tokens for invite-send/respond/revoke and roster mutation actions to prevent duplicate side effects under retries
+- require team-code abuse controls (entropy requirements, join-rate throttling, and non-enumerating failure responses)
+- require membership and leadership writes to run in one trusted transactional boundary preserving single-active-leader invariants
+- require commit-time lock rechecks for roster mutations so registration-state changes cannot be bypassed by stale reads
+- require deterministic lifecycle event identity keys for downstream notification dedupe
+
+### Additional Verification Gates
+
+- security QA: non-leaders cannot mutate team lifecycle state; throttling blocks repeated join-code abuse attempts
+- concurrency QA: parallel leave/remove/transfer operations preserve exactly one active leader outcome
+- consistency QA: idempotent retries do not create duplicate invites or membership side effects
+
 ## Git Branching
 
 - Branch from: `develop`

@@ -99,6 +99,20 @@ Unblocks: scoring rules, competition wizard, default-bank moderation, answer-key
 - Performance: server pagination is the default list strategy (25 rows per page), and filter/search queries stay at p95 <= 400 ms on a 2,000-problem reference dataset; incremental loading is optional for mobile-only surfaces using the same filter contract.
 - Edge cases: deleting content already used by a published competition does not corrupt historical data.
 
+## Security and Reliability Addendum (2026-04)
+
+- require optimistic concurrency controls on bank/problem writes to prevent stale tab overwrites (`write_conflict` outcome on stale revisions)
+- require bulk-import idempotency token support so retries return deterministic summaries without duplicate logical inserts
+- require non-edit read paths to exclude sensitive answer-key payload fields where not needed by the current role/context
+- require upload integrity checks (MIME validation, size cap, canonical key handling) before persisting asset references
+- require immutable snapshot boundary protection so authoring-table edits never mutate published competition snapshots
+
+### Additional Verification Gates
+
+- concurrency QA: simultaneous edits on one record produce deterministic conflict behavior
+- import QA: repeated import retries with the same idempotency token do not duplicate accepted rows
+- security QA: invalid MIME/oversized uploads are rejected and sensitive payloads are redacted from non-edit contexts
+
 ## Git Branching
 
 - Branch from: `develop`

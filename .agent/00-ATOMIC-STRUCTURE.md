@@ -115,6 +115,25 @@ Before a feature branch is considered complete:
 - perform an accessibility pass on touched flows with explicit checks for keyboard navigation, focus order, labels, and contrast
 - verify mobile layouts for each new page or modal at minimum viewports `375x812` and `768x1024`, and record pass or fail evidence in QA notes
 
+## Cross-Branch Security and Reliability Gates (Mandatory)
+
+- every state-changing route and server action must enforce trusted actor checks and role or ownership checks inside the mutation path, not only at layout or route-entry boundaries
+- browser-callable state-changing handlers must enforce unsafe-method policy (`POST`, `PUT`, `PATCH`, `DELETE`) and same-origin safeguards; `GET` must never mutate state
+- event-producing trusted RPC calls must require `request_idempotency_token` and must prove replay-safe behavior in tests
+- every branch that introduces privileged or high-risk writes must include deterministic machine-code error mapping and non-disclosing user-facing failure responses
+- every branch that introduces privileged writes must emit traceable evidence (`request_id`, actor context, action, target, outcome) in structured logs or durable audit rows
+- release-boundary branches must include dependency-vulnerability and secrets-scan evidence with unresolved high/critical findings treated as blockers unless approved via `CORE_PATCH_REQUESTS`
+- release-boundary branches must block merge if unresolved access-control, session, injection, or data-exposure defects remain at high or critical severity
+
+## Release Evidence Pack (Deterministic)
+
+- Artifact root is fixed to `.agent/evidence/release/<branch>/`.
+- Required artifacts are `summary.md`, `performance-matrix.md`, `sli-slo.md`, and `incident-readiness.md`.
+- Required artifact fields: `branch`, `commit`, `command_matrix_results`, `route_probe_results`, `security_gate_results`, `accessibility_gate_results`, `performance_gate_results`, `incident_rehearsal_results`, `sli_slo_results`, and `blocker_registry_links`.
+- Release-one reliability baseline in `sli-slo.md` is successful-request ratio `>= 99.5%` over rolling 28 days (error budget `<= 0.5%`) unless explicitly superseded by a stricter approved project policy update.
+- Every `critical` or `high` defect must include `defect_id`, `owner`, `status`, `resolution_or_blocker_id`, and verification evidence link.
+- If a required evidence field is missing, branch completion is blocked.
+
 ## Documentation Update Rules
 
 Every implementation branch must review whether it changed:

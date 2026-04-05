@@ -103,6 +103,7 @@ Unblocks: arena entry, leaderboard visibility, reminders, participant monitoring
 - Branch `10` emits registration-domain events only (`competition_registration_confirmed`, `competition_registration_withdrawn`) through shared dispatch helpers called from trusted server paths.
 - Branch `10` consumes organizer/system events (`competition_schedule_changed`, `competition_cancelled`) in participant UI but does not own event creation for those cases.
 - Branch `10` must not implement email fan-out, preference evaluation, or direct table writes from UI components; those are owned by branch `15-notifications-polish`.
+- `competition_schedule_changed` and `competition_cancelled` remain consumer-only names in branch `10`; producer ownership must be explicitly added to the shared producer/consumer matrix before any branch emits them.
 
 ## Atomic Steps
 
@@ -136,6 +137,20 @@ Unblocks: arena entry, leaderboard visibility, reminders, participant monitoring
 - Accessibility: filters, calendar navigation, and action buttons are keyboard-safe and screen-reader labeled.
 - Performance: discovery list uses server pagination (max 25 rows/page) with p95 response <= 400 ms on a 5,000-competition reference dataset; calendar view uses at most 2 backend reads per load and renders within p95 <= 600 ms.
 - Edge cases: schedule localization across timezones, closed registration, invalid rosters, withdrawn then re-registered state.
+
+## Security and Reliability Addendum (2026-04)
+
+- require capacity checks and registration writes to execute in one trusted transactional boundary to prevent over-capacity race outcomes
+- require idempotent registration and withdrawal behavior so duplicate retries return deterministic existing-state outcomes
+- require abuse controls for rapid register/withdraw churn with deterministic safe error mapping
+- require UTC-authoritative eligibility and lifecycle checks, with timezone conversion treated as display-only behavior
+- require immutable registration snapshot consistency on accepted registration and deterministic snapshot regeneration only on allowed re-entry
+
+### Additional Verification Gates
+
+- concurrency QA: parallel final-slot registrations produce one success and deterministic capacity-denied outcomes
+- security QA: actor/team ownership rules are enforced for individual and team registration paths
+- property QA: filter/query serialization and timezone display conversion do not alter trusted eligibility decisions
 
 ## Git Branching
 

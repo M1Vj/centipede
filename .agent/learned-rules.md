@@ -129,3 +129,15 @@ Migration execution is timestamp-ordered and append-only. Apply migrations in as
 ### 4.6
 
 For this project, use subagents by default for audits, reviews, and structured edit planning. Validate subagent findings with direct file evidence before applying patches.
+
+### 4.7
+
+Tooling commands can be unavailable in constrained shells (for example `rg`, `find`, or `xargs`). When that happens, switch to workspace-native file search and read tools instead of assuming command availability.
+
+### 4.8
+
+Applied migration history on a remote Supabase project is not sufficient proof that required schema objects exist. Before relying on a previously applied migration during bug-fix or QA work, verify the concrete columns, functions, or policies needed by the live path and ship a new forward correction migration if drift is found.
+
+### 4.9
+
+Branches `01` through `05` are considered done and locked for continuous development planning. Do not introduce new cross-cutting contract hardening edits in those feature guides unless the user explicitly requests reopening them; place new global rules in shared `.agent` contracts or in later branch guides.

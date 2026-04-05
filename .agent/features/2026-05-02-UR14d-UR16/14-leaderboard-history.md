@@ -197,6 +197,20 @@ Unblocks: notifications, operational monitoring, release readiness.
 - Performance: leaderboard and history pages use pagination and do not overfetch.
 - Edge cases: accepted disputes after publish, recalculated tied ranks, repeated dispute action retries, large export requests, and export failure recovery.
 
+## Security and Reliability Addendum (2026-04)
+
+- enforce publish/recalculation/export abuse controls with deterministic actor-scoped throttles and idempotent replay behavior
+- enforce export concurrency limits per competition and format to prevent queue flooding and storage abuse
+- enforce privacy-by-default export payload policy (no unnecessary direct-contact identifiers in default export sets)
+- enforce before/after digest evidence for recalculation and publication-affecting updates to support forensic comparison
+- enforce incident-response playbooks for mispublication, recalculation anomalies, and export exposure events
+
+### Additional Verification Gates
+
+- security QA: unauthorized export queue/read/download attempts are denied deterministically
+- consistency QA: scheduled publication state remains active after accepted-dispute recalculation updates
+- ops QA: publication/recalculation/export incident playbooks are present and executable with evidence artifacts
+
 ## Git Branching
 
 - Branch from: `develop`

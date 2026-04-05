@@ -20,7 +20,7 @@ Unblocks: `16-participant-monitoring` and release readiness.
 - Do not rebuild organizer application intake, approval UI, or applicant status lookup from branch `05-organizer-registration`.
 - Do not redefine lifecycle state transitions or publish guards from branch `08-competition-wizard`.
 - Do not implement dispute-resolution decisions or leaderboard publication actions from branch `14-leaderboard-history`.
-- Do not implement organizer announcement composition controls from branch `16-participant-monitoring`; this branch owns shared announcement-delivery infrastructure (delivery for producer-resolved recipients, mandatory inbox delivery, preference enforcement, and idempotent dispatch) for producer-emitted `competition_announcement_posted` events, while branch `16` owns canonical audience resolution.
+- Do not implement organizer announcement composition controls from branch `16-participant-monitoring`; this branch owns shared announcement-delivery infrastructure (delivery for producer-resolved recipients, mandatory inbox delivery, announcement email preference enforcement, and idempotent dispatch) for producer-emitted `competition_announcement_posted` events, while branch `16` owns canonical audience resolution.
 - Do not modify anti-cheat penalty logic from branch `12-anti-cheat`.
 - This branch owns notification payload standardization, producer-resolved recipient delivery, channel preference enforcement, and deterministic dispatch behavior.
 
@@ -54,6 +54,7 @@ Unblocks: `16-participant-monitoring` and release readiness.
 
 - `05-organizer-registration` owns applicant transactional lifecycle messaging (submission confirmation, secure status lookup, and applicant-facing approval or rejection delivery), including organizer-decision transactional emails for `organizer_application_approved` and `organizer_application_rejected`.
 - `15-notifications-polish` handles only account-linked organizer-decision behavior under the channel matrix; after linkage it may project at most one inbox decision notification keyed by `application_id`, and it must never send organizer-decision email.
+- `organizer_application_submitted` inbox projection in branch `15` is account-linked only: never create pre-link inbox rows, and dedupe by `application_id`-based event identity.
 - `04-admin-user-management` owns organizer approval and rejection decision outcomes; branch 15 consumes those outcomes for account-linked delivery only.
 - `08-competition-wizard` owns lifecycle event writes; branch 15 only consumes relevant lifecycle outcomes for recipient messaging.
 - `09-team-management` owns team-invite lifecycle transitions; branch 15 only handles delivery templates and recipient fan-out.
@@ -76,12 +77,21 @@ Unblocks: `16-participant-monitoring` and release readiness.
 | Event | Channel class | Delivery rule |
 | --- | --- | --- |
 | `score_recalculated` | `in_app_only` | Write inbox item only; never send email. |
-| `team_invite_sent`, `team_invite_accepted`, `team_invite_declined`, `team_roster_invalidated`, `competition_registration_confirmed`, `competition_registration_withdrawn`, `competition_announcement_posted`, `dispute_resolved`, `leaderboard_published` | `email_eligible` | Write inbox item and send email only when the user's preference row allows that event. |
+| `team_invite_sent`, `team_invite_accepted`, `team_invite_declined`, `team_roster_invalidated`, `competition_registration_confirmed`, `competition_registration_withdrawn`, `dispute_resolved`, `leaderboard_published` | `email_eligible` | Write inbox item and send email only when the user's preference row allows that event. |
+| `competition_announcement_posted` | `email_eligible` | Always write inbox item for resolved recipients; send email only when announcement preference and email channel settings allow it. |
 | `organizer_application_submitted`, `organizer_application_approved`, `organizer_application_rejected` | `in_app_only` | Write inbox item only; branch 15 never sends organizer-lifecycle email because applicant transactional lifecycle-email ownership is branch 05. |
 
 - Allowed channel classes are fixed to `in_app_only`, `email_eligible`, and `email_required`.
+- `email_required` is reserved for future regulated-event flows and must not be introduced without process-flow and DB contract updates in the same branch.
 - `competition_announcement_posted` has a deterministic minimum: write an inbox item whenever a valid producer event is consumed; email follows the mapped channel class policy.
 - New notification events must map to one existing channel class in this matrix; do not invent ad hoc delivery policy in code.
+
+### Channel-Precedence Rules (Deterministic)
+
+- Mandatory inbox class events (`in_app_only`) always write exactly one inbox row per `(recipient_id, event_identity_key)` regardless of `in_app_enabled`.
+- `competition_announcement_posted` always writes exactly one inbox row per `(recipient_id, event_identity_key)` for resolved recipients; email remains preference-governed.
+- For `email_eligible` events outside mandatory inbox classes, inbox delivery requires `in_app_enabled = true` and the mapped category toggle enabled.
+- Email delivery always requires `email_enabled = true` and the mapped category toggle enabled.
 
 ## Event-to-Preference Mapping (Deterministic)
 
@@ -101,6 +111,7 @@ Unblocks: `16-participant-monitoring` and release readiness.
 - wire notification dispatch for account-linked organizer decision outcomes as in-app-only inbox notifications (no branch-15 decision email), team lifecycle events (`team_invite_sent`, `team_invite_accepted`, `team_invite_declined`, `team_roster_invalidated`), registration changes, dispute outcomes, leaderboard publication, score recalculation, and announcement delivery from producer-emitted `competition_announcement_posted` events
 - enforce notification deduplication using `(recipient_id, event_identity_key)`
 - enforce critical-event channel delivery using the explicit matrix classes (`in_app_only`, `email_eligible`, `email_required`) and preference rows where applicable
+- validate notification deep-link targets against canonical internal-route allowlist; invalid links must degrade to `link_path = null` without dropping inbox delivery
 - apply cross-product UI consistency updates only where notification surfaces are touched
 
 ## Atomic Steps
@@ -135,6 +146,21 @@ Unblocks: `16-participant-monitoring` and release readiness.
 - Accessibility: inbox lists, toggles, and deep links are keyboard reachable and clearly labeled.
 - Performance: unread-count and inbox queries stay recipient-scoped and indexed.
 - Edge cases: disabled channels, duplicate dispatch retries, recalculation after publication, withdrawn users, and stale deep links.
+
+## Security and Reliability Addendum (2026-04)
+
+- enforce strict event payload validation and canonical internal-route allowlist for notification link targets
+- enforce dispatch burst controls and deterministic backoff behavior to prevent notification storms
+- enforce privacy-safe templates (no raw tokens, full emails, or internal moderation payloads)
+- enforce retention and purge policies for notification diagnostics and stale delivery metadata with auditable summaries
+- enforce provider-outage and duplicate-send incident playbooks with deterministic replay and containment steps
+
+### Additional Verification Gates
+
+- security QA: invalid event types/payloads fail dispatch validation without partial delivery side effects
+- security QA: invalid deep-link targets are neutralized deterministically (null link path) while inbox delivery remains intact
+- reliability QA: repeated dispatch retries preserve recipient/event idempotency guarantees
+- ops QA: outage simulation confirms deterministic fallback behavior and audit evidence capture
 
 ## Git Branching
 

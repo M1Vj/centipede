@@ -128,6 +128,20 @@ Unblocks: competition wizard, arena grading, leaderboards, disputes, and result 
 - Performance (executable gate, deferred): `grade_attempt` meets p95 <= 250 ms for a 100-problem attempt, and `recalculate_competition_scores` completes <= 120 s for a 10,000-attempt, 100-problem reference dataset with traceable run metadata.
 - Edge cases: equivalent numeric expressions, multiple accepted answers, zero-score attempts, penalty-floor enforcement at zero, and `average_score` half-step rounding boundaries.
 
+## Security and Reliability Addendum (2026-04)
+
+- require trusted grading transitions to enforce attempt-state locking and deterministic no-regrade behavior on duplicate submits
+- require recalculation mutual exclusion per competition scope with deterministic `recalc_in_progress` behavior under contention
+- require deterministic tie fallback when configured tie fields are identical (stable final ordering key)
+- require anti-cheat deduction cutoff semantics to use trusted event timing boundaries only
+- require recalculation metadata artifacts (`request_idempotency_token`, affected counts, timing, outcome) for auditability
+
+### Additional Verification Gates
+
+- concurrency QA: competing grading/recalc requests produce deterministic outcomes without duplicate side effects
+- property QA: scoring invariants hold (`final_score >= 0`, deterministic rounding, stable ordering)
+- security QA: grading and recalculation cannot be executed from untrusted client paths directly
+
 ## Git Branching
 
 - Branch from: `develop`
