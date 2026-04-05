@@ -94,6 +94,10 @@ function toPublicActionErrorMessage(error: unknown, fallback: string) {
     return "Application contact email is required before this action can continue.";
   }
 
+  if ((error as any)?.__isAuthError) {
+    return message;
+  }
+
   return fallback;
 }
 
