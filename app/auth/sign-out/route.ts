@@ -1,16 +1,25 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { type NextRequest, NextResponse } from "next/server";
+import { clearSessionVersionCookie, getSafeNextPath } from "@/lib/auth/session";
 
 export async function POST(request: NextRequest) {
-  return handleSignOut(request);
+  return signOutWithPost(request);
 }
 
-export async function GET(request: NextRequest) {
-  return handleSignOut(request);
+export async function GET() {
+  return NextResponse.json(
+    { error: "Method Not Allowed" },
+    {
+      status: 405,
+      headers: {
+        Allow: "POST",
+      },
+    },
+  );
 }
 
-async function handleSignOut(request: NextRequest) {
+async function signOutWithPost(request: NextRequest) {
   const supabase = await createClient();
 
   const {
@@ -23,10 +32,10 @@ async function handleSignOut(request: NextRequest) {
 
   revalidatePath("/", "layout");
 
-  // Redirect straight to login after clearing the session.
-  const url = request.nextUrl.clone();
-  url.pathname = "/auth/login";
-  url.search = "";
+  const targetPath = getSafeNextPath(request.nextUrl.searchParams.get("next"));
+  const targetUrl = new URL(targetPath, request.url);
 
-  return NextResponse.redirect(url, { status: 303 });
+  const response = NextResponse.redirect(targetUrl, { status: 303 });
+  clearSessionVersionCookie(response);
+  return response;
 }

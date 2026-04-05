@@ -1,13 +1,5 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
-
-import {
-  isProfileComplete,
-  PROFILE_SELECT_FIELDS,
-  type AuthProfile,
-} from "@/lib/auth/profile";
-import { createClient } from "@/lib/supabase/server";
-import { hasEnvVars } from "@/lib/supabase/env";
+import { getWorkspaceContext as getProtectedWorkspaceContext } from "@/lib/auth/workspace";
 import {
   Card,
   CardContent,
@@ -22,56 +14,7 @@ import {
 import { Trophy, Users2, Brain } from "lucide-react";
 
 async function getWorkspaceContext() {
-  if (!hasEnvVars) {
-    return {
-      userEmail: null,
-      profile: null,
-    };
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select(PROFILE_SELECT_FIELDS)
-    .eq("id", user.id)
-    .maybeSingle<AuthProfile>();
-
-  if (error) {
-    throw error;
-  }
-
-  if (!isProfileComplete(profile)) {
-    redirect("/profile/complete");
-  }
-
-  if (profile?.is_active === false) {
-    redirect("/auth/suspended");
-  }
-
-  if (profile?.role !== "mathlete") {
-    if (profile?.role === "admin") {
-      redirect("/admin");
-    }
-
-    if (profile?.role === "organizer") {
-      redirect("/organizer");
-    }
-
-    redirect("/");
-  }
-
-  return {
-    userEmail: user.email ?? "signed-in user",
-    profile,
-  };
+  return getProtectedWorkspaceContext({ requireRole: "mathlete" });
 }
 
 const mathleteCards = [
@@ -125,6 +68,14 @@ async function MathletePageContent() {
                   : "Once .env.local is populated, sign in to access your personal mathlete space."}
               </p>
             </div>
+          </CardContent>
+          <CardContent className="pt-0">
+            <p className="text-sm text-muted-foreground">
+              You can update your school and grade level after onboarding from{" "}
+              <a href="/mathlete/settings" className="font-semibold text-primary underline-offset-4 hover:underline">
+                settings
+              </a>.
+            </p>
           </CardContent>
         </Card>
 

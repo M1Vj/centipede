@@ -5,14 +5,13 @@ import { isProfileComplete, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
 import { getSupabaseEnv, hasEnvVars } from "./env";
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  });
+  let supabaseResponse = NextResponse.next();
 
   // Perform early short-circuit for static assets and public non-auth routes
   // to avoid unnecessary Supabase client creation or database hits.
   const path = request.nextUrl.pathname;
   if (
+    path.startsWith("/api/") ||
     path.startsWith("/_next") ||
     path.startsWith("/favicon.ico") ||
     path === "/robots.txt" ||
@@ -26,8 +25,8 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Skip proxy for auth sign-out route to prevent redundant checks or redirect loops
-  if (path === "/auth/sign-out" || !hasEnvVars) {
+  // Skip proxy for auth session or sign-out routes to prevent redundant checks or redirect loops
+  if (path === "/auth/session" || path === "/auth/sign-out" || !hasEnvVars) {
     return supabaseResponse;
   }
 
@@ -47,9 +46,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );
-          supabaseResponse = NextResponse.next({
-            request,
-          });
+          supabaseResponse = NextResponse.next();
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options),
           );

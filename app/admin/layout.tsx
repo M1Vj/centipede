@@ -1,6 +1,4 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { PROFILE_SELECT_FIELDS, type AuthProfile } from "@/lib/auth/profile";
+import { getWorkspaceContext } from "@/lib/auth/workspace";
 import {
   LayoutDashboard,
   Users,
@@ -14,22 +12,7 @@ import { ProgressLink } from "@/components/ui/progress-link";
 import { AdminMobileNav } from "@/app/admin/mobile-nav";
 
 async function getAdminProfile() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select(PROFILE_SELECT_FIELDS)
-    .eq("id", user.id)
-    .single<AuthProfile>();
-
-  return { error, profile };
+  await getWorkspaceContext({ requireRole: "admin" });
 }
 
 const navItems = [
@@ -47,17 +30,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { error, profile } = await getAdminProfile();
-
-  if (error || profile?.role !== "admin") {
-    if (profile?.role === "organizer") {
-      redirect("/organizer");
-    }
-    if (profile?.role === "mathlete") {
-      redirect("/mathlete");
-    }
-    redirect("/");
-  }
+  await getAdminProfile();
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/20 md:flex-row">

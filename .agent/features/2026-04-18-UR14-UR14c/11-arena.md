@@ -1,0 +1,139 @@
+# 11 - Arena
+
+- Feature branch: `feature/arena`
+- Requirement mapping: UR14, UR14a, UR14b, UR14c — competition entry, rules acknowledgement, trusted timing, autosave, math answering, navigation, and reconnect-safe resume
+- Priority: 11
+- **Assigned to:** Mabansag, Vj
+
+## Mission
+
+Implement the live competition arena where mathletes actually compete. This includes trusted arena entry, rules acknowledgement, server-side timing, autosave, problem navigation, answer status flagging, visual math input, and reconnect-safe resume behavior.
+
+This branch exists because the arena is the product's highest-risk surface. It combines timing, answer persistence, UX clarity, and fairness rules. The rebuild must treat those concerns as one synchronized runtime feature.
+
+Depends on: `07-scoring-system`, `08-competition-wizard`, `10-competition-search`.
+
+Unblocks: anti-cheat, submission/review, leaderboards, monitoring.
+
+## Full Context
+
+- Business context: the arena is where trust in the platform is won or lost.
+- User roles: mathletes and team participants primarily; organizers and admins consume indirect live state through monitoring later.
+- UI flow: pre-entry gate, rules acknowledgement, arena shell, problem list, current problem, answer editor, timer, question status grid, review entry point.
+- Backend flow: attempt creation, active-interval tracking, autosave answer writes, server-side remaining-time calculation, resume entry after disconnect.
+- Related tables/functions: `competition_attempts`, `attempt_intervals`, `attempt_answers`, `competition_problems`, `competition_registrations`.
+- Edge cases: exact start-time gating, expired entry, reconnect during active attempt, open competition re-attempt, autosave failure, timer expiry mid-edit.
+- Security concerns: attempt creation and resume must be trusted and registration-bound; time left must not be client-authoritative.
+- Performance concerns: autosave must be debounced and resilient; problem loading should avoid re-fetching everything on every answer change.
+- Accessibility/mobile: math editor, navigation grid, timer, and submission affordances must remain usable on tablets and phones.
+
+## Research Findings / Implementation Direction
+
+- Keep server-side timing authoritative using server clock and trusted deadline fields; reconnect or offline gaps still consume remaining time.
+- Persist answers incrementally with debounced trusted writes so users do not lose work on disconnect.
+- Use a status model of `blank`, `filled`, `solved`, and `reset` to support the navigation grid and review flow.
+- Treat resume after disconnect as a first-class flow, distinct from anti-cheat focus loss.
+
+## Answer-State and Timing Contract (Deterministic)
+
+### Answer-State Contract
+
+- Source of truth for review counts and navigator badges is `attempt_answers.status_flag`, not unsaved client-only state.
+- Allowed states are exactly: `blank`, `filled`, `solved`, `reset`.
+- `reset` clears answer payload fields and is preserved as a distinct persisted state for branch `13` review summaries.
+- Branch `13` must consume the same persisted status set without remapping names.
+
+### Timing Contract
+
+- Remaining time is computed only on trusted backend paths as `max(0, effective_attempt_deadline_at - server_now)`, where scheduled attempts derive `effective_attempt_deadline_at = min(attempt_base_deadline_at, scheduled_competition_end_cap_at)` and open attempts derive `effective_attempt_deadline_at = attempt_base_deadline_at`; client clocks are display-only.
+- `effective_attempt_deadline_at` is fixed when the attempt starts and must never be extended by refresh, reconnect, or interval reopen actions.
+- Offline or disconnected periods still consume time because `server_now` advances while the same immutable deadline remains in force.
+- `attempt_intervals` record connectivity windows (`started_at`, `ended_at`) for audit and resume authorization only; interval duration must never be used to pause, restore, or grant extra time.
+- Timer expiry triggers a trusted attempt transition to `auto_submitted` and immediate UI lock. 
+- Pause and resume do not change `effective_attempt_deadline_at` by themselves. Deadline extension is allowed only through explicit trusted `extend_competition(...)` controls under branch `16` contracts.
+- Scheduled competition end remains a server-owned boundary transition; arena UI must consume trusted status updates and must not attempt direct lifecycle mutation.
+
+## Requirements
+
+- gate arena entry by competition status, schedule, registration, and attempt eligibility
+- show rules acknowledgement before starting, including explicit device-responsibility acknowledgements for notifications and sleep settings
+- render snapshotted problems with KaTeX and use MathLive for editable numeric and identification answer inputs
+- autosave answers and persist `attempt_answers.status_flag` as `blank`, `filled`, `solved`, or `reset`
+- show authoritative remaining time
+- allow reconnect and resume without inventing extra time
+- auto-submit current answers when the timer reaches zero
+- support open-competition attempt restarts only through explicit grading policy rules
+- honor shared-route arbitration: render branch `11` only when trusted mode is `pre_entry` or `arena_runtime`
+
+### Canonical Arena Route Contract (Strict)
+
+- Arena entry and runtime route is exactly `/mathlete/competition/[competitionId]`.
+- Branch `11` consumes the branch `10` trusted `competition_page_mode` decision and must not reimplement conflicting page ownership heuristics in client state.
+- Branch `11` render ownership is limited to `pre_entry` and `arena_runtime` modes; `detail_register` mode is owned by branch `10`.
+- Branch `11` may add nested subroutes under that segment only; alias or equivalent arena root paths are prohibited.
+
+## Atomic Steps
+
+1. Build the pre-entry page with eligibility checks, rules acknowledgement, explicit device-responsibility acknowledgement checkboxes, and trusted route-mode gating from branch `10` arbitration.
+2. Implement trusted `start_competition_attempt` and `resume_competition_attempt` flows.
+3. Build the arena shell with timer, navigation grid, problem viewport, and answer panel.
+4. Integrate MathLive for numeric and identification answers with symbol-toolbox support, render static math with KaTeX, and handle MCQ and TF cleanly.
+5. Add debounced autosave for `attempt_answers` through the trusted save path and keep status-flag writes deterministic.
+6. Implement solved and reset status flagging and reflect it in the question navigator.
+7. Track interval `started_at`/`ended_at` transitions on entry, resume, and exit for auditability and reconnect authorization only; never use interval duration to extend deadlines.
+8. Handle timer expiry through a trusted transition to `auto_submitted` with immediate UI lock.
+9. Implement strictly scoped Supabase Realtime subscriptions for team format to sync `attempt_answers` changes for the active attempt and enforce instant UI lockout on `competition_attempts` submission signals, aligned with `.agent/DATABASE-EDR-RLS.md` Section F filters.
+10. Add tests for interval math, answer-state helpers, and any extracted server calculations.
+
+## Key Files
+
+- `app/mathlete/competition/[competitionId]/page.tsx`
+- `app/mathlete/competition/[competitionId]/layout.tsx`
+- `components/arena/*`
+- `lib/arena/*`
+- `supabase/migrations/*`
+- `tests/arena/*` (planned suite; create before enforcing suite-specific verification)
+
+## Verification
+
+- Manual QA: enter a live or open competition, answer different problem types, refresh or disconnect then resume, watch timer behavior, let the timer expire.
+- Automated: timer and interval helper tests, answer-state tests, trusted attempt start/resume helper tests.
+- Reliability gate: in reload, temporary offline, browser-crash resume, and timer-expiry-during-save scenarios, the last acknowledged autosave is restored and no acknowledged save is lost.
+- Accessibility: keyboard-safe problem navigation, timer announcements using aria-live, labeled answer controls.
+- Performance: autosave debounce interval stays within 400 to 800 ms idle window, answer-entry interaction latency stays at p95 <= 120 ms, and problem snapshots are fetched once on entry/resume with zero additional snapshot refetches per answer update.
+- Edge cases: start-time boundary, timer expiry during network lag, reconnect after browser crash, open competition with remaining attempts.
+
+## Security and Reliability Addendum (2026-04)
+
+- enforce team-attempt lifecycle authority strictly: only active team leaders may perform start/resume/save/submit trusted writes for team registrations
+- enforce autosave write-order protection so stale writes cannot overwrite newer acknowledged answers (`answer_write_conflict` deterministic outcome)
+- enforce submit idempotency with deterministic replay-safe outcomes under duplicate click/network retry behavior
+- enforce realtime subscription scope boundaries to active-attempt/competition context only; broad table subscriptions are prohibited
+- enforce immutable trusted deadline behavior (`effective_attempt_deadline_at`) across refresh/reconnect/interval transitions
+
+### Additional Verification Gates
+
+- security QA: unauthorized actors and post-submission write attempts are rejected deterministically
+- concurrency QA: multi-tab save/submit races preserve consistency and do not lose acknowledged writes
+- reliability QA: reconnect and resume paths preserve immutable deadline behavior and deterministic lock states
+
+## Git Branching
+
+- Branch from: `develop`
+- Merge back into: `develop`
+- Recommended atomic commits:
+  - `feat(arena): add trusted entry and attempt lifecycle helpers`
+  - `feat(arena): build timer navigation and problem shell`
+  - `feat(arena): add autosave and answer status handling`
+  - `test(arena): cover timing and resume helpers`
+- PR title template: `UR14-UR14c: arena entry, timing, autosave, and math answering`
+- PR description template:
+  - Summary: arena entry, timer, answer input, autosave, resume behavior
+  - Testing: lint, arena helper tests, manual live session checks
+  - Docs: DB doc updated for attempts, intervals, and answer-state rules
+
+## Definition of Done
+
+- participants can complete a competition attempt with deterministic persistence and resume behavior across reload/disconnect scenarios
+- timing is trusted and reconnect-safe
+- the arena state model is ready for anti-cheat and review flows

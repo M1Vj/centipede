@@ -32,6 +32,12 @@ const fraunces = Fraunces({
 
 import { createClient } from "@/lib/supabase/server";
 import { type AuthProfile, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
+import { cookies } from "next/headers";
+import {
+  getSessionVersionCookieValue,
+  isSessionStale,
+  isSessionVersionSchemaError,
+} from "@/lib/auth/session";
 
 async function AuthHydrator({
   children,
@@ -46,16 +52,36 @@ async function AuthHydrator({
 
   let profile: AuthProfile | null = null;
   if (user) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
-      .select(PROFILE_SELECT_FIELDS)
+      .select(`${PROFILE_SELECT_FIELDS}, session_version`)
       .eq("id", user.id)
       .maybeSingle();
-    profile = data as AuthProfile | null;
+    let nextProfile = data as (AuthProfile & { session_version?: number | null }) | null;
+
+    if (error && isSessionVersionSchemaError(error)) {
+      const { data: fallbackData } = await supabase
+        .from("profiles")
+        .select(PROFILE_SELECT_FIELDS)
+        .eq("id", user.id)
+        .maybeSingle<AuthProfile>();
+      nextProfile = (fallbackData as (AuthProfile & { session_version?: number | null }) | null) ?? null;
+    }
+
+    const cookieStore = await cookies();
+    const sessionVersion = getSessionVersionCookieValue(cookieStore);
+
+    if (!isSessionStale(nextProfile, { sessionVersion })) {
+      profile = nextProfile;
+    }
   }
 
   return (
-    <AuthProvider initialUser={user} initialSession={session} initialProfile={profile}>
+    <AuthProvider
+      initialUser={profile ? user : null}
+      initialSession={profile ? session : null}
+      initialProfile={profile}
+    >
       {children}
     </AuthProvider>
   );
@@ -69,7 +95,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
       <body className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
@@ -109,7 +135,13 @@ export default function RootLayout({
                   <footer className="border-t border-border/70 bg-background/60">
                     <div className="shell flex flex-col gap-3 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                       <p>Foundation branch: layout, theme, and Supabase-ready app shell.</p>
-                      <p>Built with Next.js, Tailwind CSS, Shadcn UI, and Supabase.</p>
+                      <p className="flex flex-wrap gap-4">
+                        <span>Built with Next.js, Tailwind CSS, Shadcn UI, and Supabase.</span>
+                        <span className="flex gap-3">
+                          <ProgressLink href="/privacy" className="hover:text-foreground">Privacy</ProgressLink>
+                          <ProgressLink href="/terms" className="hover:text-foreground">Terms</ProgressLink>
+                        </span>
+                      </p>
                     </div>
                   </footer>
                 </div>

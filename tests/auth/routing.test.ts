@@ -27,6 +27,34 @@ describe("getAuthRedirect", () => {
         hasCompletedProfile: false,
       }),
     ).toBeNull();
+    expect(
+      getAuthRedirect({
+        pathname: "/privacy",
+        isAuthenticated: false,
+        hasCompletedProfile: false,
+      }),
+    ).toBeNull();
+    expect(
+      getAuthRedirect({
+        pathname: "/terms",
+        isAuthenticated: false,
+        hasCompletedProfile: false,
+      }),
+    ).toBeNull();
+    expect(
+      getAuthRedirect({
+        pathname: "/organizer/apply",
+        isAuthenticated: false,
+        hasCompletedProfile: false,
+      }),
+    ).toBeNull();
+    expect(
+      getAuthRedirect({
+        pathname: "/organizer/status",
+        isAuthenticated: false,
+        hasCompletedProfile: false,
+      }),
+    ).toBeNull();
   });
 
   test("redirects authenticated users with incomplete profiles to completion", () => {
@@ -64,6 +92,28 @@ describe("getAuthRedirect", () => {
         hasCompletedProfile: true,
       }),
     ).toBe("/mathlete");
+  });
+
+  test("allows authenticated users to open forgot-password", () => {
+    expect(
+      getAuthRedirect({
+        pathname: "/auth/forgot-password",
+        isAuthenticated: true,
+        hasCompletedProfile: true,
+        role: "organizer",
+      }),
+    ).toBeNull();
+  });
+
+  test("allows authenticated users to open session-replaced", () => {
+    expect(
+      getAuthRedirect({
+        pathname: "/auth/session-replaced",
+        isAuthenticated: true,
+        hasCompletedProfile: true,
+        role: "mathlete",
+      }),
+    ).toBeNull();
   });
 
   test("redirects authenticated users on the home page to their dashboards", () => {

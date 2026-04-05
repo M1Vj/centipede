@@ -22,14 +22,10 @@ import type { AuthProfile } from "@/lib/auth/profile";
 
 type ProfileCompletionFormProps = {
   profile: AuthProfile | null;
-  userEmail: string;
-  userId: string;
 };
 
 export function ProfileCompletionForm({
   profile,
-  userEmail,
-  userId,
 }: ProfileCompletionFormProps) {
 
   const { refreshProfile } = useAuth();
@@ -63,11 +59,8 @@ export function ProfileCompletionForm({
         setTimeout(() => reject(new Error("Request timed out")), 15000)
       );
 
-      console.log("[ProfileForm] Calling Server Action saveProfile...");
       const result = (await Promise.race([
         saveProfile({
-          userId,
-          email: userEmail,
           fullName,
           school,
           gradeLevel,
@@ -75,9 +68,6 @@ export function ProfileCompletionForm({
         timeoutPromise,
       ])) as { success: boolean; profile: AuthProfile };
 
-      console.log("[ProfileForm] Server Action resolved:", result);
-
-      // 1. Determine target based on the result from the Server Action
       const freshRole = result.profile?.role || profile?.role || "mathlete";
       const target =
         freshRole === "admin"
@@ -86,15 +76,9 @@ export function ProfileCompletionForm({
           ? "/organizer"
           : "/mathlete";
 
-      console.log("[ProfileForm] Redirecting to:", target);
-
-      // 2. Refresh local state in the background (best effort)
       void refreshProfile();
-
-      // 3. HARD REDIRECT to bypass any client-side routing/state issues
       window.location.replace(target);
     } catch (nextError: unknown) {
-      console.error("[ProfileForm] Caught error:", nextError);
       setStatus({
         message: getErrorMessage(nextError, "Unable to save profile."),
         type: "error",
