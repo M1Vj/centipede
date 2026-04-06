@@ -11,7 +11,12 @@ import {
   CardSkeletonList,
   DetailSectionSkeleton,
 } from "@/components/ui/feedback-skeletons";
-import { ChartColumnIncreasing, ClipboardList, Settings, Users } from "lucide-react";
+import {
+  ChartColumnIncreasing,
+  ClipboardList,
+  Library,
+  Settings,
+} from "lucide-react";
 import { ProgressLink } from "@/components/ui/progress-link";
 
 async function getWorkspaceContext() {
@@ -32,10 +37,10 @@ const organizerCards = [
     href: "/organizer/settings",
   },
   {
-    icon: Users,
-    title: "Status readiness",
-    description: "Confirm application status and onboarding handoff through secure lookup.",
-    href: "/organizer/status",
+    icon: Library,
+    title: "Problem banks",
+    description: "Create and maintain reusable banks with math authoring, imports, and problem-level workflows.",
+    href: "/organizer/problem-bank",
   },
 ];
 
@@ -53,7 +58,7 @@ const organizerStatShell = [
   {
     label: "Problem banks",
     value: "0",
-    hint: "Authoring modules begin in branch 06.",
+    hint: "Authoring modules are now active in branch 06.",
   },
 ];
 

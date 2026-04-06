@@ -18,7 +18,14 @@ async function BanksList() {
   const { data: banks, error } = await admin
     .from("problem_banks")
     .select(`
-      *,
+      id,
+      name,
+      description,
+      organizer_id,
+      is_default_bank,
+      is_visible_to_organizers,
+      created_at,
+      updated_at,
       profiles!problem_banks_organizer_id_fkey (full_name, organization),
       problems (count)
     `)
@@ -40,38 +47,51 @@ async function BanksList() {
 
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {banks.map((bank) => (
-        <Card key={bank.id} className="surface-card border-border/60 overflow-hidden flex flex-col">
-          <CardHeader className="pb-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Library className="size-5" />
+      {banks.map((bank) => {
+        const organizerProfile = Array.isArray(bank.profiles)
+          ? bank.profiles[0]
+          : bank.profiles;
+
+        return (
+          <Card key={bank.id} className="surface-card border-border/60 overflow-hidden flex flex-col">
+            <CardHeader className="pb-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Library className="size-5" />
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  {bank.is_default_bank ? (
+                    <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-widest">
+                      Default
+                    </Badge>
+                  ) : null}
+                  <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-widest">
+                    {bank.problems?.[0]?.count || 0} Problems
+                  </Badge>
+                </div>
               </div>
-              <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-widest">
-                {bank.problems?.[0]?.count || 0} Problems
-              </Badge>
-            </div>
-            <CardTitle className="text-xl font-bold mt-4 line-clamp-1">{bank.name}</CardTitle>
-            <p className="text-xs text-muted-foreground line-clamp-2 mt-1 min-h-[2rem]">
-              {bank.description || "No description provided."}
-            </p>
-          </CardHeader>
-          <CardContent className="mt-auto pt-4 border-t border-border/40">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
-              <User className="size-3" />
-              <span className="font-medium text-foreground">{bank.profiles?.full_name}</span>
-              <span className="opacity-50">•</span>
-              <span className="truncate">{bank.profiles?.organization || "Independent"}</span>
-            </div>
-            <Button asChild variant="outline" size="sm" className="w-full gap-2">
-              <ProgressLink href={`/admin/problem-banks/${bank.id}`}>
-                Moderate Bank
-                <ArrowRight className="size-3" />
-              </ProgressLink>
-            </Button>
-          </CardContent>
-        </Card>
-      ))}
+              <CardTitle className="text-xl font-bold mt-4 line-clamp-1">{bank.name}</CardTitle>
+              <p className="text-xs text-muted-foreground line-clamp-2 mt-1 min-h-[2rem]">
+                {bank.description || "No description provided."}
+              </p>
+            </CardHeader>
+            <CardContent className="mt-auto pt-4 border-t border-border/40">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
+                <User className="size-3" />
+                <span className="font-medium text-foreground">{organizerProfile?.full_name}</span>
+                <span className="opacity-50">•</span>
+                <span className="truncate">{organizerProfile?.organization || "Independent"}</span>
+              </div>
+              <Button asChild variant="outline" size="sm" className="w-full gap-2">
+                <ProgressLink href={`/admin/problem-banks/${bank.id}`}>
+                  Moderate Bank
+                  <ArrowRight className="size-3" />
+                </ProgressLink>
+              </Button>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
