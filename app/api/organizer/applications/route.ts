@@ -20,13 +20,16 @@ const KNOWN_SUBMISSION_ERRORS = new Set([
 
 function toSubmissionErrorPayload(error: unknown) {
   const message = getErrorMessage(error, "Unable to submit organizer application.");
+  const knownMessage = [...KNOWN_SUBMISSION_ERRORS].find(
+    (candidate) => message === candidate || message.includes(candidate),
+  );
 
-  if (KNOWN_SUBMISSION_ERRORS.has(message)) {
-    const status = message === "Organizer applications are temporarily unavailable. Please try again later."
+  if (knownMessage) {
+    const status = knownMessage === "Organizer applications are temporarily unavailable. Please try again later."
       ? 503
       : 400;
 
-    return { message, status };
+    return { message: knownMessage, status };
   }
 
   return {

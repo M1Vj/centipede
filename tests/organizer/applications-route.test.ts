@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { POST } from "@/app/api/organizer/applications/route";
 import { submitOrganizerApplication } from "@/lib/organizer/lifecycle";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 vi.mock("@/lib/organizer/lifecycle", () => ({
@@ -9,6 +10,10 @@ vi.mock("@/lib/organizer/lifecycle", () => ({
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
+}));
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(),
 }));
 
 function makeRequest(formData: FormData) {
@@ -34,6 +39,8 @@ function baseFormData() {
 describe("organizer applications route error handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    vi.mocked(createAdminClient).mockReturnValue(null as never);
 
     vi.mocked(createClient).mockResolvedValue({
       auth: {
