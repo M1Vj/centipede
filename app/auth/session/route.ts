@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { rotateSessionVersionForUser } from "@/lib/auth/session";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type SessionPayload = {
   accessToken: string;
@@ -57,7 +58,12 @@ export async function POST(request: Request) {
 
   const response = NextResponse.json({ ok: true });
   try {
-    await rotateSessionVersionForUser(supabase, user.id, response);
+    const adminClient = createAdminClient();
+    if (adminClient) {
+      await rotateSessionVersionForUser(adminClient, user.id, response);
+    } else {
+      await rotateSessionVersionForUser(supabase, user.id, response);
+    }
   } catch {
     return NextResponse.json({ error: "Unable to refresh session." }, { status: 500 });
   }

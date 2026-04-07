@@ -1,9 +1,14 @@
 import { describe, expect, test, vi } from "vitest";
 import { POST as rotateSessionPost } from "@/app/auth/session/route";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
+}));
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(),
 }));
 
 function makeRequest(body?: unknown) {
@@ -16,6 +21,8 @@ function makeRequest(body?: unknown) {
 
 describe("auth session rotation route", () => {
   test("rotates the session version and persists the cookie", async () => {
+    vi.mocked(createAdminClient).mockReturnValue(null);
+
     const rpc = vi.fn().mockResolvedValue({ data: 5, error: null });
     const client = {
       auth: {
@@ -34,6 +41,8 @@ describe("auth session rotation route", () => {
   });
 
   test("hydrates the server session from access and refresh tokens", async () => {
+    vi.mocked(createAdminClient).mockReturnValue(null);
+
     const rpc = vi.fn().mockResolvedValue({ data: 3, error: null });
     const getUser = vi.fn().mockResolvedValue({ data: { user: null } });
     const setSession = vi.fn().mockResolvedValue({
@@ -66,6 +75,8 @@ describe("auth session rotation route", () => {
   });
 
   test("returns unauthorized when there is no authenticated user", async () => {
+    vi.mocked(createAdminClient).mockReturnValue(null);
+
     const client = {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
@@ -80,6 +91,8 @@ describe("auth session rotation route", () => {
   });
 
   test("still succeeds when rotation RPC is unavailable", async () => {
+    vi.mocked(createAdminClient).mockReturnValue(null);
+
     const client = {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }),
@@ -98,6 +111,8 @@ describe("auth session rotation route", () => {
   });
 
   test("returns server error when rotation fails for non-schema reasons", async () => {
+    vi.mocked(createAdminClient).mockReturnValue(null);
+
     const client = {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }),
