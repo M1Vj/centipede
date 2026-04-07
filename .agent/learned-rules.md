@@ -104,6 +104,34 @@ FR14.5 answer-key contract is default-on: new competitions must initialize `answ
 
 Organizer lifecycle handlers must tolerate under-migrated databases where branch-05 RPCs or organizer intake/status columns are missing. Prefer trusted fallback reads or writes when safe, and otherwise return non-disclosing lookup outcomes or user-friendly temporary-unavailable messages instead of raw DB errors or 500s.
 
+### 3.10
+
+MathLive outside-interaction handlers must treat any `math-field` host, MathLive menu, or MathLive keyboard node in the event path as in-editor interaction, and document-level pointer or Escape handlers must be scoped to the currently focused field instance to prevent cross-instance focus and menu interference.
+
+### 3.11
+
+When switching between MathLive fields, blurred hosts can retain stale `.ML__focused` markers that visually duplicate carets. Blur handling must clear stale focus markers on non-focused hosts and avoid redundant cross-host programmatic focus calls that reintroduce dual-caret artifacts.
+
+### 3.12
+
+MathLive mode/symbol control buttons must not steal DOM focus from their owning math field. Control pointer interactions should preserve editor focus and only the active host may retain `.ML__focused` markers after field switches.
+
+### 3.13
+
+Outside text selection must remain functional while a MathLive field is focused. Do not force immediate blur on non-focusable pointer targets; defer blur until pointerup and skip blur when a non-collapsed selection exists.
+
+### 3.14
+
+MathLive spacebar behavior in math mode must not switch the field into text mode. Use native `mathModeSpace` with a math spacing command (for example `\\:`) instead of custom key handlers that insert `\\text{ }`.
+
+### 3.15
+
+Do not apply custom selection-color overrides to MathLive text mode. Keep default MathLive selection styling so text mode and math mode remain visually consistent.
+
+### 3.16
+
+Apply only a subtle light-blue custom tint for MathLive text-token differentiation (text vs math), while still keeping selection colors at MathLive defaults.
+
 ## 4. Workflow Rules
 
 ### 4.1
