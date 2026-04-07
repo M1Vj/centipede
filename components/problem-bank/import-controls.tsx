@@ -14,6 +14,12 @@ type ImportSummary = {
   insertedRows: number;
   failedRows: number;
   rowErrors: Array<{ rowNumber: number; reason: string }>;
+  groupedRowErrors: Array<{
+    signature: string;
+    reason: string;
+    count: number;
+    sampleRows: number[];
+  }>;
 };
 
 interface ImportControlsProps {
@@ -34,6 +40,43 @@ function toErrorMessage(payload: Record<string, unknown> | null): string {
   }
 
   return "Import request failed.";
+}
+
+function groupRowErrors(rowErrors: Array<{ rowNumber: number; reason: string }>) {
+  const groups = new Map<
+    string,
+    {
+      signature: string;
+      reason: string;
+      count: number;
+      sampleRows: number[];
+    }
+  >();
+
+  for (const rowError of rowErrors) {
+    const normalizedReason = rowError.reason.trim() || "Unknown import error.";
+    const signature = normalizedReason.toLowerCase();
+    const existing = groups.get(signature);
+
+    if (!existing) {
+      groups.set(signature, {
+        signature,
+        reason: normalizedReason,
+        count: 1,
+        sampleRows: [rowError.rowNumber],
+      });
+      continue;
+    }
+
+    existing.count += 1;
+    if (existing.sampleRows.length < 5) {
+      existing.sampleRows.push(rowError.rowNumber);
+    }
+  }
+
+  return Array.from(groups.values()).sort(
+    (left, right) => right.count - left.count || left.reason.localeCompare(right.reason),
+  );
 }
 
 export function ImportControls({ bankId }: ImportControlsProps) {
@@ -107,13 +150,16 @@ export function ImportControls({ bankId }: ImportControlsProps) {
         return;
       }
 
+      const parsedRowErrors = Array.isArray(summaryPayload.rowErrors)
+        ? (summaryPayload.rowErrors as Array<{ rowNumber: number; reason: string }>)
+        : [];
+
       setSummary({
         totalRows: Number(summaryPayload.totalRows ?? 0),
         insertedRows: Number(summaryPayload.insertedRows ?? 0),
         failedRows: Number(summaryPayload.failedRows ?? 0),
-        rowErrors: Array.isArray(summaryPayload.rowErrors)
-          ? (summaryPayload.rowErrors as Array<{ rowNumber: number; reason: string }>).slice(0, 50)
-          : [],
+        rowErrors: parsedRowErrors.slice(0, 50),
+        groupedRowErrors: groupRowErrors(parsedRowErrors),
       });
 
       setStatus({
@@ -199,13 +245,18 @@ export function ImportControls({ bankId }: ImportControlsProps) {
               <p className="text-muted-foreground">Inserted rows: {summary.insertedRows}</p>
               <p className="text-muted-foreground">Failed rows: {summary.failedRows}</p>
 
-              {summary.rowErrors.length > 0 ? (
+              {summary.groupedRowErrors.length > 0 ? (
                 <div className="mt-3 space-y-1">
-                  <p className="font-semibold text-foreground">Row errors</p>
+                  <p className="font-semibold text-foreground">Grouped row errors</p>
                   <ul className="space-y-1 text-xs text-muted-foreground">
-                    {summary.rowErrors.map((rowError) => (
-                      <li key={`${rowError.rowNumber}-${rowError.reason}`}>
-                        Row {rowError.rowNumber}: {rowError.reason}
+                    {summary.groupedRowErrors.map((rowErrorGroup) => (
+                      <li key={rowErrorGroup.signature}>
+                        {rowErrorGroup.reason} ({rowErrorGroup.count})
+                        {rowErrorGroup.sampleRows.length > 0
+                          ? ` - rows ${rowErrorGroup.sampleRows.join(", ")}${
+                              rowErrorGroup.count > rowErrorGroup.sampleRows.length ? ", ..." : ""
+                            }`
+                          : ""}
                       </li>
                     ))}
                   </ul>

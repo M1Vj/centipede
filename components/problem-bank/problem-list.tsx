@@ -1,12 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ProgressLink } from "@/components/ui/progress-link";
-import { KatexPreview } from "@/components/math-editor/katex-preview";
+import { ProblemPreviewCard } from "@/components/problem-bank/problem-preview-card";
 import {
   PROBLEM_DIFFICULTIES,
   PROBLEM_TYPES,
@@ -122,45 +119,16 @@ export function ProblemList({
             const detailHref = problemHrefBase ? `${problemHrefBase}/${problem.id}` : null;
 
             return (
-              <Card key={problem.id} className="border-border/60 bg-background/90 shadow-sm">
-                <CardHeader className="space-y-3 pb-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary" className="text-[10px] uppercase tracking-widest">
-                      {problem.type}
-                    </Badge>
-                    <Badge variant="outline" className="text-[10px] uppercase tracking-widest">
-                      {problem.difficulty}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      Updated {new Date(problem.updatedAt).toLocaleString()}
-                    </span>
-                  </div>
-                  <CardTitle className="text-base">Problem Preview</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <KatexPreview latex={problem.contentLatex} label="Prompt" displayMode={false} />
-                  {problem.tags.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {problem.tags.map((tag) => (
-                        <span
-                          key={`${problem.id}-${tag}`}
-                          className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                  {detailHref ? (
-                    <ProgressLink
-                      href={detailHref}
-                      className="inline-block text-sm font-semibold text-primary underline-offset-4 hover:underline"
-                    >
-                      {editable ? "Edit problem" : "View problem"}
-                    </ProgressLink>
-                  ) : null}
-                </CardContent>
-              </Card>
+              <ProblemPreviewCard
+                key={problem.id}
+                type={problem.type}
+                difficulty={problem.difficulty}
+                tags={problem.tags}
+                contentLatex={problem.contentLatex}
+                updatedAt={problem.updatedAt}
+                actionHref={detailHref ?? undefined}
+                actionLabel={detailHref ? (editable ? "Edit problem" : "View problem") : undefined}
+              />
             );
           })}
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -12,7 +12,7 @@ import {
   Upload,
 } from "lucide-react";
 import { MathliveField } from "@/components/math-editor/mathlive-field";
-import { KatexPreview } from "@/components/math-editor/katex-preview";
+import { ProblemPreviewCard } from "@/components/problem-bank/problem-preview-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,7 +33,6 @@ import {
   type ProblemOption,
   type ProblemType,
 } from "@/lib/problem-bank/types";
-import { validateCanonicalAcceptedAnswers } from "@/lib/problem-bank/validation";
 
 interface ProblemFormInitialValue {
   id: string;
@@ -113,6 +112,27 @@ function normalizeTagsToInput(tags: string[]): string {
   return tags.join(" | ");
 }
 
+function normalizeTagsFromInput(tagsInput: string): string[] {
+  const seen = new Set<string>();
+
+  return tagsInput
+    .split("|")
+    .map((tag) => tag.trim())
+    .filter((tag) => {
+      if (!tag) {
+        return false;
+      }
+
+      const normalized = tag.toLowerCase();
+      if (seen.has(normalized)) {
+        return false;
+      }
+
+      seen.add(normalized);
+      return true;
+    });
+}
+
 function optionListForType(type: ProblemType, options: ProblemOption[] | null): ProblemOption[] {
   if (type === "tf") {
     if (!options || options.length < 2) {
@@ -133,6 +153,25 @@ function optionListForType(type: ProblemType, options: ProblemOption[] | null): 
   return [];
 }
 
+function toAcceptedAnswerEntries(initialValue: ProblemFormInitialValue | null | undefined): string[] {
+  if (!initialValue) {
+    return [""];
+  }
+
+  if (
+    (initialValue.type === "numeric" || initialValue.type === "identification") &&
+    "acceptedAnswers" in initialValue.answerKey
+  ) {
+    const entries = initialValue.answerKey.acceptedAnswers.filter(
+      (entry) => typeof entry === "string" && entry.trim().length > 0,
+    );
+
+    return entries.length > 0 ? entries : [""];
+  }
+
+  return [""];
+}
+
 export function validateProblemDraft(input: ProblemWriteInput) {
   return validateProblemWriteInput(input);
 }
@@ -144,7 +183,15 @@ export function ProblemForm({
   editable = true,
 }: ProblemFormProps) {
   const router = useRouter();
+  const isMountedRef = useRef(true);
   const isEditMode = Boolean(initialValue?.id);
+
+  useEffect(
+    () => () => {
+      isMountedRef.current = false;
+    },
+    [],
+  );
 
   const [type, setType] = useState<ProblemType>(initialValue?.type ?? "mcq");
   const [difficulty, setDifficulty] = useState<ProblemDifficulty>(
@@ -175,12 +222,8 @@ export function ProblemForm({
       ? initialValue.answerKey.acceptedAnswer
       : "true",
   );
-  const [acceptedAnswersInput, setAcceptedAnswersInput] = useState(
-    initialValue?.type === "numeric" && "acceptedAnswers" in initialValue.answerKey
-      ? initialValue.answerKey.acceptedAnswers.join(" | ")
-      : initialValue?.type === "identification" && "acceptedAnswers" in initialValue.answerKey
-        ? initialValue.answerKey.acceptedAnswers.join(" | ")
-        : "",
+  const [acceptedAnswerEntries, setAcceptedAnswerEntries] = useState<string[]>(
+    toAcceptedAnswerEntries(initialValue),
   );
 
   const [isSaving, setIsSaving] = useState(false);
@@ -193,18 +236,16 @@ export function ProblemForm({
 
   const { statusId, statusRef } = useFormStatusRegion(status.message);
 
-  const acceptedAnswersPreview = useMemo(() => {
-    if (type !== "numeric" && type !== "identification") {
-      return [] as string[];
-    }
+  const acceptedAnswersInput = useMemo(
+    () =>
+      acceptedAnswerEntries
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0)
+        .join(" | "),
+    [acceptedAnswerEntries],
+  );
 
-    const preview = validateCanonicalAcceptedAnswers(acceptedAnswersInput);
-    if (!preview.ok || !preview.value) {
-      return [] as string[];
-    }
-
-    return preview.value;
-  }, [acceptedAnswersInput, type]);
+  const previewTags = useMemo(() => normalizeTagsFromInput(tagsInput), [tagsInput]);
 
   const canSubmit = editable && !isSaving && !isDeleting && !isUploadingAsset;
 
@@ -223,6 +264,31 @@ export function ProblemForm({
     if (nextType === "tf" && tfOptions.length < 2) {
       setTfOptions(DEFAULT_TF_OPTIONS);
     }
+
+    if ((nextType === "numeric" || nextType === "identification") && acceptedAnswerEntries.length === 0) {
+      setAcceptedAnswerEntries([""]);
+    }
+  };
+
+  const updateAcceptedAnswerEntry = (index: number, nextValue: string) => {
+    setAcceptedAnswerEntries((current) =>
+      current.map((entry, entryIndex) => (entryIndex === index ? nextValue : entry)),
+    );
+  };
+
+  const addAcceptedAnswerEntry = () => {
+    setAcceptedAnswerEntries((current) => [...current, ""]);
+  };
+
+  const removeAcceptedAnswerEntry = (index: number) => {
+    setAcceptedAnswerEntries((current) => {
+      if (current.length <= 1) {
+        return [""];
+      }
+
+      const nextEntries = current.filter((_, entryIndex) => entryIndex !== index);
+      return nextEntries.length > 0 ? nextEntries : [""];
+    });
   };
 
   const addMcqOption = () => {
@@ -335,6 +401,10 @@ export function ProblemForm({
 
       const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
 
+      if (!isMountedRef.current) {
+        return;
+      }
+
       if (!response.ok) {
         setStatus({
           type: "error",
@@ -363,19 +433,19 @@ export function ProblemForm({
         type: "success",
         message: isEditMode ? "Problem saved." : "Problem created.",
       });
-
-      if (!isEditMode && typeof problem?.id === "string") {
-        router.push(`${backHref}/problem/${problem.id}`);
-      } else {
-        router.refresh();
-      }
+      router.push(backHref);
+      router.refresh();
     } catch {
-      setStatus({
-        type: "error",
-        message: "Unable to save problem right now.",
-      });
+      if (isMountedRef.current) {
+        setStatus({
+          type: "error",
+          message: "Unable to save problem right now.",
+        });
+      }
     } finally {
-      setIsSaving(false);
+      if (isMountedRef.current) {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -408,6 +478,10 @@ export function ProblemForm({
 
       const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
 
+      if (!isMountedRef.current) {
+        return;
+      }
+
       if (!response.ok) {
         setStatus({
           type: "error",
@@ -423,12 +497,16 @@ export function ProblemForm({
       router.push(backHref);
       router.refresh();
     } catch {
-      setStatus({
-        type: "error",
-        message: "Unable to delete this problem right now.",
-      });
+      if (isMountedRef.current) {
+        setStatus({
+          type: "error",
+          message: "Unable to delete this problem right now.",
+        });
+      }
     } finally {
-      setIsDeleting(false);
+      if (isMountedRef.current) {
+        setIsDeleting(false);
+      }
     }
   };
 
@@ -454,6 +532,10 @@ export function ProblemForm({
       });
 
       const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+
+      if (!isMountedRef.current) {
+        return;
+      }
 
       if (!response.ok) {
         setStatus({
@@ -481,6 +563,10 @@ export function ProblemForm({
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ imagePath, bankId }),
         });
+
+        if (!isMountedRef.current) {
+          return;
+        }
       }
 
       setImagePath(nextImagePath);
@@ -490,12 +576,16 @@ export function ProblemForm({
         message: "Image uploaded.",
       });
     } catch {
-      setStatus({
-        type: "error",
-        message: "Unable to upload image right now.",
-      });
+      if (isMountedRef.current) {
+        setStatus({
+          type: "error",
+          message: "Unable to upload image right now.",
+        });
+      }
     } finally {
-      setIsUploadingAsset(false);
+      if (isMountedRef.current) {
+        setIsUploadingAsset(false);
+      }
     }
   };
 
@@ -521,6 +611,10 @@ export function ProblemForm({
 
       const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
 
+      if (!isMountedRef.current) {
+        return;
+      }
+
       if (!response.ok) {
         setStatus({
           type: "error",
@@ -536,12 +630,16 @@ export function ProblemForm({
         message: "Image removed.",
       });
     } catch {
-      setStatus({
-        type: "error",
-        message: "Unable to remove image right now.",
-      });
+      if (isMountedRef.current) {
+        setStatus({
+          type: "error",
+          message: "Unable to remove image right now.",
+        });
+      }
     } finally {
-      setIsUploadingAsset(false);
+      if (isMountedRef.current) {
+        setIsUploadingAsset(false);
+      }
     }
   };
 
@@ -609,29 +707,41 @@ export function ProblemForm({
               />
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4">
               <MathliveField
                 id="problem-content"
                 label="Problem content (LaTeX)"
                 value={contentLatex}
                 onChange={setContentLatex}
+                preferredInitialMode="text"
                 placeholder="Enter problem statement"
                 disabled={!editable}
+                showPreviewToggle={true}
                 required
               />
-              <KatexPreview latex={contentLatex} label="Prompt preview" />
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4">
               <MathliveField
                 id="problem-explanation"
                 label="Explanation (LaTeX)"
                 value={explanationLatex}
                 onChange={setExplanationLatex}
+                preferredInitialMode="text"
                 placeholder="Explain the expected solving path"
                 disabled={!editable}
+                showPreviewToggle={true}
               />
-              <KatexPreview latex={explanationLatex} label="Explanation preview" />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Mathlete-visible preview</p>
+              <ProblemPreviewCard
+                type={type}
+                difficulty={difficulty}
+                tags={previewTags}
+                contentLatex={contentLatex}
+              />
             </div>
 
             {type === "mcq" ? (
@@ -651,11 +761,13 @@ export function ProblemForm({
                       aria-label={`Option id ${option.id}`}
                       disabled={!editable}
                     />
-                    <Input
+                    <MathliveField
+                      id={`mcq-option-label-${option.id}`}
+                      label={`Option label ${option.id} (MathLive / LaTeX)`}
                       value={option.label}
-                      onChange={(event) => updateMcqOption(option.id, "label", event.target.value)}
-                      aria-label={`Option label ${option.id}`}
+                      onChange={(nextValue) => updateMcqOption(option.id, "label", nextValue)}
                       disabled={!editable}
+                      showPreviewToggle={true}
                     />
                     <label className="inline-flex items-center gap-2 text-sm">
                       <Checkbox
@@ -686,13 +798,18 @@ export function ProblemForm({
               <div className="space-y-3 rounded-xl border border-border/60 p-4">
                 <p className="text-sm font-semibold">True/False options</p>
                 {tfOptions.map((option) => (
-                  <div key={option.id} className="grid gap-2 md:grid-cols-[minmax(0,0.25fr)_minmax(0,1fr)]">
-                    <Input value={option.id} disabled readOnly />
-                    <Input
-                      value={option.label}
-                      onChange={(event) => updateTfOptionLabel(option.id, event.target.value)}
-                      disabled={!editable}
-                    />
+                  <div key={option.id} className="grid gap-3 rounded-lg border border-border/50 p-3">
+                    <div className="grid gap-2 md:grid-cols-[minmax(0,0.25fr)_minmax(0,1fr)]">
+                      <Input value={option.id} disabled readOnly aria-label={`TF option id ${option.id}`} />
+                      <MathliveField
+                        id={`tf-option-label-${option.id}`}
+                        label={`TF option label ${option.id} (MathLive / LaTeX)`}
+                        value={option.label}
+                        onChange={(nextValue) => updateTfOptionLabel(option.id, nextValue)}
+                        disabled={!editable}
+                        showPreviewToggle={true}
+                      />
+                    </div>
                   </div>
                 ))}
                 <div className="grid gap-2">
@@ -715,29 +832,53 @@ export function ProblemForm({
 
             {type === "numeric" || type === "identification" ? (
               <div className="space-y-3 rounded-xl border border-border/60 p-4">
-                <Label htmlFor="accepted-answers">Accepted answers (pipe delimited)</Label>
-                <Input
-                  id="accepted-answers"
-                  value={acceptedAnswersInput}
-                  onChange={(event) => setAcceptedAnswersInput(event.target.value)}
-                  placeholder="x^2 | x^{2}"
-                  disabled={!editable}
-                />
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold">Accepted answers (MathLive / LaTeX)</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={addAcceptedAnswerEntry}
+                    disabled={!editable}
+                  >
+                    <Plus className="size-4" />
+                    Add answer
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Answers are normalized and deduplicated before save.
+                  Use the MathLive editor for each row. You can type LaTeX directly or use math mode with symbol shortcuts.
                 </p>
-                {acceptedAnswersPreview.length > 0 ? (
-                  <div className="grid gap-2">
-                    {acceptedAnswersPreview.map((answer) => (
-                      <KatexPreview
-                        key={answer}
-                        latex={answer}
-                        label="Accepted answer preview"
-                        displayMode={false}
+                <div className="space-y-3">
+                  {acceptedAnswerEntries.map((entry, index) => (
+                    <div key={`accepted-answer-${index}`} className="space-y-2 rounded-lg border border-border/50 p-3">
+                      <MathliveField
+                        id={`accepted-answer-${index}`}
+                        label={`Accepted answer ${index + 1} (MathLive / LaTeX)`}
+                        value={entry}
+                        onChange={(nextValue) => updateAcceptedAnswerEntry(index, nextValue)}
+                        preferredInitialMode="math"
+                        placeholder="x^2 or \\frac{1}{2}"
+                        disabled={!editable}
+                        showPreviewToggle={true}
                       />
-                    ))}
-                  </div>
-                ) : null}
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeAcceptedAnswerEntry(index)}
+                          disabled={!editable || acceptedAnswerEntries.length <= 1}
+                        >
+                          <Trash2 className="size-4" />
+                          Remove answer
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Answers are normalized and deduplicated before save. Use multiple answer rows for equivalent forms.
+                </p>
               </div>
             ) : null}
 
