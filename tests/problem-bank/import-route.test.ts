@@ -1,3 +1,4 @@
+import Papa from "papaparse";
 import { describe, expect, test, vi } from "vitest";
 import { GET, POST } from "@/app/api/organizer/problem-banks/import/route";
 import { createClient } from "@/lib/supabase/server";
@@ -83,12 +84,29 @@ describe("problem-bank import route", () => {
       },
     });
 
-    const response = await GET();
+    const response = (await GET()) as Response;
     const text = await response.text();
+    const parsedCsv = Papa.parse<Record<string, string>>(text, {
+      header: true,
+      skipEmptyLines: true,
+    });
+    const typeCounts = parsedCsv.data.reduce<Record<string, number>>((counts, row) => {
+      const type = row.type ?? "";
+      counts[type] = (counts[type] ?? 0) + 1;
+      return counts;
+    }, {});
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/csv");
     expect(text).toContain("type,difficulty,tags,content_latex");
+    expect(parsedCsv.errors).toEqual([]);
+    expect(parsedCsv.data).toHaveLength(8);
+    expect(typeCounts).toMatchObject({
+      mcq: 2,
+      tf: 2,
+      numeric: 2,
+      identification: 2,
+    });
   });
 
   test("POST returns completed summary for idempotent replay", async () => {
@@ -139,7 +157,7 @@ describe("problem-bank import route", () => {
         },
         body: formData,
       }),
-    );
+    ) as Response;
 
     const payload = (await response.json()) as {
       code: string;
@@ -207,7 +225,7 @@ describe("problem-bank import route", () => {
         },
         body: formData,
       }),
-    );
+    ) as Response;
 
     const payload = (await response.json()) as { code: string };
 

@@ -32,6 +32,14 @@ interface RowParseOutcome {
   errors: ProblemImportParseError[];
 }
 
+function normalizeImportedLatexText(value: string): string {
+  return value.trim();
+}
+
+function normalizeImportedOptionLabel(value: string): string {
+  return normalizeImportedLatexText(value);
+}
+
 function readCell(row: RawImportRow, column: ProblemImportTemplateColumn): string {
   const value = row[column];
   return typeof value === "string" ? value : "";
@@ -155,8 +163,8 @@ function parseRow(rawRow: RawImportRow, rowNumber: number): RowParseOutcome {
     type: typeValue,
     difficulty: difficultyValue,
     tags: parsePipeDelimitedTags(readCell(rawRow, "tags")),
-    contentLatex: readCell(rawRow, "content_latex").trim(),
-    explanationLatex: readCell(rawRow, "explanation_latex").trim(),
+    contentLatex: normalizeImportedLatexText(readCell(rawRow, "content_latex")),
+    explanationLatex: normalizeImportedLatexText(readCell(rawRow, "explanation_latex")),
     authoringNotes: readCell(rawRow, "authoring_notes").trim(),
     imagePath: readCell(rawRow, "image_path").trim() || null,
   };
@@ -213,7 +221,10 @@ function parseRow(rawRow: RawImportRow, rowNumber: number): RowParseOutcome {
         answerKey: {
           correctOptionIds: mcqValidation.value.correctOptionIds,
         },
-        options: mcqValidation.value.options,
+        options: mcqValidation.value.options.map((option) => ({
+          ...option,
+          label: normalizeImportedOptionLabel(option.label),
+        })),
       },
       errors: [],
     };
@@ -271,7 +282,10 @@ function parseRow(rawRow: RawImportRow, rowNumber: number): RowParseOutcome {
         answerKey: {
           acceptedAnswer: trueFalseValidation.value,
         },
-        options: optionValidation.value,
+        options: optionValidation.value.map((option) => ({
+          ...option,
+          label: normalizeImportedOptionLabel(option.label),
+        })),
       },
       errors: [],
     };

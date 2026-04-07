@@ -230,19 +230,17 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 
-  const { data, error } = await supabase
+  const { error, count } = await supabase
     .from("problem_banks")
-    .update({ is_deleted: true })
+    .update({ is_deleted: true }, { count: "exact" })
     .eq("id", bankId)
-    .eq("updated_at", expectedUpdatedAt)
-    .select(BANK_SELECT_COLUMNS)
-    .maybeSingle();
+    .eq("updated_at", expectedUpdatedAt);
 
   if (error) {
     return jsonDatabaseError(error);
   }
 
-  if (!data) {
+  if (!count) {
     const { data: staleCheck, error: staleCheckError } = await supabase
       .from("problem_banks")
       .select(BANK_SELECT_COLUMNS)
@@ -268,13 +266,11 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 
-  const bank = normalizeProblemBankRow(data);
-  if (!bank) {
-    return jsonError("operation_failed", "Bank delete could not be completed.", 500);
-  }
-
   return jsonOk({
     code: "deleted",
-    bank,
+    bank: {
+      ...currentBank,
+      isDeleted: true,
+    },
   });
 }

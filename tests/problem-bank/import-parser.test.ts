@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 import { describe, expect, test } from "vitest";
 import { parseProblemBankImportCsv } from "@/lib/problem-bank/import-parser";
+import { getProblemBankImportTemplateCsv } from "@/lib/problem-bank/import-template";
 import { PROBLEM_IMPORT_TEMPLATE_COLUMNS } from "@/lib/problem-bank/types";
 
 function buildCsv(rows: string[][]): string {
@@ -11,6 +12,130 @@ function buildCsv(rows: string[][]): string {
 }
 
 describe("problem-bank import parser", () => {
+  test("keeps plain text content and option labels intact", () => {
+    const csv = buildCsv([
+      [
+        "mcq",
+        "easy",
+        "geometry",
+        "A square has four equal sides.",
+        JSON.stringify({ correctOptionIds: ["opt_a"] }),
+        JSON.stringify([
+          { id: "opt_a", label: "Choice A" },
+          { id: "opt_b", label: "Choice B" },
+        ]),
+        "Select the correct statement",
+        "",
+        "",
+      ],
+    ]);
+
+    const result = parseProblemBankImportCsv(csv);
+
+    expect(result.failedRows).toBe(0);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]?.contentLatex).toBe("A square has four equal sides.");
+    expect(result.rows[0]?.explanationLatex).toBe("Select the correct statement");
+
+    const mcqRow = result.rows[0];
+    expect(mcqRow?.type).toBe("mcq");
+    if (mcqRow?.type === "mcq") {
+      expect(mcqRow.options[0]?.label).toBe("Choice A");
+      expect(mcqRow.options[1]?.label).toBe("Choice B");
+    }
+  });
+
+  test("preserves balanced dollar delimiters from mixed text and math CSV cells", () => {
+    const csv = buildCsv([
+      [
+        "mcq",
+        "easy",
+        "algebra",
+        "Solve for $x$: $7x + 3 = 10$",
+        JSON.stringify({ correctOptionIds: ["opt_a"] }),
+        JSON.stringify([
+          { id: "opt_a", label: "$1$" },
+          { id: "opt_b", label: "$2$" },
+        ]),
+        "Subtract 3 from both sides to get $7x = 7$. Divide by 7 to find $x = 1$.",
+        "",
+        "",
+      ],
+    ]);
+
+    const result = parseProblemBankImportCsv(csv);
+
+    expect(result.failedRows).toBe(0);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]?.contentLatex).toBe("Solve for $x$: $7x + 3 = 10$");
+    expect(result.rows[0]?.explanationLatex).toBe(
+      "Subtract 3 from both sides to get $7x = 7$. Divide by 7 to find $x = 1$.",
+    );
+
+    const mcqRow = result.rows[0];
+    expect(mcqRow?.type).toBe("mcq");
+    if (mcqRow?.type === "mcq") {
+      expect(mcqRow.options[0]?.label).toBe("$1$");
+      expect(mcqRow.options[1]?.label).toBe("$2$");
+    }
+  });
+
+  test("preserves spacing when CSV inline math delimiters are adjacent to text", () => {
+    const csv = buildCsv([
+      [
+        "mcq",
+        "easy",
+        "number-theory",
+        "Compute$11 \\pmod{12}$.",
+        JSON.stringify({ correctOptionIds: ["opt_a"] }),
+        JSON.stringify([
+          { id: "opt_a", label: "Between$x$and$y$" },
+          { id: "opt_b", label: "Neither" },
+        ]),
+        "Between$x$and$y$, choose$y$.",
+        "",
+        "",
+      ],
+    ]);
+
+    const result = parseProblemBankImportCsv(csv);
+
+    expect(result.failedRows).toBe(0);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]?.contentLatex).toBe("Compute$11 \\pmod{12}$.");
+    expect(result.rows[0]?.explanationLatex).toBe("Between$x$and$y$, choose$y$.");
+
+    const mcqRow = result.rows[0];
+    expect(mcqRow?.type).toBe("mcq");
+    if (mcqRow?.type === "mcq") {
+      expect(mcqRow.options[0]?.label).toBe("Between$x$and$y$");
+      expect(mcqRow.options[1]?.label).toBe("Neither");
+    }
+  });
+
+  test("does not rewrite content that already contains explicit LaTeX commands", () => {
+    const csv = buildCsv([
+      [
+        "numeric",
+        "average",
+        "fractions",
+        "$16 \\pmod{12}$",
+        "1",
+        "",
+        "\\text{already has spacing}",
+        "",
+        "",
+      ],
+    ]);
+
+    const result = parseProblemBankImportCsv(csv);
+
+    expect(result.failedRows).toBe(0);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]?.contentLatex).toBe("$16 \\pmod{12}$");
+    expect(result.rows[0]?.explanationLatex).toBe("\\text{already has spacing}");
+  });
+
   test("parses valid rows while reporting row-level errors for invalid rows", () => {
     const csv = buildCsv([
       [
@@ -190,5 +315,26 @@ describe("problem-bank import parser", () => {
         (error) => error.rowNumber === 2 && error.reason.startsWith("type:"),
       ),
     ).toBe(true);
+  });
+
+  test("parses bundled CSV template examples without validation failures", () => {
+    const csv = getProblemBankImportTemplateCsv();
+
+    const result = parseProblemBankImportCsv(csv);
+    const typeCounts = result.rows.reduce<Record<string, number>>((counts, row) => {
+      counts[row.type] = (counts[row.type] ?? 0) + 1;
+      return counts;
+    }, {});
+
+    expect(result.totalRows).toBe(8);
+    expect(result.insertedRowsCandidate).toBe(8);
+    expect(result.failedRows).toBe(0);
+    expect(result.errors).toEqual([]);
+    expect(typeCounts).toEqual({
+      mcq: 2,
+      tf: 2,
+      numeric: 2,
+      identification: 2,
+    });
   });
 });

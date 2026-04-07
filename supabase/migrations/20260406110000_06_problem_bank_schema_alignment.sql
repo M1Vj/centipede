@@ -23,16 +23,6 @@ alter table public.problem_banks
 alter table public.problems
   alter column updated_at set default timezone('utc', now());
 
-alter table public.problem_banks
-  alter column is_default_bank set not null,
-  alter column is_visible_to_organizers set not null,
-  alter column updated_at set not null;
-
-alter table public.problems
-  alter column content_latex set not null,
-  alter column answer_key_json set not null,
-  alter column updated_at set not null;
-
 update public.problem_banks
 set is_default_bank = coalesce(is_default_bank, false),
     is_visible_to_organizers = coalesce(is_visible_to_organizers, false),
@@ -54,6 +44,16 @@ where content_latex is null
    or answer_key_json is null
    or (image_path is null and image_url is not null)
    or updated_at is null;
+
+alter table public.problem_banks
+  alter column is_default_bank set not null,
+  alter column is_visible_to_organizers set not null,
+  alter column updated_at set not null;
+
+alter table public.problems
+  alter column content_latex set not null,
+  alter column answer_key_json set not null,
+  alter column updated_at set not null;
 
 create or replace function public.problem_bank_set_updated_at()
 returns trigger

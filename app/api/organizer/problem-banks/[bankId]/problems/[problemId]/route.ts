@@ -15,6 +15,7 @@ import {
   requireSameOriginMutation,
   requireProblemBankActor,
 } from "@/app/api/organizer/problem-banks/_shared";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 interface RouteContext {
@@ -119,6 +120,16 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   if (!canMutateBank(actor, bankResult.bank)) {
     return jsonError("forbidden", "You do not have permission for this operation.", 403);
+  }
+
+  const currentProblemResult = await fetchProblem(supabase, bankId, problemId);
+  if ("response" in currentProblemResult) {
+    return currentProblemResult.response;
+  }
+
+  const currentProblem = currentProblemResult.problem;
+  if (currentProblem.isDeleted) {
+    return jsonError("not_found", "Requested resource was not found.", 404);
   }
 
   const payload = (await request.json().catch(() => null)) as
@@ -248,6 +259,16 @@ export async function DELETE(request: Request, context: RouteContext) {
     return jsonError("forbidden", "You do not have permission for this operation.", 403);
   }
 
+  const currentProblemResult = await fetchProblem(supabase, bankId, problemId);
+  if ("response" in currentProblemResult) {
+    return currentProblemResult.response;
+  }
+
+  const currentProblem = currentProblemResult.problem;
+  if (currentProblem.isDeleted) {
+    return jsonError("not_found", "Requested resource was not found.", 404);
+  }
+
   const payload = (await request.json().catch(() => null)) as
     | { expectedUpdatedAt?: unknown }
     | null;
@@ -269,20 +290,20 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 
-  const { data, error } = await supabase
+  const mutationClient = createAdminClient() ?? supabase;
+
+  const { error, count } = await mutationClient
     .from("problems")
-    .update({ is_deleted: true })
+    .update({ is_deleted: true }, { count: "exact" })
     .eq("bank_id", bankId)
     .eq("id", problemId)
-    .eq("updated_at", expectedUpdatedAt)
-    .select(PROBLEM_SELECT_COLUMNS)
-    .maybeSingle();
+    .eq("updated_at", expectedUpdatedAt);
 
   if (error) {
     return jsonDatabaseError(error);
   }
 
-  if (!data) {
+  if (!count) {
     const staleCheck = await fetchProblem(supabase, bankId, problemId);
     if ("response" in staleCheck) {
       return staleCheck.response;
@@ -298,13 +319,11 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 
-  const problem = normalizeProblemRow(data);
-  if (!problem) {
-    return jsonError("operation_failed", "Problem delete could not be completed.", 500);
-  }
-
   return jsonOk({
     code: "deleted",
-    problem,
+    problem: {
+      ...currentProblem,
+      isDeleted: true,
+    },
   });
 }
