@@ -6,6 +6,7 @@ import { AuthProvider } from "@/components/providers/auth-provider";
 import { NavigationFeedbackProvider } from "@/components/providers/navigation-feedback-provider";
 import { ProgressLink } from "@/components/ui/progress-link";
 import "./globals.css";
+import "katex/dist/katex.min.css";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`

@@ -134,3 +134,46 @@ Unblocks: scoring rules, competition wizard, default-bank moderation, answer-key
 - admins can manage the shared default bank through the same core tooling
 - imported and manually-authored problems use the same validation model
 - later competition features can trust the authoring data contract
+
+## Implementation Notes (2026-04-06)
+
+- Completed schema and policy hardening via:
+  - `supabase/migrations/20260406110000_06_problem_bank_schema_alignment.sql`
+  - `supabase/migrations/20260406113000_06_problem_bank_rls_storage_import.sql`
+- Implemented organizer and admin authoring surfaces:
+  - organizer pages under `app/organizer/problem-bank/**`
+  - admin default-bank authoring page at `app/admin/problem-banks/[id]/problem/[problemId]/page.tsx`
+  - reusable authoring and list UI under `components/problem-bank/**`
+  - MathLive + KaTeX integration under `components/math-editor/**` and `app/layout.tsx`
+- Implemented API surface and guards:
+  - routes under `app/api/organizer/problem-banks/**`
+  - idempotent import token handling and same-origin mutation checks
+  - private `problem-assets` object-key contract enforcement
+- Implemented shared problem-bank domain helpers:
+  - `lib/problem-bank/types.ts`
+  - `lib/problem-bank/normalization.ts`
+  - `lib/problem-bank/validation.ts`
+  - `lib/problem-bank/import-template.ts`
+  - `lib/problem-bank/import-parser.ts`
+  - `lib/problem-bank/api-helpers.ts`
+- Added and updated branch verification tests:
+  - `tests/problem-bank/*.test.ts`
+  - `tests/ui/problem-form.test.tsx`
+  - `tests/organizer/applications-route.test.ts`
+
+### Verification Evidence (2026-04-06)
+
+- `npm run supabase:status` ✅
+- `npm run supabase:db:reset` ✅
+- `npm run lint` ✅
+- `npm run test` ✅ (28 files, 114 tests)
+- `npm run build` ✅
+
+### Local Atomic Commits (feature/problem-bank)
+
+- `768fc64` — feat(problem-bank): align schema and RLS contracts
+- `16d71fe` — feat(problem-bank): add normalization and import helpers
+- `61ef2c6` — feat(problem-bank): add organizer api and import flow
+- `0c9afc4` — feat(problem-bank): add organizer and admin authoring ui
+- `4b9ac67` — fix(admin): enrich problem-bank soft-delete audit metadata
+- `9827679` — fix(organizer): normalize known application error mapping

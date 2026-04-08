@@ -8,11 +8,24 @@ export default async function OrganizerLayout({
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+
+  let isOrganizer = false;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle<{ role: string }>();
+    isOrganizer = profile?.role === "organizer";
+  }
   
   // Decide which navigation items to show based on login status
   const navItems = user 
     ? [
         { href: "/organizer", label: "Dashboard" },
+        ...(isOrganizer
+          ? [{ href: "/organizer/problem-bank", label: "Problem Banks" }]
+          : []),
         { href: "/organizer/profile", label: "Profile" },
         { href: "/organizer/settings", label: "Settings" },
       ]

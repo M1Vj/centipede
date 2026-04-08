@@ -145,7 +145,7 @@ Purpose: organizer-owned and admin-managed collections of reusable problems.
 
 Indexes: `(organizer_id, is_deleted)`, `(is_default_bank, is_visible_to_organizers)`.
 
-Constraints: `description` must not exceed 200 words; active published competitions may still reference problems from soft-deleted banks because competition snapshots are immutable.
+Constraints: active owner-scoped names are unique by `lower(name)` where `is_deleted = false`; `name` must be non-blank; `description` must not exceed 200 words; `is_default_bank`, `is_visible_to_organizers`, and `updated_at` are non-null; hard delete is blocked by trigger and all delete semantics are soft-delete only (`is_deleted = true`); problem create, update, and delete writes must touch parent bank `updated_at` via trigger to keep bank recency deterministic; active published competitions may still reference problems from soft-deleted banks because competition snapshots are immutable.
 
 ### `problems`
 
@@ -171,7 +171,30 @@ Purpose: authored problem records before they are snapshotted into competitions.
 
 Indexes: `problems_bank_idx`, gin on `tags`.
 
-Constraints: multiple choice options must be unique; answer payload shape depends on `type`.
+Constraints: `content_latex`, `answer_key_json`, and `updated_at` are non-null; `answer_key_json` must be a JSON object when present; `options_json` is required and must be an array for `mcq` and `tf`; canonical and legacy compatibility columns are synchronized by trigger; hard delete is blocked by trigger and all delete semantics are soft-delete only (`is_deleted = true`); multiple choice options must be unique and answer payload shape depends on `type`.
+
+### `problem_import_jobs`
+
+Purpose: deterministic import idempotency and row-level failure ledger for bulk problem ingestion.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid pk |
+| `bank_id` | uuid fk -> problem_banks.id |
+| `actor_id` | uuid fk -> profiles.id |
+| `idempotency_token` | text | caller-provided replay key |
+| `status` | text | `processing`, `completed`, `failed` |
+| `total_rows` | integer |
+| `inserted_rows` | integer |
+| `failed_rows` | integer |
+| `row_errors_json` | jsonb | canonical per-row import errors |
+| `created_at` | timestamptz |
+| `updated_at` | timestamptz |
+| `completed_at` | timestamptz nullable |
+
+Indexes: unique `(bank_id, actor_id, idempotency_token)`, `(actor_id, created_at desc)`.
+
+Constraints: `idempotency_token` must be non-blank; `status` is constrained to `processing|completed|failed`; row counters are non-negative; `row_errors_json` must be a JSON array; `updated_at` refreshes through trigger.
 
 ### `teams`
 
@@ -642,7 +665,7 @@ Purpose: platform-wide configuration owned by admins.
 Purpose: storage is part of the backend contract, not an implementation afterthought.
 
 - `organizer-assets`: organizer-application logos only, persisted by canonical key `organizer-applications/{application_id}/logo.{ext}`. `organizer_applications.logo_path` stores this path only (never a public URL). Uploads use trusted signed flows and raw objects are not broadly public.
-- `problem-assets`: organizer and admin problem images referenced by authored problems and immutable competition snapshots.
+- `problem-assets`: private organizer and admin problem images referenced by authored problems and immutable competition snapshots. Canonical key format is `{owner_uuid}/{bank_uuid}/{asset_uuid}.{ext}` where ext is `jpg|jpeg|png|webp`; max size is 5 MB; allowed MIME values are `image/jpeg`, `image/png`, `image/webp`.
 - `exports`: generated CSV or XLSX files; objects are private and only retrievable by the requester, competition owner, or admin through trusted handlers.
 
 ## Section C - ERD Explanation
@@ -672,7 +695,8 @@ Purpose: storage is part of the backend contract, not an implementation aftertho
 - `profiles`: self read/update for profile fields; admin can read/update all; no self role escalation; self-service updates cannot mutate login identifier/email
 - `organizer_applications`: public applicants submit through a trusted route or RPC; applicant status is exposed only through secure lookup tokens or trusted handlers; admins can review pending rows and write terminal decisions through trusted decision paths. Normal flows preserve reviewed-row immutability (`approved`/`rejected` rows are not mutable or deletable). Hard delete is allowed only through an explicit trusted spam or fraud moderation path with mandatory `admin_audit_logs` write (actor, reason, `application_id`, evidence metadata) before deletion.
 - `organizer_application_communications`: trusted service-role workflows only; no anon or authenticated direct access. Rows are idempotency artifacts for organizer lifecycle communication dispatch and retry metadata.
-- `problem_banks` and `problems`: owner organizer or admin-managed default-bank owner can mutate; other organizers cannot read private banks; admins can read all and mutate only the default bank or explicitly moderated records through trusted server paths
+- `problem_banks` and `problems`: owner organizer or admin-managed default-bank owner can mutate; other organizers cannot read private banks; admins can read all and mutate only the default bank or explicitly moderated records through trusted server paths; organizer reads for shared defaults require `is_default_bank = true`, `is_visible_to_organizers = true`, and active organizer profile status
+- `problem_import_jobs`: actors read and mutate only their own import jobs (`actor_id = auth.uid()`), and insert or update is additionally scoped to writable banks (owner non-default bank or admin-managed default bank)
 - `teams`, `team_memberships`, `team_invitations`: members can read their own team data; leaders can invite/remove within policy; admins can read all for moderation
 - `competitions`: organizers can manage their own competitions, but hard delete is allowed only for `draft` through trusted draft-delete paths; organizer pause is allowed only for open competitions and must let active attempts finish while blocking new starts; scheduled competition pause is reserved for trusted admin force-pause moderation; admins can read all and may perform non-draft moderation delete only for abuse or fraud through approved server actions with explicit audit reason; mathletes read only published competitions they are eligible to see
 - `competition_problems`: organizers and admins for their competitions; participants only after the competition starts, and only through joins scoped to an owned registration or attempt. `answer_key_snapshot_json` and explanation fields must additionally enforce `answer_key_visibility` (`after_end`: competition ended and viewer has owned registration/attempt context, `hidden`: never visible to participants)
@@ -722,6 +746,12 @@ Required trusted functions:
 - `claim_organizer_application_communication(application_id, message_type, recipient_email, payload_json)` reserves a single lifecycle communication attempt for deterministic `(application_id, message_type)` dispatch
 - `mark_organizer_application_communication_sent(communication_id, provider_message_id)` marks lifecycle communication sent exactly once
 - `mark_organizer_application_communication_failed(communication_id, error)` records deterministic failure metadata for retry visibility
+- `problem_bank_set_updated_at()` trigger helper for `problem_banks` and `problems` `updated_at` maintenance
+- `touch_problem_bank_updated_at_from_problem()` trigger helper that updates parent `problem_banks.updated_at` after `problems` insert, update, or delete writes
+- `refresh_problem_import_jobs_updated_at()` trigger helper for `problem_import_jobs.updated_at` maintenance
+- `sync_problem_legacy_and_canonical_columns()` trigger helper that keeps legacy problem columns aligned with canonical branch-06 columns (`content_latex`, `options_json`, `answer_key_json`, `image_path`)
+- `prevent_problem_bank_hard_delete()` trigger helper that blocks hard deletes on `problem_banks` and `problems`
+- `problem_assets_path_owner_id(name)`, `problem_assets_path_bank_id(name)`, and `problem_assets_path_is_valid(name)` storage-policy helpers for canonical object-key validation and ownership extraction
 - `snapshot_competition_problems(competition_id)`
 - `publish_competition(competition_id, request_idempotency_token)`
 - `start_competition(competition_id, request_idempotency_token)` trusted scheduled-competition promotion from `published` to `live` with idempotent event logging at the server-authoritative start boundary
@@ -777,6 +807,10 @@ Required trusted functions:
 - Competition pause-scope policy: organizer pause applies only to open competitions and must allow active attempts to finish while blocking new starts; trusted admin incident force-pause may target any live competition type through moderation paths.
 - Competition end-transition policy: `live` or `paused` to `ended` is owned by trusted lifecycle handlers with deterministic split rules: scheduled competitions end through `transition_source = 'system_timer'` only at the server boundary, while open competitions may end through organizer-only `transition_source = 'trusted_manual_action'`; admin live-support controls do not include manual end; end transitions are idempotent and must not duplicate state effects.
 - Description cap policy: `problem_banks.description` is capped at 200 words and `competitions.description` is capped at 500 words through DB checks and trusted write validation.
+- Problem-bank soft-delete policy: hard delete on `problem_banks` and `problems` is forbidden by trigger; delete semantics are implemented as deterministic `is_deleted = true` updates.
+- Problem-assets path policy: `storage.objects.name` for bucket `problem-assets` must match canonical `{owner_uuid}/{bank_uuid}/{asset_uuid}.{ext}` format and is validated by helper functions before insert or delete policy checks.
+- Problem-assets ownership policy: organizer writes are allowed only when `owner_uuid = auth.uid()` and bank ownership scope matches writable non-default bank access; admin writes are allowed only for default-bank objects whose owner segment matches `problem_banks.organizer_id`.
+- Problem-import idempotency policy: `problem_import_jobs` deduplicates by unique key `(bank_id, actor_id, idempotency_token)`; replay requests must return the existing deterministic summary instead of inserting duplicate rows.
 - Registration withdrawal policy: scheduled withdrawals require `now() < competitions.start_time` and zero attempt rows; open withdrawals require zero attempt rows; any attempt row blocks participant withdrawal.
 - Ineligible re-entry policy: `competition_registrations.status = 'ineligible'` may transition back to `registered` only through trusted re-validation while registration timing still allows entry.
 - Dispute-create timing policy: dispute creation is allowed only after competition end (`ended` or `archived`) and only for owned attempt/registration context.
@@ -830,7 +864,7 @@ Recommended migration order (branch-aligned canonical):
 4. `04-admin-user-management`: `admin_audit_logs`, `system_settings`, organizer decision RPCs
 5. `05b-deferred-foundation-and-auth`: trusted auth-session and anonymization hardening helpers, plus compatibility backfills for previously merged auth or organizer artifacts when evidence shows drift
 6. `05-organizer-registration`: status lookup expiry contract and organizer activation-provisioning helpers
-7. `06-problem-bank`: `problem_banks`, `problems`
+7. `06-problem-bank`: `problem_banks`, `problems`, `problem_import_jobs`, and `problem-assets` storage policy helpers
 8. `07-scoring-system`: scoring enums and scoring RPC contracts
 9. `08-competition-wizard`: `competitions`, `competition_problems`, initial `competition_events` schema for lifecycle or audit events, publish or start or end or archive lifecycle helpers, and trusted draft-delete path
 10. `09-team-management`: `teams`, `team_memberships`, `team_invitations`
@@ -896,7 +930,7 @@ Risky migrations and backfills:
 | `04-admin-user-management` | `admin_audit_logs`, `system_settings` | `approve_organizer_application`, `reject_organizer_application` |
 | `05b-deferred-foundation-and-auth` | compatibility hardening only; no new canonical domain table, with explicit corrective backfills allowed for pre-existing auth or organizer drift, including `profiles.session_version`, organizer-application contact/consent/status-lookup fields, and safe anonymization | `rotate_session_version`, `update_mathlete_profile_settings`, `anonymize_user_account` |
 | `05-organizer-registration` | organizer onboarding storage-path contract; profile link activation contract for approved applications; status-lookup token expiry contract; `organizer_status_lookup_throttle` rate-limit ledger; `organizer_application_communications` lifecycle dispatch ledger | `insert_organizer_application_intake`, `lookup_organizer_application_status`, `provision_organizer_account`, `claim_organizer_application_communication`, `mark_organizer_application_communication_sent`, `mark_organizer_application_communication_failed` |
-| `06-problem-bank` | `problem_banks`, `problems` | trusted bank or problem mutation helpers as needed |
+| `06-problem-bank` | `problem_banks`, `problems`, `problem_import_jobs` | `problem_bank_set_updated_at`, `touch_problem_bank_updated_at_from_problem`, `refresh_problem_import_jobs_updated_at`, `sync_problem_legacy_and_canonical_columns`, `prevent_problem_bank_hard_delete`, and `problem_assets_path_*` helper functions |
 | `07-scoring-system` | scoring enums and scoring contract definitions only (no `competitions` table columns introduced in branch `07`) | `grade_attempt`, `recalculate_competition_scores`, `refresh_leaderboard_entries` |
 | `08-competition-wizard` | `competitions`, `competition_problems`, initial `competition_events` (lifecycle or audit baseline) | `snapshot_competition_problems`, `publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `delete_draft_competition` |
 | `09-team-management` | `teams`, `team_memberships`, `team_invitations` | `transfer_team_leadership` |
@@ -911,6 +945,8 @@ Risky migrations and backfills:
 
 ## Section H - Change Log
 
+- 2026-04-08: Added canonical trigger contract `touch_problem_bank_updated_at_from_problem()` so parent `problem_banks.updated_at` refreshes on `problems` insert, update, and delete writes, including bank reassignment updates.
+- 2026-04-06: Synced branch `06-problem-bank` migration artifacts into canonical contracts: schema alignment constraints and triggers for `problem_banks` and `problems`, private `problem-assets` storage key and policy model, and `problem_import_jobs` idempotency-ledger schema with RLS scope.
 - 2026-04-03: Rebuilt the database, ERD, and RLS plan for the full greenfield Mathwiz Arena implementation. Added missing tables for team invites, attempt intervals, disputes, notifications, exports, system settings, competition snapshots, and realtime-aware operational flows.
 - 2026-04-03: Clarified the trusted session invalidation contract, storage-bucket ownership rules, explicit announcement and event access rules, and the missing live-control plus dispute-resolution RPC surface.
 - 2026-04-03: Made source-of-truth contracts deterministic for status lookup sanitization/negative paths, team-format invariants, description caps, registration withdrawal timing, non-pausing interval timing, anti-cheat metadata keys, untouched-answer counting, accepted-dispute correction artifacts, and leaderboard/export visibility boundaries.

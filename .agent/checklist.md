@@ -9,7 +9,7 @@ Use this checklist as the canonical execution order for the rebuild. Mark an ite
 - [x] 04-admin-user-management -> feature/admin-user-management (merge: b9d7890, PR #10)
 - [X] 05b-deferred-foundation-and-auth -> feature/deferred-technical-debt
 - [X] 05-organizer-registration -> feature/organizer-registration
-- [ ] 06-problem-bank -> feature/problem-bank
+- [ ] 06-problem-bank -> feature/problem-bank (implemented and verified on branch commits 768fc64..9827679; pending merge to develop)
 - [ ] 07-scoring-system -> feature/scoring-system
 - [ ] 08-competition-wizard -> feature/competition-wizard
 - [ ] 09-team-management -> feature/team-management
