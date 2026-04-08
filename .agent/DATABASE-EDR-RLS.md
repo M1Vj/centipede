@@ -145,7 +145,7 @@ Purpose: organizer-owned and admin-managed collections of reusable problems.
 
 Indexes: `(organizer_id, is_deleted)`, `(is_default_bank, is_visible_to_organizers)`.
 
-Constraints: active owner-scoped names are unique by `lower(name)` where `is_deleted = false`; `name` must be non-blank; `description` must not exceed 200 words; `is_default_bank`, `is_visible_to_organizers`, and `updated_at` are non-null; hard delete is blocked by trigger and all delete semantics are soft-delete only (`is_deleted = true`); active published competitions may still reference problems from soft-deleted banks because competition snapshots are immutable.
+Constraints: active owner-scoped names are unique by `lower(name)` where `is_deleted = false`; `name` must be non-blank; `description` must not exceed 200 words; `is_default_bank`, `is_visible_to_organizers`, and `updated_at` are non-null; hard delete is blocked by trigger and all delete semantics are soft-delete only (`is_deleted = true`); problem create, update, and delete writes must touch parent bank `updated_at` via trigger to keep bank recency deterministic; active published competitions may still reference problems from soft-deleted banks because competition snapshots are immutable.
 
 ### `problems`
 
@@ -747,6 +747,7 @@ Required trusted functions:
 - `mark_organizer_application_communication_sent(communication_id, provider_message_id)` marks lifecycle communication sent exactly once
 - `mark_organizer_application_communication_failed(communication_id, error)` records deterministic failure metadata for retry visibility
 - `problem_bank_set_updated_at()` trigger helper for `problem_banks` and `problems` `updated_at` maintenance
+- `touch_problem_bank_updated_at_from_problem()` trigger helper that updates parent `problem_banks.updated_at` after `problems` insert, update, or delete writes
 - `refresh_problem_import_jobs_updated_at()` trigger helper for `problem_import_jobs.updated_at` maintenance
 - `sync_problem_legacy_and_canonical_columns()` trigger helper that keeps legacy problem columns aligned with canonical branch-06 columns (`content_latex`, `options_json`, `answer_key_json`, `image_path`)
 - `prevent_problem_bank_hard_delete()` trigger helper that blocks hard deletes on `problem_banks` and `problems`
@@ -929,7 +930,7 @@ Risky migrations and backfills:
 | `04-admin-user-management` | `admin_audit_logs`, `system_settings` | `approve_organizer_application`, `reject_organizer_application` |
 | `05b-deferred-foundation-and-auth` | compatibility hardening only; no new canonical domain table, with explicit corrective backfills allowed for pre-existing auth or organizer drift, including `profiles.session_version`, organizer-application contact/consent/status-lookup fields, and safe anonymization | `rotate_session_version`, `update_mathlete_profile_settings`, `anonymize_user_account` |
 | `05-organizer-registration` | organizer onboarding storage-path contract; profile link activation contract for approved applications; status-lookup token expiry contract; `organizer_status_lookup_throttle` rate-limit ledger; `organizer_application_communications` lifecycle dispatch ledger | `insert_organizer_application_intake`, `lookup_organizer_application_status`, `provision_organizer_account`, `claim_organizer_application_communication`, `mark_organizer_application_communication_sent`, `mark_organizer_application_communication_failed` |
-| `06-problem-bank` | `problem_banks`, `problems`, `problem_import_jobs` | `problem_bank_set_updated_at`, `refresh_problem_import_jobs_updated_at`, `sync_problem_legacy_and_canonical_columns`, `prevent_problem_bank_hard_delete`, and `problem_assets_path_*` helper functions |
+| `06-problem-bank` | `problem_banks`, `problems`, `problem_import_jobs` | `problem_bank_set_updated_at`, `touch_problem_bank_updated_at_from_problem`, `refresh_problem_import_jobs_updated_at`, `sync_problem_legacy_and_canonical_columns`, `prevent_problem_bank_hard_delete`, and `problem_assets_path_*` helper functions |
 | `07-scoring-system` | scoring enums and scoring contract definitions only (no `competitions` table columns introduced in branch `07`) | `grade_attempt`, `recalculate_competition_scores`, `refresh_leaderboard_entries` |
 | `08-competition-wizard` | `competitions`, `competition_problems`, initial `competition_events` (lifecycle or audit baseline) | `snapshot_competition_problems`, `publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `delete_draft_competition` |
 | `09-team-management` | `teams`, `team_memberships`, `team_invitations` | `transfer_team_leadership` |
@@ -944,6 +945,7 @@ Risky migrations and backfills:
 
 ## Section H - Change Log
 
+- 2026-04-08: Added canonical trigger contract `touch_problem_bank_updated_at_from_problem()` so parent `problem_banks.updated_at` refreshes on `problems` insert, update, and delete writes, including bank reassignment updates.
 - 2026-04-06: Synced branch `06-problem-bank` migration artifacts into canonical contracts: schema alignment constraints and triggers for `problem_banks` and `problems`, private `problem-assets` storage key and policy model, and `problem_import_jobs` idempotency-ledger schema with RLS scope.
 - 2026-04-03: Rebuilt the database, ERD, and RLS plan for the full greenfield Mathwiz Arena implementation. Added missing tables for team invites, attempt intervals, disputes, notifications, exports, system settings, competition snapshots, and realtime-aware operational flows.
 - 2026-04-03: Clarified the trusted session invalidation contract, storage-bucket ownership rules, explicit announcement and event access rules, and the missing live-control plus dispute-resolution RPC surface.
