@@ -9,10 +9,24 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 
 | Release Code | Date Released |
 | ------------ | ------------- |
+| CP.010.005   | 2026-04-08    |
 | CP.010.004   | 2026-04-05    |
 | CP.010.003   | 2026-04-02    |
 | CP.010.002   | 2026-03-14    |
 | CP.010.001   | 2026-02-28    |
+
+---
+
+## CP.010.005 Release Notes
+
+- Aligned Problem Bank database schema and enforced row-level security (RLS) contracts.
+- Built reusable problem authoring UI with dynamic MathLive equation preview loops and template boundaries.
+- Integrated bulk CSV import workflows supported by underlying data normalization and deduplication handlers.
+- Hardened overall database constraints, client-side draft auto-save pipelines, image normalization routines, and optimistic concurrency patterns.
+
+Known Issues:
+
+- None at this time.
 
 ---
 
