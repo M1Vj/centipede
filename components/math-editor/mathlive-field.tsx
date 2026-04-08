@@ -53,6 +53,7 @@ const MATHLIVE_HOST_SELECTOR = "math-field";
 const NON_MATHLIVE_FOCUSABLE_SELECTOR =
   "input,textarea,select,button,[contenteditable=''],[contenteditable='true'],[tabindex]";
 const COMPLETE_VIRTUAL_KEYBOARD_LAYOUTS = ["numeric", "symbols", "alphabetic", "greek"] as const;
+const LATEX_CONTROL_SEQUENCE_PATTERN = /\\(?:[A-Za-z]+|[^A-Za-z\s])/;
 
 const TEXT_TOKEN_HIGHLIGHT_STYLE = {
   "--text-highlight-background-color": "hsl(var(--primary) / 0.1)",
@@ -214,6 +215,120 @@ function executeMathfieldCommand(
 
 function normalizeEditorMode(mode: MathfieldMode | undefined): EditorMode {
   return mode === "text" ? "text" : "math";
+}
+
+function hasLatexControlSequence(value: string): boolean {
+  return LATEX_CONTROL_SEQUENCE_PATTERN.test(value);
+}
+
+interface DollarDelimitedSegment {
+  inMath: boolean;
+  value: string;
+}
+
+const PROSE_SEGMENT_PATTERN = /[A-Za-z]{2,}/;
+
+function splitBalancedInlineDollarSegments(value: string): DollarDelimitedSegment[] | null {
+  const segments: DollarDelimitedSegment[] = [];
+  let buffer = "";
+  let inMath = false;
+  let sawDelimiter = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    const previousCharacter = index > 0 ? value[index - 1] : "";
+
+    if (character === "$" && previousCharacter !== "\\") {
+      sawDelimiter = true;
+      segments.push({
+        inMath,
+        value: buffer,
+      });
+      buffer = "";
+      inMath = !inMath;
+      continue;
+    }
+
+    buffer += character;
+  }
+
+  if (!sawDelimiter || inMath) {
+    return null;
+  }
+
+  segments.push({
+    inMath,
+    value: buffer,
+  });
+
+  return segments;
+}
+
+function hasProseTextOutsideMathSegments(segments: DollarDelimitedSegment[]): boolean {
+  return segments.some((segment) => !segment.inMath && PROSE_SEGMENT_PATTERN.test(segment.value));
+}
+
+function buildMixedLatexPasteContent(segments: DollarDelimitedSegment[]): string {
+  return segments.reduce<string>((result, segment) => {
+    if (!segment.value) {
+      return result;
+    }
+
+    if (segment.inMath) {
+      const mathValue = segment.value.trim();
+      return mathValue ? `${result}${mathValue}` : result;
+    }
+
+    return `${result}\\text{${escapeLatexTextForMathModePaste(segment.value)}}`;
+  }, "");
+}
+
+function escapeLatexTextForMathModePaste(value: string): string {
+  return value
+    .replace(/\\/g, "\\textbackslash{}")
+    .replace(/([{}#$%&_])/g, "\\$1")
+    .replace(/\^/g, "\\^{}")
+    .replace(/~/g, "\\~{}");
+}
+
+export function toMathModePasteContent(rawValue: string): string | null {
+  const normalizedValue = rawValue.replace(/\r\n?/g, "\n");
+  if (!normalizedValue.trim()) {
+    return null;
+  }
+
+  const balancedDollarSegments = splitBalancedInlineDollarSegments(normalizedValue);
+  if (balancedDollarSegments) {
+    if (!hasProseTextOutsideMathSegments(balancedDollarSegments)) {
+      return null;
+    }
+
+    const mixedLatex = buildMixedLatexPasteContent(balancedDollarSegments);
+    return mixedLatex || null;
+  }
+
+  if (!shouldInsertPastedTextModeContentInMathMode(normalizedValue)) {
+    return null;
+  }
+
+  return `\\text{${escapeLatexTextForMathModePaste(normalizedValue)}}`;
+}
+
+export function shouldInsertPastedTextModeContentInMathMode(rawValue: string): boolean {
+  const value = rawValue.replace(/\r\n?/g, "\n").trim();
+  if (!value) {
+    return false;
+  }
+
+  if (!/\s/.test(value)) {
+    return false;
+  }
+
+  if (hasLatexControlSequence(value)) {
+    return false;
+  }
+
+  return /[A-Za-z]{2,}/.test(value);
 }
 
 export function inferPreferredInitialModeFromValue(rawValue: string): EditorMode {
@@ -390,7 +505,7 @@ export function MathliveField({
   const [hasLoadError, setHasLoadError] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode>("math");
   const [isPreviewVisible, setIsPreviewVisible] = useState(false);
-  const [previewLatex, setPreviewLatex] = useState(value ?? "");
+  const previewLatex = value ?? "";
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -438,7 +553,6 @@ export function MathliveField({
 
     configureCompleteVirtualKeyboardLayouts();
 
-    field.smartMode = false;
     field.mathModeSpace = "\\:";
     field.mathVirtualKeyboardPolicy = "auto";
 
@@ -465,7 +579,6 @@ export function MathliveField({
     const handleInput = () => {
       const nextValue = readMathfieldValue(field);
       onChangeRef.current(nextValue);
-      setPreviewLatex(nextValue);
     };
 
     const handleModeChange = () => {
@@ -478,7 +591,37 @@ export function MathliveField({
       preferredModeRef.current = nextMode;
       field.defaultMode = nextMode;
       setEditorMode(nextMode);
-      setPreviewLatex(readMathfieldValue(field));
+    };
+
+    const handlePaste = (event: Event) => {
+      if (disabled) {
+        return;
+      }
+
+      if (normalizeEditorMode(field.mode) !== "math") {
+        return;
+      }
+
+      const clipboardText = (event as ClipboardEvent).clipboardData?.getData("text/plain") ?? "";
+      const latexText = toMathModePasteContent(clipboardText);
+      if (!latexText) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (typeof field.insert === "function") {
+        field.insert(latexText, {
+          mode: "math",
+        });
+      } else if (typeof field.executeCommand === "function") {
+        field.executeCommand(["insert", latexText]);
+      } else {
+        const nextValue = `${readMathfieldValue(field)}${latexText}`;
+        writeMathfieldValue(field, nextValue);
+      }
+
+      onChangeRef.current(readMathfieldValue(field));
     };
 
     const initialMode = resolvedInitialModeRef.current;
@@ -493,32 +636,31 @@ export function MathliveField({
     }
 
     setEditorMode(normalizeEditorMode(field.mode));
-    setPreviewLatex(readMathfieldValue(field));
 
     field.addEventListener("input", handleInput);
     field.addEventListener("change", handleInput);
     field.addEventListener("mode-change", handleModeChange);
+    field.addEventListener("paste", handlePaste);
 
     return () => {
       field.removeEventListener("input", handleInput);
       field.removeEventListener("change", handleInput);
       field.removeEventListener("mode-change", handleModeChange);
+      field.removeEventListener("paste", handlePaste);
       restoreKeyboardSinkFocus?.();
     };
-  }, [isReady]);
+  }, [disabled, isReady]);
 
   useEffect(() => {
     const normalizedValue = value ?? "";
     if (!isReady) {
       pendingExternalValueRef.current = normalizedValue;
-      setPreviewLatex(normalizedValue);
       return;
     }
 
     const field = fieldRef.current;
     if (!field) {
       pendingExternalValueRef.current = normalizedValue;
-      setPreviewLatex(normalizedValue);
       return;
     }
 
@@ -546,7 +688,6 @@ export function MathliveField({
       writeMathfieldValue(field, normalizedValue);
     }
 
-    setPreviewLatex(readMathfieldValue(field));
     pendingExternalValueRef.current = null;
   }, [isReady, preferredInitialMode, value]);
 
@@ -689,6 +830,30 @@ export function MathliveField({
         return;
       }
 
+      if (targetMathfieldHost === null) {
+        const peerRoot = pathEntries
+          .map((entry) =>
+            entry instanceof Element
+              ? entry.closest("[data-mathlive-root-for]")
+              : null,
+          )
+          .find((entry) => entry !== null) ?? null;
+
+        if (peerRoot instanceof HTMLElement) {
+          const peerId = peerRoot.getAttribute("data-mathlive-root-for");
+          const peerField = peerId
+            ? (document.getElementById(peerId) as MathfieldElement | null)
+            : null;
+
+          if (peerField && peerField !== field) {
+            suppressSinkFocusUntilRef.current = Date.now() + 900;
+            blurActiveMathfieldHost(field);
+            focusMathfieldHostWithRecovery(peerField);
+            return;
+          }
+        }
+      }
+
       const isMathfieldInteraction = pathEntries.some((entry) =>
         isMathfieldInteractionTarget(entry, field),
       );
@@ -784,7 +949,6 @@ export function MathliveField({
 
       const nextValue = readMathfieldValue(field);
       onChangeRef.current(nextValue);
-      setPreviewLatex(nextValue);
       field.focus();
     },
     [disabled],
@@ -804,6 +968,42 @@ export function MathliveField({
       focusMathfieldHost(field);
     });
   }, [disabled]);
+
+  const handleRootPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const field = fieldRef.current;
+      if (!field || disabled) {
+        return;
+      }
+
+      if (document.activeElement === field || field.matches(":focus-within")) {
+        return;
+      }
+
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLButtonElement
+      ) {
+        return;
+      }
+
+      if (target instanceof Element && target.closest("button,input,select,textarea")) {
+        return;
+      }
+
+      queueMicrotask(() => {
+        if (document.activeElement === field || field.matches(":focus-within")) {
+          return;
+        }
+
+        focusMathfieldHost(field);
+      });
+    },
+    [disabled],
+  );
 
   const handleControlPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -827,10 +1027,15 @@ export function MathliveField({
   );
 
   return (
-    <div ref={rootRef} className={cn("grid gap-2", className)}>
+    <div
+      ref={rootRef}
+      className={cn("grid min-w-0 gap-2", className)}
+      data-mathlive-root-for={id}
+      onPointerDown={handleRootPointerDown}
+    >
       <Label htmlFor={id}>{label}</Label>
       <div
-        className="rounded-md border border-input bg-background px-3 py-2 shadow-sm"
+        className="min-w-0 overflow-x-auto rounded-md border border-input bg-background px-3 py-2 shadow-sm"
         onPointerDown={handleEditorSurfacePointerDown}
       >
         <math-field
