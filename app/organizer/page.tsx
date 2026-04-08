@@ -18,6 +18,7 @@ import {
   Settings,
 } from "lucide-react";
 import { ProgressLink } from "@/components/ui/progress-link";
+import { createClient } from "@/lib/supabase/server";
 
 async function getWorkspaceContext() {
   return getProtectedWorkspaceContext({ requireRole: "organizer" });
@@ -64,6 +65,26 @@ const organizerStatShell = [
 
 async function OrganizerPageContent() {
   const { userEmail, profile } = await getWorkspaceContext();
+  const supabase = await createClient();
+
+  let problemBankCount = 0;
+  if (profile?.id) {
+    const { count, error } = await supabase
+      .from("problem_banks")
+      .select("id", { count: "exact", head: true })
+      .eq("organizer_id", profile.id)
+      .eq("is_deleted", false);
+
+    if (!error) {
+      problemBankCount = count ?? 0;
+    }
+  }
+
+  const organizerStats = organizerStatShell.map((stat) =>
+    stat.label === "Problem banks"
+      ? { ...stat, value: String(problemBankCount) }
+      : stat,
+  );
 
   return (
     <section className="shell py-14 md:py-20">
@@ -118,7 +139,7 @@ async function OrganizerPageContent() {
         <div className="grid gap-6">
           <Card className="border-border/60 bg-background/70 shadow-sm">
             <CardContent className="grid gap-4 p-5 sm:grid-cols-3">
-              {organizerStatShell.map(({ label, value, hint }) => (
+              {organizerStats.map(({ label, value, hint }) => (
                 <div key={label} className="rounded-xl border border-border/60 bg-background/80 p-4">
                   <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                     {label}

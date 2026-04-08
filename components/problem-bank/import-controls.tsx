@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Download, RefreshCcw, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,6 +81,7 @@ function groupRowErrors(rowErrors: Array<{ rowNumber: number; reason: string }>)
 }
 
 export function ImportControls({ bankId }: ImportControlsProps) {
+  const router = useRouter();
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [idempotencyToken, setIdempotencyToken] = useState(nextToken);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -170,6 +172,7 @@ export function ImportControls({ bankId }: ImportControlsProps) {
             : "Import completed.",
       });
       setIdempotencyToken(nextToken());
+      router.refresh();
     } catch {
       setStatus({
         type: "error",
