@@ -7,9 +7,18 @@ import {
   requireSameOriginMutation,
   requireProblemBankActor,
 } from "@/app/api/organizer/problem-banks/_shared";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MIME_TYPE_ALIASES = new Map([["image/jpg", "image/jpeg"]]);
+
+const MIME_TYPE_BY_EXTENSION: Record<string, "image/jpeg" | "image/png" | "image/webp"> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
 
 function extensionFromMimeType(mimeType: string): string | null {
   switch (mimeType) {
@@ -22,6 +31,22 @@ function extensionFromMimeType(mimeType: string): string | null {
     default:
       return null;
   }
+}
+
+function resolveUploadMimeType(fileEntry: File): "image/jpeg" | "image/png" | "image/webp" | null {
+  const rawMimeType = fileEntry.type.trim().toLowerCase();
+  const normalizedMimeType = MIME_TYPE_ALIASES.get(rawMimeType) ?? rawMimeType;
+
+  if (ALLOWED_MIME_TYPES.has(normalizedMimeType)) {
+    return normalizedMimeType as "image/jpeg" | "image/png" | "image/webp";
+  }
+
+  if (!normalizedMimeType || normalizedMimeType === "application/octet-stream") {
+    const extension = fileEntry.name.split(".").pop()?.trim().toLowerCase() ?? "";
+    return MIME_TYPE_BY_EXTENSION[extension] ?? null;
+  }
+
+  return null;
 }
 
 function isUuid(value: string): boolean {
@@ -93,7 +118,8 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!ALLOWED_MIME_TYPES.has(fileEntry.type)) {
+  const fileMimeType = resolveUploadMimeType(fileEntry);
+  if (!fileMimeType) {
     return jsonError(
       "validation_failed",
       "Request validation failed.",
@@ -102,7 +128,7 @@ export async function POST(request: Request) {
         errors: [
           {
             field: "file",
-            reason: "Unsupported file type.",
+            reason: "Unsupported file type. Allowed types are JPEG, PNG, and WEBP.",
           },
         ],
       },
@@ -134,18 +160,19 @@ export async function POST(request: Request) {
     return jsonError("forbidden", "You do not have permission for this operation.", 403);
   }
 
-  const extension = extensionFromMimeType(fileEntry.type);
+  const extension = extensionFromMimeType(fileMimeType);
   if (!extension) {
     return jsonError("validation_failed", "Request validation failed.", 400);
   }
 
+  const mutationClient = createAdminClient() ?? supabase;
   const ownerId = bankResult.bank.organizerId;
   const objectName = `${ownerId}/${bankResult.bank.id}/${crypto.randomUUID()}.${extension}`;
 
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await mutationClient.storage
     .from("problem-assets")
     .upload(objectName, fileEntry, {
-      contentType: fileEntry.type,
+      contentType: fileMimeType,
       upsert: false,
       cacheControl: "3600",
     });
@@ -154,7 +181,7 @@ export async function POST(request: Request) {
     return jsonDatabaseError(uploadError);
   }
 
-  const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+  const { data: signedUrlData, error: signedUrlError } = await mutationClient.storage
     .from("problem-assets")
     .createSignedUrl(objectName, 60 * 30);
 
@@ -216,7 +243,9 @@ export async function DELETE(request: Request) {
     return jsonError("forbidden", "You do not have permission for this operation.", 403);
   }
 
-  const { error } = await supabase.storage.from("problem-assets").remove([imagePath]);
+  const mutationClient = createAdminClient() ?? supabase;
+
+  const { error } = await mutationClient.storage.from("problem-assets").remove([imagePath]);
   if (error) {
     return jsonDatabaseError(error);
   }

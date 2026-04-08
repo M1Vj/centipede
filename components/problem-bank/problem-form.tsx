@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
   ImageMinus,
+  Info,
   Plus,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { MathliveField } from "@/components/math-editor/mathlive-field";
-import { ProblemPreviewCard } from "@/components/problem-bank/problem-preview-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,10 +23,15 @@ import { Label } from "@/components/ui/label";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import {
+  useProblemFormDraft,
+  type ProblemFormDraftState,
+} from "@/hooks/use-problem-form-draft";
+import {
   validateProblemWriteInput,
   type ProblemWriteInput,
   type ValidatedProblemWriteInput,
 } from "@/lib/problem-bank/api-helpers";
+import { preprocessImageForUpload } from "@/lib/problem-bank/image-preprocessing";
 import {
   PROBLEM_DIFFICULTIES,
   PROBLEM_TYPES,
@@ -64,6 +70,10 @@ type FormStatus = {
   message: string | null;
 };
 
+interface FormOption extends ProblemOption {
+  _reactKey: number;
+}
+
 const DEFAULT_TF_OPTIONS: ProblemOption[] = [
   { id: "true", label: "True" },
   { id: "false", label: "False" },
@@ -73,10 +83,24 @@ function createOptionId(index: number): string {
   return `opt_${index + 1}`;
 }
 
-function createDefaultMcqOptions(): ProblemOption[] {
+let nextReactKey = 1;
+
+function assignReactKey(option: ProblemOption): FormOption {
+  return { ...option, _reactKey: nextReactKey++ };
+}
+
+function assignReactKeys(options: ProblemOption[]): FormOption[] {
+  return options.map(assignReactKey);
+}
+
+function stripReactKeys(options: FormOption[]): ProblemOption[] {
+  return options.map((option) => ({ id: option.id, label: option.label }));
+}
+
+function createDefaultMcqOptions(): FormOption[] {
   return [
-    { id: createOptionId(0), label: "Option A" },
-    { id: createOptionId(1), label: "Option B" },
+    assignReactKey({ id: createOptionId(0), label: "Option A" }),
+    assignReactKey({ id: createOptionId(1), label: "Option B" }),
   ];
 }
 
@@ -112,34 +136,104 @@ function normalizeTagsToInput(tags: string[]): string {
   return tags.join(" | ");
 }
 
-function normalizeTagsFromInput(tagsInput: string): string[] {
-  const seen = new Set<string>();
+function unwrapTopLevelMathliveText(value: string): string {
+  const trimmed = value.trim();
+  const textPrefix = "\\text{";
 
-  return tagsInput
-    .split("|")
-    .map((tag) => tag.trim())
-    .filter((tag) => {
-      if (!tag) {
-        return false;
-      }
+  if (!trimmed.startsWith(textPrefix) || !trimmed.endsWith("}")) {
+    return trimmed;
+  }
 
-      const normalized = tag.toLowerCase();
-      if (seen.has(normalized)) {
-        return false;
-      }
+  let depth = 0;
 
-      seen.add(normalized);
-      return true;
-    });
-}
+  for (let index = 0; index < trimmed.length; index += 1) {
+    const character = trimmed[index];
+    const previousCharacter = index > 0 ? trimmed[index - 1] : "";
 
-function optionListForType(type: ProblemType, options: ProblemOption[] | null): ProblemOption[] {
-  if (type === "tf") {
-    if (!options || options.length < 2) {
-      return DEFAULT_TF_OPTIONS;
+    if (character === "{" && previousCharacter !== "\\") {
+      depth += 1;
+      continue;
     }
 
-    return options;
+    if (character === "}" && previousCharacter !== "\\") {
+      depth -= 1;
+
+      if (depth < 0) {
+        return trimmed;
+      }
+
+      if (depth === 0 && index < trimmed.length - 1) {
+        return trimmed;
+      }
+    }
+  }
+
+  if (depth !== 0) {
+    return trimmed;
+  }
+
+  return trimmed.slice(textPrefix.length, -1).trim();
+}
+
+function unwrapTopLevelMathliveDelimitedText(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("$") || !trimmed.endsWith("$")) {
+    return trimmed;
+  }
+
+  const hasDoubleDollarDelimiters = trimmed.startsWith("$$") && trimmed.endsWith("$$");
+  const delimiterSize = hasDoubleDollarDelimiters ? 2 : 1;
+  const innerValue = trimmed.slice(delimiterSize, -delimiterSize).trim();
+
+  if (!innerValue || innerValue.includes("$")) {
+    return trimmed;
+  }
+
+  const unwrappedInnerValue = unwrapTopLevelMathliveText(innerValue);
+  if (unwrappedInnerValue === innerValue) {
+    return trimmed;
+  }
+
+  return unwrappedInnerValue;
+}
+
+function normalizeLegacyMathliveValue(value: string): string {
+  let normalizedValue = value.trim();
+
+  while (true) {
+    const unwrappedDelimitedValue = unwrapTopLevelMathliveDelimitedText(normalizedValue);
+    if (unwrappedDelimitedValue !== normalizedValue) {
+      normalizedValue = unwrappedDelimitedValue;
+      continue;
+    }
+
+    const unwrappedValue = unwrapTopLevelMathliveText(normalizedValue);
+    if (unwrappedValue === normalizedValue) {
+      return normalizedValue;
+    }
+
+    normalizedValue = unwrappedValue;
+  }
+}
+
+function normalizeLegacyOptionList(options: ProblemOption[] | null): ProblemOption[] | null {
+  if (!options) {
+    return null;
+  }
+
+  return options.map((option) => ({
+    ...option,
+    label: normalizeLegacyMathliveValue(option.label),
+  }));
+}
+
+function optionListForType(type: ProblemType, options: ProblemOption[] | null): FormOption[] {
+  if (type === "tf") {
+    if (!options || options.length < 2) {
+      return assignReactKeys(DEFAULT_TF_OPTIONS);
+    }
+
+    return assignReactKeys(options);
   }
 
   if (type === "mcq") {
@@ -147,7 +241,7 @@ function optionListForType(type: ProblemType, options: ProblemOption[] | null): 
       return createDefaultMcqOptions();
     }
 
-    return options;
+    return assignReactKeys(options);
   }
 
   return [];
@@ -166,7 +260,7 @@ function toAcceptedAnswerEntries(initialValue: ProblemFormInitialValue | null | 
       (entry) => typeof entry === "string" && entry.trim().length > 0,
     );
 
-    return entries.length > 0 ? entries : [""];
+    return entries.length > 0 ? entries.map((entry) => normalizeLegacyMathliveValue(entry)) : [""];
   }
 
   return [""];
@@ -186,30 +280,41 @@ export function ProblemForm({
   const isMountedRef = useRef(true);
   const isEditMode = Boolean(initialValue?.id);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
       isMountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   const [type, setType] = useState<ProblemType>(initialValue?.type ?? "mcq");
   const [difficulty, setDifficulty] = useState<ProblemDifficulty>(
     initialValue?.difficulty ?? "average",
   );
   const [tagsInput, setTagsInput] = useState(normalizeTagsToInput(initialValue?.tags ?? []));
-  const [contentLatex, setContentLatex] = useState(initialValue?.contentLatex ?? "");
-  const [explanationLatex, setExplanationLatex] = useState(initialValue?.explanationLatex ?? "");
+  const [contentLatex, setContentLatex] = useState(
+    normalizeLegacyMathliveValue(initialValue?.contentLatex ?? ""),
+  );
+  const [explanationLatex, setExplanationLatex] = useState(
+    normalizeLegacyMathliveValue(initialValue?.explanationLatex ?? ""),
+  );
   const [authoringNotes, setAuthoringNotes] = useState(initialValue?.authoringNotes ?? "");
   const [imagePath, setImagePath] = useState(initialValue?.imagePath ?? null);
   const [imageUrl, setImageUrl] = useState(initialValue?.imageUrl ?? null);
   const [expectedUpdatedAt, setExpectedUpdatedAt] = useState(initialValue?.updatedAt ?? "");
 
-  const [mcqOptions, setMcqOptions] = useState<ProblemOption[]>(
-    optionListForType("mcq", initialValue?.type === "mcq" ? initialValue.options : null),
+  const [mcqOptions, setMcqOptions] = useState<FormOption[]>(
+    optionListForType(
+      "mcq",
+      initialValue?.type === "mcq" ? normalizeLegacyOptionList(initialValue.options) : null,
+    ),
   );
-  const [tfOptions, setTfOptions] = useState<ProblemOption[]>(
-    optionListForType("tf", initialValue?.type === "tf" ? initialValue.options : null),
+  const [tfOptions, setTfOptions] = useState<FormOption[]>(
+    optionListForType(
+      "tf",
+      initialValue?.type === "tf" ? normalizeLegacyOptionList(initialValue.options) : null,
+    ),
   );
 
   const [correctOptionIds, setCorrectOptionIds] = useState<string[]>(
@@ -233,8 +338,67 @@ export function ProblemForm({
     type: "pending",
     message: null,
   });
+  const [draftBannerVisible, setDraftBannerVisible] = useState(false);
 
   const { statusId, statusRef } = useFormStatusRegion(status.message);
+
+  const { loadDraft, clearDraft, scheduleSave } = useProblemFormDraft({
+    bankId,
+    problemId: initialValue?.id ?? null,
+  });
+
+  const collectDraftState = useCallback((): ProblemFormDraftState => ({
+    type,
+    difficulty,
+    tagsInput,
+    contentLatex,
+    explanationLatex,
+    authoringNotes,
+    imagePath,
+    imageUrl,
+    mcqOptions: stripReactKeys(mcqOptions),
+    tfOptions: stripReactKeys(tfOptions),
+    correctOptionIds,
+    trueFalseAcceptedAnswer,
+    acceptedAnswerEntries,
+  }), [
+    type, difficulty, tagsInput, contentLatex, explanationLatex,
+    authoringNotes, imagePath, imageUrl, mcqOptions, tfOptions,
+    correctOptionIds, trueFalseAcceptedAnswer, acceptedAnswerEntries,
+  ]);
+
+  useEffect(() => {
+    const draft = loadDraft();
+    if (!draft) {
+      return;
+    }
+
+    setType(draft.type);
+    setDifficulty(draft.difficulty);
+    setTagsInput(draft.tagsInput);
+    setContentLatex(draft.contentLatex);
+    setExplanationLatex(draft.explanationLatex);
+    setAuthoringNotes(draft.authoringNotes);
+    if (draft.imagePath !== undefined) setImagePath(draft.imagePath);
+    if (draft.imageUrl !== undefined) setImageUrl(draft.imageUrl);
+    setMcqOptions(assignReactKeys(draft.mcqOptions));
+    setTfOptions(assignReactKeys(draft.tfOptions));
+    setCorrectOptionIds(draft.correctOptionIds);
+    setTrueFalseAcceptedAnswer(draft.trueFalseAcceptedAnswer);
+    setAcceptedAnswerEntries(draft.acceptedAnswerEntries);
+    setDraftBannerVisible(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    scheduleSave(collectDraftState());
+  }, [collectDraftState, scheduleSave]);
+
+  const handleDiscardDraft = () => {
+    clearDraft();
+    setDraftBannerVisible(false);
+    window.location.reload();
+  };
 
   const acceptedAnswersInput = useMemo(
     () =>
@@ -244,8 +408,6 @@ export function ProblemForm({
         .join(" | "),
     [acceptedAnswerEntries],
   );
-
-  const previewTags = useMemo(() => normalizeTagsFromInput(tagsInput), [tagsInput]);
 
   const canSubmit = editable && !isSaving && !isDeleting && !isUploadingAsset;
 
@@ -262,7 +424,7 @@ export function ProblemForm({
     }
 
     if (nextType === "tf" && tfOptions.length < 2) {
-      setTfOptions(DEFAULT_TF_OPTIONS);
+      setTfOptions(assignReactKeys(DEFAULT_TF_OPTIONS));
     }
 
     if ((nextType === "numeric" || nextType === "identification") && acceptedAnswerEntries.length === 0) {
@@ -295,7 +457,7 @@ export function ProblemForm({
     const nextIndex = mcqOptions.length;
     setMcqOptions((current) => [
       ...current,
-      { id: createOptionId(nextIndex), label: `Option ${String.fromCharCode(65 + nextIndex)}` },
+      assignReactKey({ id: createOptionId(nextIndex), label: `Option ${String.fromCharCode(65 + nextIndex)}` }),
     ]);
   };
 
@@ -346,7 +508,7 @@ export function ProblemForm({
           ? { acceptedAnswer: trueFalseAcceptedAnswer }
           : acceptedAnswersInput;
 
-    const options = type === "mcq" ? mcqOptions : type === "tf" ? tfOptions : null;
+    const options = type === "mcq" ? stripReactKeys(mcqOptions) : type === "tf" ? stripReactKeys(tfOptions) : null;
 
     return {
       type,
@@ -433,6 +595,9 @@ export function ProblemForm({
         type: "success",
         message: isEditMode ? "Problem saved." : "Problem created.",
       });
+
+      clearDraft();
+      setDraftBannerVisible(false);
       router.push(backHref);
       router.refresh();
     } catch {
@@ -494,6 +659,8 @@ export function ProblemForm({
         type: "success",
         message: "Problem deleted.",
       });
+      clearDraft();
+      setDraftBannerVisible(false);
       router.push(backHref);
       router.refresh();
     } catch {
@@ -518,13 +685,39 @@ export function ProblemForm({
     setIsUploadingAsset(true);
     setStatus({
       type: "pending",
-      message: "Uploading image...",
+      message: "Preparing image...",
     });
 
     try {
+      let preprocessedFile: File;
+
+      try {
+        preprocessedFile = await preprocessImageForUpload(file);
+      } catch (error) {
+        if (isMountedRef.current) {
+          setStatus({
+            type: "error",
+            message:
+              error instanceof Error && error.message.trim().length > 0
+                ? error.message
+                : "Image conversion failed. Please upload a valid image file.",
+          });
+        }
+        return;
+      }
+
+      if (!isMountedRef.current) {
+        return;
+      }
+
+      setStatus({
+        type: "pending",
+        message: "Uploading image...",
+      });
+
       const body = new FormData();
       body.set("bankId", bankId);
-      body.set("file", file);
+      body.set("file", preprocessedFile);
 
       const response = await fetch("/api/organizer/problem-banks/assets", {
         method: "POST",
@@ -658,6 +851,20 @@ export function ProblemForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {draftBannerVisible ? (
+            <div className="mb-4 flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+              <Info className="size-4 shrink-0" />
+              <span className="flex-1">A previously saved draft has been restored.</span>
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:text-blue-300 dark:hover:bg-blue-900/40"
+              >
+                <X className="size-3" />
+                Discard draft
+              </button>
+            </div>
+          ) : null}
           <form className="space-y-6" onSubmit={handleSubmit} aria-busy={!canSubmit}>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="grid gap-2">
@@ -734,16 +941,6 @@ export function ProblemForm({
               />
             </div>
 
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">Mathlete-visible preview</p>
-              <ProblemPreviewCard
-                type={type}
-                difficulty={difficulty}
-                tags={previewTags}
-                contentLatex={contentLatex}
-              />
-            </div>
-
             {type === "mcq" ? (
               <div className="space-y-3 rounded-xl border border-border/60 p-4">
                 <div className="flex items-center justify-between">
@@ -754,7 +951,7 @@ export function ProblemForm({
                   </Button>
                 </div>
                 {mcqOptions.map((option) => (
-                  <div key={option.id} className="grid gap-3 rounded-lg border border-border/50 p-3 md:grid-cols-[minmax(0,0.25fr)_minmax(0,1fr)_auto_auto] md:items-center">
+                  <div key={option._reactKey} className="grid gap-3 rounded-lg border border-border/50 p-3 md:grid-cols-[minmax(0,0.25fr)_minmax(0,1fr)_auto_auto] md:items-center">
                     <Input
                       value={option.id}
                       onChange={(event) => updateMcqOption(option.id, "id", event.target.value)}
@@ -798,7 +995,7 @@ export function ProblemForm({
               <div className="space-y-3 rounded-xl border border-border/60 p-4">
                 <p className="text-sm font-semibold">True/False options</p>
                 {tfOptions.map((option) => (
-                  <div key={option.id} className="grid gap-3 rounded-lg border border-border/50 p-3">
+                  <div key={option._reactKey} className="grid gap-3 rounded-lg border border-border/50 p-3">
                     <div className="grid gap-2 md:grid-cols-[minmax(0,0.25fr)_minmax(0,1fr)]">
                       <Input value={option.id} disabled readOnly aria-label={`TF option id ${option.id}`} />
                       <MathliveField
@@ -899,7 +1096,7 @@ export function ProblemForm({
                   <Input
                     id="problem-image"
                     type="file"
-                    accept="image/jpeg,image/png,image/webp"
+                    accept="image/*"
                     onChange={(event) => {
                       const nextFile = event.target.files?.[0] ?? null;
                       void handleUploadImage(nextFile);
