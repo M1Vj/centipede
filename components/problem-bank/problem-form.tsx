@@ -390,11 +390,16 @@ export function ProblemForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const isDraftClearedRef = useRef(false);
+
   useEffect(() => {
-    scheduleSave(collectDraftState());
+    if (!isDraftClearedRef.current) {
+      scheduleSave(collectDraftState());
+    }
   }, [collectDraftState, scheduleSave]);
 
   const handleDiscardDraft = () => {
+    isDraftClearedRef.current = true;
     clearDraft();
     setDraftBannerVisible(false);
     window.location.reload();
@@ -596,10 +601,31 @@ export function ProblemForm({
         message: isEditMode ? "Problem saved." : "Problem created.",
       });
 
+      isDraftClearedRef.current = true;
       clearDraft();
       setDraftBannerVisible(false);
       router.push(backHref);
       router.refresh();
+
+      if (!isEditMode) {
+        setTimeout(() => {
+          if (!isMountedRef.current) return;
+          setType("mcq");
+          setDifficulty("average");
+          setTagsInput("");
+          setContentLatex("");
+          setExplanationLatex("");
+          setAuthoringNotes("");
+          setImagePath(null);
+          setImageUrl(null);
+          setMcqOptions(createDefaultMcqOptions());
+          setTfOptions(assignReactKeys(DEFAULT_TF_OPTIONS));
+          setCorrectOptionIds([]);
+          setTrueFalseAcceptedAnswer("true");
+          setAcceptedAnswerEntries([""]);
+          setStatus({ type: "pending", message: null });
+        }, 800);
+      }
     } catch {
       if (isMountedRef.current) {
         setStatus({
@@ -659,6 +685,7 @@ export function ProblemForm({
         type: "success",
         message: "Problem deleted.",
       });
+      isDraftClearedRef.current = true;
       clearDraft();
       setDraftBannerVisible(false);
       router.push(backHref);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -72,6 +72,12 @@ export function BankForm({
     type: "pending",
     message: null,
   });
+
+  useEffect(() => {
+    if (mode === "edit" && initialValue?.updatedAt) {
+      setExpectedUpdatedAt(initialValue.updatedAt);
+    }
+  }, [initialValue?.updatedAt, mode]);
 
   const { statusId, statusRef } = useFormStatusRegion(status.message);
 
