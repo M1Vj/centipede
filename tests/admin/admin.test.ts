@@ -89,7 +89,7 @@ describe("approveOrganizerApplication", () => {
       },
     );
 
-    const auditInsert = adminClient.from("admin_audit_logs").insert;
+    const auditInsert = adminClient.from("admin_audit_logs")!.insert;
     expect(auditInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         action_type: "organizer_application_approved",

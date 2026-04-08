@@ -11,8 +11,14 @@ import {
   CardSkeletonList,
   DetailSectionSkeleton,
 } from "@/components/ui/feedback-skeletons";
-import { ChartColumnIncreasing, ClipboardList, Settings, Users } from "lucide-react";
+import {
+  ChartColumnIncreasing,
+  ClipboardList,
+  Library,
+  Settings,
+} from "lucide-react";
 import { ProgressLink } from "@/components/ui/progress-link";
+import { createClient } from "@/lib/supabase/server";
 
 async function getWorkspaceContext() {
   return getProtectedWorkspaceContext({ requireRole: "organizer" });
@@ -32,10 +38,10 @@ const organizerCards = [
     href: "/organizer/settings",
   },
   {
-    icon: Users,
-    title: "Status readiness",
-    description: "Confirm application status and onboarding handoff through secure lookup.",
-    href: "/organizer/status",
+    icon: Library,
+    title: "Problem banks",
+    description: "Create and maintain reusable banks with math authoring, imports, and problem-level workflows.",
+    href: "/organizer/problem-bank",
   },
 ];
 
@@ -53,12 +59,32 @@ const organizerStatShell = [
   {
     label: "Problem banks",
     value: "0",
-    hint: "Authoring modules begin in branch 06.",
+    hint: "Authoring modules are now active in branch 06.",
   },
 ];
 
 async function OrganizerPageContent() {
   const { userEmail, profile } = await getWorkspaceContext();
+  const supabase = await createClient();
+
+  let problemBankCount = 0;
+  if (profile?.id) {
+    const { count, error } = await supabase
+      .from("problem_banks")
+      .select("id", { count: "exact", head: true })
+      .eq("organizer_id", profile.id)
+      .eq("is_deleted", false);
+
+    if (!error) {
+      problemBankCount = count ?? 0;
+    }
+  }
+
+  const organizerStats = organizerStatShell.map((stat) =>
+    stat.label === "Problem banks"
+      ? { ...stat, value: String(problemBankCount) }
+      : stat,
+  );
 
   return (
     <section className="shell py-14 md:py-20">
@@ -113,7 +139,7 @@ async function OrganizerPageContent() {
         <div className="grid gap-6">
           <Card className="border-border/60 bg-background/70 shadow-sm">
             <CardContent className="grid gap-4 p-5 sm:grid-cols-3">
-              {organizerStatShell.map(({ label, value, hint }) => (
+              {organizerStats.map(({ label, value, hint }) => (
                 <div key={label} className="rounded-xl border border-border/60 bg-background/80 p-4">
                   <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                     {label}

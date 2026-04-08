@@ -37,12 +37,17 @@ export async function deleteProblemBank(id: string, actorId?: string) {
   const admin = createAdminClient();
   if (!admin) return;
 
-  const { error } = await admin
+  const { data, error } = await admin
     .from("problem_banks")
     .update({ is_deleted: true })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("is_deleted", false)
+    .select("id, is_default_bank")
+    .maybeSingle<{ id: string; is_default_bank: boolean }>();
 
   if (error) throw error;
+
+  const alreadyDeleted = !data;
 
   await logAdminAction({
     actorId,
@@ -50,6 +55,11 @@ export async function deleteProblemBank(id: string, actorId?: string) {
     targetTable: "problem_banks",
     targetId: id,
     description: "Soft-deleted problem bank",
+    metadata: {
+      softDelete: true,
+      idempotentReplay: alreadyDeleted,
+      isDefaultBank: data?.is_default_bank ?? null,
+    },
   });
 }
 
