@@ -107,6 +107,14 @@ export function roundHalfAwayFromZero(value: number, decimals: number): number {
     return 0;
   }
 
+  if (Number.isNaN(decimals)) {
+    return 0;
+  }
+
+  if (!Number.isFinite(decimals) || decimals > 15) {
+    return value;
+  }
+
   const precision = Math.max(0, Math.trunc(decimals));
   const absoluteText = toPlainDecimalString(Math.abs(value));
   const [rawIntegerPart, rawFractionPart = ""] = absoluteText.split(".");

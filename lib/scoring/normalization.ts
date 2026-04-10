@@ -147,7 +147,8 @@ export function areNumericAnswersEquivalent(
     expectedNumericValue === null ||
     actualNumericValue === null ||
     !Number.isFinite(expectedNumericValue) ||
-    !Number.isFinite(actualNumericValue)
+    !Number.isFinite(actualNumericValue) ||
+    !Number.isFinite(tolerance)
   ) {
     return false;
   }
@@ -159,7 +160,7 @@ export function normalizeAnswerForScoring(
   problemType: ProblemType,
   rawAnswerValue: string | null | undefined,
 ): NormalizedScoringAnswer {
-  const source = rawAnswerValue ?? "";
+  const source = typeof rawAnswerValue === "string" ? rawAnswerValue : "";
 
   if (problemType === "mcq") {
     return {
