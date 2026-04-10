@@ -7,20 +7,20 @@ Use this checklist as the canonical execution order for the rebuild. Mark an ite
 - [x] 02-authentication -> feature/authentication (merge: 42545fb, PR #5)
 - [x] 03-interaction-feedback -> feature/interaction-feedback (merge: 668b8b0, PR #6)
 - [x] 04-admin-user-management -> feature/admin-user-management (merge: b9d7890, PR #10)
-- [X] 05b-deferred-foundation-and-auth -> feature/deferred-technical-debt
-- [X] 05-organizer-registration -> feature/organizer-registration
-- [ ] 06-problem-bank -> feature/problem-bank (implemented and verified on branch commits 768fc64..9827679; pending merge to develop)
-- [ ] 07-scoring-system -> feature/scoring-system
-- [ ] 08-competition-wizard -> feature/competition-wizard
-- [ ] 09-team-management -> feature/team-management
-- [ ] 10-competition-search -> feature/competition-search
-- [ ] 11-arena -> feature/arena
-- [ ] 12-anti-cheat -> feature/anti-cheat
-- [ ] 13-review-submission -> feature/review-submission
-- [ ] 14-leaderboard-history -> feature/leaderboard-history
-- [ ] 15-notifications-polish -> feature/notifications-polish
-- [ ] 16-participant-monitoring -> feature/participant-monitoring
-- [ ] 17-testing-bug-fixes -> feature/testing-bug-fixes
+- [x] 05b-deferred-foundation-and-auth -> feature/deferred-technical-debt
+- [x] 05-organizer-registration -> feature/organizer-registration
+- [x] 06-problem-bank -> feature/problem-bank (implemented and verified on branch commits 768fc64..9827679; pending merge to develop)
+- [ ] 07-A-scoring-system -> feature/scoring-system (implemented and verified on branch commits 6b42479..37ae2b1; pending merge to develop)
+- [ ] 08-A-competition-wizard -> feature/competition-wizard
+- [ ] 09-B-team-management -> feature/team-management
+- [ ] 10-B-competition-search -> feature/competition-search
+- [ ] 11-A-arena -> feature/arena
+- [ ] 12-A-anti-cheat -> feature/anti-cheat
+- [ ] 13-A-review-submission -> feature/review-submission
+- [ ] 14-B-leaderboard-history -> feature/leaderboard-history
+- [ ] 15-B-notifications-polish -> feature/notifications-polish
+- [ ] 16-B-participant-monitoring -> feature/participant-monitoring
+- [ ] 17-A-testing-bug-fixes -> feature/testing-bug-fixes
 ```
 
 ## Usage Rules
