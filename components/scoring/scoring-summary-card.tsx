@@ -30,9 +30,9 @@ export function ScoringSummaryCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <dl className="space-y-2">
-          {viewModel.lines.map((line) => (
+          {viewModel.lines.map((line, idx) => (
             <div
-              key={line.label}
+              key={`${line.label}-${idx}`}
               className="flex flex-col gap-1 border-b border-border/50 pb-2 text-sm sm:flex-row sm:items-start sm:justify-between sm:gap-4"
             >
               <dt className="text-muted-foreground">{line.label}</dt>

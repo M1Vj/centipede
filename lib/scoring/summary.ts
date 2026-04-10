@@ -106,6 +106,22 @@ export function buildScoringSummaryView(
     },
   ];
 
+  if (config.logTabSwitch && config.offensePenalties.length > 0) {
+    const sorted = [...config.offensePenalties].sort((a, b) => a.threshold - b.threshold);
+    sorted.forEach((rule) => {
+      let penaltyDesc = "";
+      if (rule.penaltyKind === "warning") penaltyDesc = "Warning";
+      else if (rule.penaltyKind === "deduction") penaltyDesc = `-${rule.deductionValue} pts`;
+      else if (rule.penaltyKind === "forced_submit") penaltyDesc = "Forced submit";
+      else if (rule.penaltyKind === "disqualification") penaltyDesc = "Disqualification";
+
+      lines.push({
+        label: `Penalty at ${rule.threshold} switch${rule.threshold === 1 ? "" : "es"}`,
+        value: penaltyDesc,
+      });
+    });
+  }
+
   if (config.scoringMode === "custom") {
     lines.push({
       label: "Custom points configured",

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parseNumericLatex, areNumericAnswersEquivalent, normalizeAnswerForScoring } from "../../lib/scoring/normalization";
-import { applyPenaltyFloor, roundHalfAwayFromZero, selectAttemptScoreByMode, compareLeaderboardEntries, resolveBaseProblemPoints, resolveEffectiveProblemPoints } from "../../lib/scoring/policies";
-import { parseGradeAttemptRpcRow, parseRecalculateCompetitionScoresRpcRow } from "../../lib/scoring/rpc-contracts";
+import { applyPenaltyFloor, roundHalfAwayFromZero, selectAttemptScoreByMode, resolveBaseProblemPoints, resolveEffectiveProblemPoints } from "../../lib/scoring/policies";
+import { parseGradeAttemptRpcRow } from "../../lib/scoring/rpc-contracts";
 
 describe("Security Fuzz Tests for Scoring Contracts", () => {
   describe("Normalization & Math Fuzzing", () => {
@@ -23,7 +23,7 @@ describe("Security Fuzz Tests for Scoring Contracts", () => {
     it("normalizeAnswerForScoring should handle malicious prototype injection", () => {
       const malicious = Object.create(null);
       malicious.toString = () => "true";
-      expect(normalizeAnswerForScoring("tf", malicious as any).normalizedTrueFalse).toBeNull();
+      expect(normalizeAnswerForScoring("tf", malicious as unknown as string).normalizedTrueFalse).toBeNull();
     });
   });
 
