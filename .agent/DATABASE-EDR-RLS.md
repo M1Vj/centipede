@@ -945,6 +945,7 @@ Risky migrations and backfills:
 
 ## Section H - Change Log
 
+- 2026-04-09: Added branch-07 contract-first scoring RPC signature migration for `grade_attempt(uuid)`, `recalculate_competition_scores(uuid, text)`, and `refresh_leaderboard_entries(uuid)` as trusted service-role-only placeholders with deterministic deferred owner-schema machine codes until branches `11`, `13`, and `14` activate executable wiring.
 - 2026-04-08: Added canonical trigger contract `touch_problem_bank_updated_at_from_problem()` so parent `problem_banks.updated_at` refreshes on `problems` insert, update, and delete writes, including bank reassignment updates.
 - 2026-04-06: Synced branch `06-problem-bank` migration artifacts into canonical contracts: schema alignment constraints and triggers for `problem_banks` and `problems`, private `problem-assets` storage key and policy model, and `problem_import_jobs` idempotency-ledger schema with RLS scope.
 - 2026-04-03: Rebuilt the database, ERD, and RLS plan for the full greenfield Mathwiz Arena implementation. Added missing tables for team invites, attempt intervals, disputes, notifications, exports, system settings, competition snapshots, and realtime-aware operational flows.

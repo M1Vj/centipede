@@ -1,6 +1,6 @@
 {
   "private": true,
-  "version": "0.10.005",
+  "version": "0.10.006",
   "scripts": {
     "dev": "next dev --webpack",
     "dev:turbo": "next dev --turbopack",
