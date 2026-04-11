@@ -9,11 +9,24 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 
 | Release Code | Date Released |
 | ------------ | ------------- |
+| CP.010.006   | 2026-04-11    |
 | CP.010.005   | 2026-04-08    |
 | CP.010.004   | 2026-04-05    |
-| CP.010.003   | 2026-04-02    |
 | CP.010.002   | 2026-03-14    |
 | CP.010.001   | 2026-02-28    |
+
+---
+
+## CP.010.006 Release Notes
+
+- Designed and integrated the Scoring System foundation spanning database schema setup, signature migrations, and scoring domain contracts.
+- Launched the Organizer Scoring UI complete with dynamic workspace rendering, scoring controls, computation summary sheets, and responsive/a11y design patterns.
+- Engineered offense tracking modules with automated point-penalty calculations embedded directly inside the scoring previews.
+- Solidified scoring security by expanding regression tests and generating rigorous security-fuzzing suites mapped to backend scoring policies.
+
+Known Issues:
+
+- None at this time.
 
 ---
 

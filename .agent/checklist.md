@@ -9,8 +9,8 @@ Use this checklist as the canonical execution order for the rebuild. Mark an ite
 - [x] 04-admin-user-management -> feature/admin-user-management (merge: b9d7890, PR #10)
 - [x] 05b-deferred-foundation-and-auth -> feature/deferred-technical-debt
 - [x] 05-organizer-registration -> feature/organizer-registration
-- [x] 06-problem-bank -> feature/problem-bank (implemented and verified on branch commits 768fc64..9827679; pending merge to develop)
-- [ ] 07-A-scoring-system -> feature/scoring-system (implemented and verified on branch commits 6b42479..37ae2b1; pending merge to develop)
+- [x] 06-problem-bank -> feature/problem-bank (merge: e5428ba, PR #16)
+- [x] 07-A-scoring-system -> feature/scoring-system (merge: 39f7eae, PR #18)
 - [ ] 08-A-competition-wizard -> feature/competition-wizard
 - [ ] 09-B-team-management -> feature/team-management
 - [ ] 10-B-competition-search -> feature/competition-search
