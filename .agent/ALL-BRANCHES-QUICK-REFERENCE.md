@@ -21,6 +21,25 @@
 | 16 | `feature/participant-monitoring` | live participant dashboard, announcements with canonical audience predicates, control-action timeline with request idempotency tokens, admin live-support force-pause hooks with required reason, organizer intervention controls for open-competition pause plus organizer-owned resume/extend/reset with required reason, and admin non-draft abuse/fraud moderation delete path | 08, 12, 15 |
 | 17 | `feature/testing-bug-fixes` | full QA sweep, accessibility/performance hardening, cross-browser checks, release prep, and documentation finalization | 01, 02, 03, 04, 05b, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15, 16 |
 
+## Guide File Naming and Lane Map
+
+- baseline-complete guides (`01` through `06`) keep legacy file naming: `NN-<slug>.md`
+- remaining guides (`07+`) use lane naming: `NN-<lane>-<slug>.md`
+
+| No. | Lane | Guide File Name |
+| --- | --- | --- |
+| 07 | A | `07-A-scoring-system.md` |
+| 08 | A | `08-A-competition-wizard.md` |
+| 09 | B | `09-B-team-management.md` |
+| 10 | B | `10-B-competition-search.md` |
+| 11 | A | `11-A-arena.md` |
+| 12 | A | `12-A-anti-cheat.md` |
+| 13 | A | `13-A-review-submission.md` |
+| 14 | B | `14-B-leaderboard-history.md` |
+| 15 | B | `15-B-notifications-polish.md` |
+| 16 | B | `16-B-participant-monitoring.md` |
+| 17 | A | `17-A-testing-bug-fixes.md` |
+
 ## Notes
 
 - bucket folders in `.agent/features/` preserve the weekly/date planning style from the original documentation, but implementation follows branch dependencies rather than calendar assumptions

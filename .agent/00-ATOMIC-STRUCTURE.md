@@ -24,7 +24,8 @@
 
 ## Feature Guide Mapping Rules
 
-- every numbered markdown file under `.agent/features/<bucket>/NN-<slug>.md` maps to exactly one implementation branch
+- baseline-complete guides (`01` through `06`) use `.agent/features/<bucket>/NN-<slug>.md`
+- parallelized guides (`07+`) use `.agent/features/<bucket>/NN-<lane>-<slug>.md`, where `<lane>` is `A` or `B`
 - bucket folders are sequencing containers only; they do not change the branch name
 - the canonical branch name is always the `feature/<slug>` value written inside the feature file
 - feature numbers must stay stable once introduced so checklist history remains traceable
@@ -94,6 +95,19 @@ The merge order is strictly sequential unless a later feature explicitly declare
 16. `15-notifications-polish`
 17. `16-participant-monitoring`
 18. `17-testing-bug-fixes`
+
+## Parallel Lane Plan (07+)
+
+- lane `A` guides: `07-A-scoring-system`, `08-A-competition-wizard`, `11-A-arena`, `12-A-anti-cheat`, `13-A-review-submission`, `17-A-testing-bug-fixes`
+- lane `B` guides: `09-B-team-management`, `10-B-competition-search`, `14-B-leaderboard-history`, `15-B-notifications-polish`, `16-B-participant-monitoring`
+- branch dependencies remain canonical; when a dependency blocks full branch-level parallel starts, execute low-conflict parts in parallel and hold integration commits until gate branches are merged
+
+Low-conflict simultaneous slices:
+
+1. `08-A` publish and lifecycle backend internals (`lib/competition/*`, `supabase/migrations/*`) + `09-B` team UI scaffolding (`app/mathlete/teams/*`, `components/teams/*`), because organizer wizard and mathlete team domains are route-isolated.
+2. `10-B` discovery and calendar surfaces (`app/mathlete/competition/page.tsx`, `app/mathlete/competition/calendar/*`) + `11-A` arena runtime internals (`components/arena/*`, `lib/arena/*`), because only route-mode arbitration on `/mathlete/competition/[competitionId]` is shared.
+3. `13-A` review and submission flows (`app/mathlete/competition/[competitionId]/review/*`, `lib/submission/*`) + `14-B` history and export scaffolding (`app/mathlete/history/*`, `app/organizer/history/*`, `lib/exports/*`), because submission and post-competition surfaces live in separate route and library domains.
+4. `15-B` inbox and preferences UX (`app/notifications/*`, `app/settings/notifications/*`) + `16-B` monitoring reads (`components/monitoring/*`, `lib/monitoring/*`), because delivery integration can be stabilized behind the shared `lib/notifications/dispatch.ts` interface.
 
 ## Atomic Commit Rules
 

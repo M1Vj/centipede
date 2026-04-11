@@ -126,3 +126,6 @@ Branches `01` through `05` are considered locked. Do not inject new cross-cuttin
 
 ### 4.8
 When executing tooling commands in constrained interactive shells where tools like `rg` or `find` might be missing, pivot seamlessly to workspace-native searches or code reading instead of breaking execution logic over command unavailability.
+
+### 4.9
+Always use sub-agents for tasks whenever possible. Prefer combined end-to-end delegations that include audit + edit + validation context in one prompt. The primary agent must still verify sub-agent output with direct file evidence before finalizing.

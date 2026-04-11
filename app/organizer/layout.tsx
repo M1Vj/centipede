@@ -24,7 +24,10 @@ export default async function OrganizerLayout({
     ? [
         { href: "/organizer", label: "Dashboard" },
         ...(isOrganizer
-          ? [{ href: "/organizer/problem-bank", label: "Problem Banks" }]
+          ? [
+              { href: "/organizer/problem-bank", label: "Problem Banks" },
+              { href: "/organizer/scoring", label: "Scoring" },
+            ]
           : []),
         { href: "/organizer/profile", label: "Profile" },
         { href: "/organizer/settings", label: "Settings" },
@@ -41,9 +44,9 @@ export default async function OrganizerLayout({
           <ProgressLink href="/organizer" className="text-sm font-bold uppercase tracking-widest text-foreground">
             Organizer
           </ProgressLink>
-          <nav className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+          <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground md:gap-x-3 md:gap-y-1">
             {navItems.map((item) => (
-              <ProgressLink key={item.href} href={item.href} className="rounded-md px-2 py-1 font-medium hover:bg-muted hover:text-foreground">
+              <ProgressLink key={item.href} href={item.href} className="rounded-md px-3 py-2 font-medium hover:bg-muted hover:text-foreground md:px-2 md:py-1">
                 {item.label}
               </ProgressLink>
             ))}
