@@ -6,8 +6,10 @@ vi.mock("@/lib/auth/workspace", () => ({
   getWorkspaceContext: vi.fn(),
 }));
 
-vi.mock("@/components/organizer/scoring-contract-workbench", () => ({
-  ScoringContractWorkbench: () => null,
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn((href: string) => {
+    throw new Error(`NEXT_REDIRECT:${href}`);
+  }),
 }));
 
 describe("organizer scoring page guard", () => {
@@ -24,13 +26,13 @@ describe("organizer scoring page guard", () => {
     expect(getWorkspaceContext).toHaveBeenCalledWith({ requireRole: "organizer" });
   });
 
-  test("allows organizer access path when organizer guard passes", async () => {
+  test("redirects organizers into competition wizard create flow", async () => {
     vi.mocked(getWorkspaceContext).mockResolvedValueOnce({
       userEmail: "organizer@example.com",
       profile: { role: "organizer" },
     } as never);
 
-    await expect(OrganizerScoringPage()).resolves.toBeTruthy();
+    await expect(OrganizerScoringPage()).rejects.toThrow("NEXT_REDIRECT:/organizer/competition/create");
     expect(getWorkspaceContext).toHaveBeenCalledWith({ requireRole: "organizer" });
   });
 });

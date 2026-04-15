@@ -80,6 +80,19 @@ describe("competition draft validation", () => {
     expect(draft.maxTeams).toBeNull();
   });
 
+  test("requires schedule windows and competition start time for scheduled drafts", () => {
+    const result = validateCompetitionDraftInput(createDefaultCompetitionDraftState());
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "registrationStart" }),
+        expect.objectContaining({ field: "registrationEnd" }),
+        expect.objectContaining({ field: "startTime" }),
+      ]),
+    );
+  });
+
   test("accepts open draft with valid capacity and scoring rules", () => {
     const result = validateCompetitionDraftInput(buildOpenDraft());
 
