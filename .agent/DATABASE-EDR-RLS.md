@@ -785,9 +785,12 @@ Required trusted functions:
 - `snapshot_competition_problems(competition_id)`
 - `publish_competition(competition_id, request_idempotency_token)`
 - `start_competition(competition_id, request_idempotency_token)` trusted scheduled-competition promotion from `published` to `live` with idempotent event logging at the server-authoritative start boundary
-- `end_competition(competition_id, transition_source, reason, request_idempotency_token)` trusted lifecycle transition from `live` or `paused` to `ended`; `transition_source` must be `system_timer` or `trusted_manual_action` with split enforcement: scheduled competitions accept `system_timer` only and do not allow organizer manual end, while open manual end accepts organizer-only `trusted_manual_action` with required non-empty reason and `request_idempotency_token`; repeated requests are idempotent and return existing terminal state
+- `end_competition(competition_id, reason, request_idempotency_token, transition_source)` trusted lifecycle transition from `live` or `paused` to `ended`; `transition_source` must be `system_timer` or `trusted_manual_action` with split enforcement: scheduled competitions accept `system_timer` only and do not allow organizer manual end, while open manual end accepts organizer-only `trusted_manual_action` with required non-empty reason and `request_idempotency_token`; repeated requests are idempotent and return existing terminal state
 - `archive_competition(competition_id, request_idempotency_token)` trusted retirement path for historically significant competitions and paused open competitions with no active attempts
-- `delete_draft_competition(competition_id)` trusted hard-delete path allowed only for `status = 'draft'`
+- `delete_draft_competition(competition_id, request_idempotency_token)` trusted draft-delete path allowed only for `status = 'draft'` with deterministic idempotent replay semantics.
+- `competition_lifecycle_guard()` trigger helper for canonical status transitions, legacy boolean sync (`published`/`is_paused`), scoring snapshot immutability after publish, and draft revision/version bumping
+- `competition_active_name_guard()` trigger helper that blocks organizer duplicate active competition names in statuses `draft`, `published`, `live`, `paused`, and `ended` when `is_deleted = false`
+- `competition_problem_snapshot_guard()` trigger helper that freezes publish-time snapshot columns in `competition_problems` once competition status is `published` or later
 - `moderate_delete_competition(competition_id, reason, request_idempotency_token)` trusted admin-only abuse or fraud deletion path for non-draft competitions with mandatory audit trace
 - `register_for_competition(competition_id, team_id default null)`
 - `withdraw_registration(registration_id)`
@@ -980,6 +983,7 @@ Risky migrations and backfills:
 ## Section H - Change Log
 
 - 2026-04-14: Added team-management schema alignment, leadership transfer helpers, and team idempotency ledger support for invite and roster retries.
+- 2026-04-15: Added branch-08 lifecycle core migration introducing canonical `competition_status` and `answer_key_visibility`, deterministic status backfill from legacy booleans, draft revision/version support, immutable scoring snapshot guard after publish, competition-problem frozen snapshot columns with guard trigger, hardened `competition_events` payload/metadata/idempotency fields, and trusted lifecycle RPCs (`snapshot_competition_problems`, `publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `delete_draft_competition`) with deterministic replay semantics.
 - 2026-04-09: Added branch-07 contract-first scoring RPC signature migration for `grade_attempt(uuid)`, `recalculate_competition_scores(uuid, text)`, and `refresh_leaderboard_entries(uuid)` as trusted service-role-only placeholders with deterministic deferred owner-schema machine codes until branches `11`, `13`, and `14` activate executable wiring.
 - 2026-04-08: Added canonical trigger contract `touch_problem_bank_updated_at_from_problem()` so parent `problem_banks.updated_at` refreshes on `problems` insert, update, and delete writes, including bank reassignment updates.
 - 2026-04-06: Synced branch `06-problem-bank` migration artifacts into canonical contracts: schema alignment constraints and triggers for `problem_banks` and `problems`, private `problem-assets` storage key and policy model, and `problem_import_jobs` idempotency-ledger schema with RLS scope.
