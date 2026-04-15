@@ -4,8 +4,9 @@ import { getWorkspaceContext } from "@/lib/auth/workspace";
 export default async function MathleteTeamDetailPage({
   params,
 }: {
-  params: { teamId: string };
+  params: Promise<{ teamId: string }>;
 }) {
+  const { teamId } = await params;
   await getWorkspaceContext({ requireRole: "mathlete" });
 
   return (
@@ -19,7 +20,7 @@ export default async function MathleteTeamDetailPage({
           </p>
         </header>
 
-        <TeamRoster teamId={params.teamId} />
+        <TeamRoster teamId={teamId} />
       </div>
     </section>
   );
