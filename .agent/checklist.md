@@ -11,8 +11,8 @@ Use this checklist as the canonical execution order for the rebuild. Mark an ite
 - [x] 05-organizer-registration -> feature/organizer-registration
 - [x] 06-problem-bank -> feature/problem-bank (merge: e5428ba, PR #16)
 - [x] 07-A-scoring-system -> feature/scoring-system (merge: 39f7eae, PR #18)
-- [ ] 08-A-competition-wizard -> feature/competition-wizard
-- [ ] 09-B-team-management -> feature/team-management
+- [x] 08-A-competition-wizard -> feature/competition-wizard (merge: pending, PR #21)
+- [x] 09-B-team-management -> feature/team-management (merge: 7c45adf, PR #20)
 - [ ] 10-B-competition-search -> feature/competition-search
 - [ ] 11-A-arena -> feature/arena
 - [ ] 12-A-anti-cheat -> feature/anti-cheat

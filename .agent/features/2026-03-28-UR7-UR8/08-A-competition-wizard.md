@@ -162,6 +162,8 @@ Mutation guards by status:
 - Verified branch-quality gates after lifecycle hardening: `npm run lint`, `npm run test` (45 files / 222 tests), and `npm run build` all pass.
 - Added legacy-schema compatibility fallback for organizer lifecycle start/end/archive routes when RPCs are missing in under-migrated environments (`PGRST202`/signature drift), returning deterministic JSON results instead of raw 500 failures.
 - Added regression coverage in `tests/competition/lifecycle-route-fallback.test.ts` for start/end/archive compatibility behavior.
+- Updated lifecycle fallback behavior to persist status updates through compatibility writes when RPCs are unavailable; when compatibility writes cannot persist canonical status (for example missing status column), routes now return deterministic `service_unavailable` instead of synthetic success payloads.
+- Removed route-level start-status short-circuit so idempotent replay responses remain owned by `start_competition` RPC semantics.
 - Completed manual organizer lifecycle click-through in UI on real route handlers: save draft -> publish (200) -> start (200) -> end (200) -> archive (200), with visible status progression `Published -> Live -> Ended -> Archived`.
 - Responsive QA spot-check completed on competition detail/create pages at mobile (`390x844`) and tablet (`768x1024`) viewports; core wizard controls and lifecycle status/action surfaces remain accessible.
 - Publish action guard hardened to draft-only in wizard UI so non-draft states cannot trigger invalid publish attempts.
