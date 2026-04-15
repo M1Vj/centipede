@@ -64,11 +64,7 @@ export async function POST(request: Request, context: { params: Promise<{ compet
   });
 
   if (error && isLegacyCompetitionSchemaError(error)) {
-    if (!(
-      competition.status === "live" ||
-      competition.status === "paused" ||
-      competition.status === "published"
-    )) {
+    if (!(competition.status === "live" || competition.status === "paused")) {
       return jsonError(
         "invalid_transition",
         competitionLifecycleErrorMessage("invalid_transition"),
@@ -79,20 +75,55 @@ export async function POST(request: Request, context: { params: Promise<{ compet
       );
     }
 
+    const fallbackUpdate = await adminClient
+      .from("competitions")
+      .update({
+        status: "ended",
+        published: true,
+        is_paused: false,
+      })
+      .eq("id", competitionId)
+      .eq("organizer_id", actor.userId)
+      .select("id")
+      .maybeSingle();
+
+    if (fallbackUpdate.error && isLegacyCompetitionSchemaError(fallbackUpdate.error)) {
+      return jsonError(
+        "service_unavailable",
+        "Competition lifecycle mutations are temporarily unavailable while database migrations are incomplete.",
+        503,
+        {
+          currentStatus: competition.status,
+          replayed: false,
+          changed: false,
+        },
+      );
+    }
+
+    if (fallbackUpdate.error) {
+      return jsonDatabaseError(fallbackUpdate.error);
+    }
+
+    if (!fallbackUpdate.data) {
+      return jsonError("not_found", "Requested resource was not found.", 404);
+    }
+
+    const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);
+    if ("response" in refreshed) {
+      return refreshed.response;
+    }
+
     return jsonOk({
       code: "ok",
-      competition: {
-        ...competition,
-        status: "ended",
-      },
+      competition: refreshed.competition,
       lifecycle: {
         machineCode: "ok",
-        status: "ended",
+        status: refreshed.competition.status,
         eventId: null,
         replayed: false,
         changed: true,
         requestIdempotencyToken,
-        draftRevision: competition.draftRevision,
+        draftRevision: refreshed.competition.draftRevision,
         selectedProblemCount: null,
       },
     });

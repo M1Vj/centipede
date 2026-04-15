@@ -62,6 +62,15 @@ function makeMutationRequest(path: "start" | "end" | "archive") {
   });
 }
 
+function makeCrossSiteMutationRequest(path: "start" | "end" | "archive") {
+  return new Request(`http://localhost:3000/api/organizer/competitions/${COMPETITION_ID}/${path}`, {
+    method: "POST",
+    headers: {
+      "x-idempotency-key": "idem-token-123",
+    },
+  });
+}
+
 function makeSupabaseClient(competitionRows: Array<Record<string, unknown>>) {
   const profileQuery = {
     select: vi.fn(),
@@ -121,17 +130,21 @@ describe("lifecycle route legacy fallback compatibility", () => {
     vi.clearAllMocks();
   });
 
-  test("start route falls back when lifecycle RPC is unavailable", async () => {
+  test("start route allows idempotent replay responses from lifecycle RPC", async () => {
     vi.mocked(createClient).mockResolvedValue(
-      makeSupabaseClient([makeCompetitionRow("published")]) as never,
+      makeSupabaseClient([makeCompetitionRow("live"), makeCompetitionRow("live")]) as never,
     );
 
     const rpc = vi.fn().mockResolvedValue({
-      data: null,
-      error: {
-        code: "PGRST202",
-        message: "Could not find the function public.start_competition in the schema cache",
+      data: {
+        machine_code: "ok",
+        status: "live",
+        event_id: "event-1",
+        request_idempotency_token: "idem-token-123",
+        replayed: true,
+        changed: false,
       },
+      error: null,
     });
 
     vi.mocked(createAdminClient).mockReturnValue({
@@ -145,18 +158,80 @@ describe("lifecycle route legacy fallback compatibility", () => {
 
     expect(response.status).toBe(200);
     expect(body.code).toBe("ok");
-    expect(body.competition.status).toBe("live");
     expect(body.lifecycle.machineCode).toBe("ok");
     expect(body.lifecycle.status).toBe("live");
+    expect(body.lifecycle.replayed).toBe(true);
+    expect(body.lifecycle.changed).toBe(false);
     expect(rpc).toHaveBeenCalledWith("start_competition", {
       p_competition_id: COMPETITION_ID,
       p_request_idempotency_token: "idem-token-123",
     });
   });
 
-  test("end route falls back when lifecycle RPC is unavailable", async () => {
+  test("start route falls back and persists transition when lifecycle RPC is unavailable", async () => {
     vi.mocked(createClient).mockResolvedValue(
-      makeSupabaseClient([makeCompetitionRow("published")]) as never,
+      makeSupabaseClient([makeCompetitionRow("published"), makeCompetitionRow("live")]) as never,
+    );
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "PGRST202",
+        message: "Could not find the function public.start_competition in the schema cache",
+      },
+    });
+
+    const updateQuery = {
+      eq: vi.fn(),
+      select: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { id: COMPETITION_ID },
+        error: null,
+      }),
+    };
+    updateQuery.eq.mockImplementation(() => updateQuery);
+    updateQuery.select.mockImplementation(() => updateQuery);
+    const competitionsUpdate = vi.fn().mockImplementation(() => updateQuery);
+
+    const from = vi.fn((table: string) => {
+      if (table === "competitions") {
+        return {
+          update: competitionsUpdate,
+        };
+      }
+
+      throw new Error(`Unexpected table in admin client: ${table}`);
+    });
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc,
+      from,
+    } as never);
+
+    const response = await startCompetition(makeMutationRequest("start"), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.competition.status).toBe("live");
+    expect(body.lifecycle.machineCode).toBe("ok");
+    expect(body.lifecycle.status).toBe("live");
+    expect(competitionsUpdate).toHaveBeenCalledWith({
+      status: "live",
+      published: true,
+      is_paused: false,
+    });
+    expect(rpc).toHaveBeenCalledWith("start_competition", {
+      p_competition_id: COMPETITION_ID,
+      p_request_idempotency_token: "idem-token-123",
+    });
+  });
+
+  test("end route falls back and persists transition when lifecycle RPC is unavailable", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseClient([makeCompetitionRow("live"), makeCompetitionRow("ended")]) as never,
     );
 
     const rpc = vi.fn().mockResolvedValue({
@@ -167,8 +242,31 @@ describe("lifecycle route legacy fallback compatibility", () => {
       },
     });
 
+    const updateQuery = {
+      eq: vi.fn(),
+      select: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { id: COMPETITION_ID },
+        error: null,
+      }),
+    };
+    updateQuery.eq.mockImplementation(() => updateQuery);
+    updateQuery.select.mockImplementation(() => updateQuery);
+    const competitionsUpdate = vi.fn().mockImplementation(() => updateQuery);
+
+    const from = vi.fn((table: string) => {
+      if (table === "competitions") {
+        return {
+          update: competitionsUpdate,
+        };
+      }
+
+      throw new Error(`Unexpected table in admin client: ${table}`);
+    });
+
     vi.mocked(createAdminClient).mockReturnValue({
       rpc,
+      from,
     } as never);
 
     const response = await endCompetition(makeMutationRequest("end"), {
@@ -181,6 +279,11 @@ describe("lifecycle route legacy fallback compatibility", () => {
     expect(body.competition.status).toBe("ended");
     expect(body.lifecycle.machineCode).toBe("ok");
     expect(body.lifecycle.status).toBe("ended");
+    expect(competitionsUpdate).toHaveBeenCalledWith({
+      status: "ended",
+      published: true,
+      is_paused: false,
+    });
     expect(rpc).toHaveBeenCalledWith("end_competition", {
       p_competition_id: COMPETITION_ID,
       p_request_idempotency_token: "idem-token-123",
@@ -189,9 +292,9 @@ describe("lifecycle route legacy fallback compatibility", () => {
     });
   });
 
-  test("archive route falls back when lifecycle RPC is unavailable", async () => {
+  test("archive route falls back and persists transition when lifecycle RPC is unavailable", async () => {
     vi.mocked(createClient).mockResolvedValue(
-      makeSupabaseClient([makeCompetitionRow("ended")]) as never,
+      makeSupabaseClient([makeCompetitionRow("ended"), makeCompetitionRow("archived")]) as never,
     );
 
     const rpc = vi.fn().mockResolvedValue({
@@ -202,8 +305,31 @@ describe("lifecycle route legacy fallback compatibility", () => {
       },
     });
 
+    const updateQuery = {
+      eq: vi.fn(),
+      select: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { id: COMPETITION_ID },
+        error: null,
+      }),
+    };
+    updateQuery.eq.mockImplementation(() => updateQuery);
+    updateQuery.select.mockImplementation(() => updateQuery);
+    const competitionsUpdate = vi.fn().mockImplementation(() => updateQuery);
+
+    const from = vi.fn((table: string) => {
+      if (table === "competitions") {
+        return {
+          update: competitionsUpdate,
+        };
+      }
+
+      throw new Error(`Unexpected table in admin client: ${table}`);
+    });
+
     vi.mocked(createAdminClient).mockReturnValue({
       rpc,
+      from,
     } as never);
 
     const response = await archiveCompetition(makeMutationRequest("archive"), {
@@ -216,9 +342,77 @@ describe("lifecycle route legacy fallback compatibility", () => {
     expect(body.competition.status).toBe("archived");
     expect(body.lifecycle.machineCode).toBe("ok");
     expect(body.lifecycle.status).toBe("archived");
+    expect(competitionsUpdate).toHaveBeenCalledWith({
+      status: "archived",
+      published: true,
+      is_paused: false,
+    });
     expect(rpc).toHaveBeenCalledWith("archive_competition", {
       p_competition_id: COMPETITION_ID,
       p_request_idempotency_token: "idem-token-123",
     });
+  });
+
+  test("returns service unavailable when fallback cannot persist lifecycle state", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseClient([makeCompetitionRow("published")]) as never,
+    );
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "PGRST202",
+        message: "Could not find the function public.start_competition in the schema cache",
+      },
+    });
+
+    const updateQuery = {
+      eq: vi.fn(),
+      select: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: null,
+        error: {
+          code: "42703",
+          message: "column competitions.status does not exist",
+        },
+      }),
+    };
+    updateQuery.eq.mockImplementation(() => updateQuery);
+    updateQuery.select.mockImplementation(() => updateQuery);
+
+    const from = vi.fn((table: string) => {
+      if (table === "competitions") {
+        return {
+          update: vi.fn().mockImplementation(() => updateQuery),
+        };
+      }
+
+      throw new Error(`Unexpected table in admin client: ${table}`);
+    });
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc,
+      from,
+    } as never);
+
+    const response = await startCompetition(makeMutationRequest("start"), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.code).toBe("service_unavailable");
+    expect(body.changed).toBe(false);
+  });
+
+  test("blocks cross-site mutation requests before auth resolution", async () => {
+    const response = await startCompetition(makeCrossSiteMutationRequest("start"), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.code).toBe("forbidden");
+    expect(createClient).not.toHaveBeenCalled();
   });
 });

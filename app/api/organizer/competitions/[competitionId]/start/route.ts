@@ -50,17 +50,6 @@ export async function POST(request: Request, context: { params: Promise<{ compet
     });
   }
 
-  if (competition.status !== "published") {
-    return jsonError(
-      "invalid_transition",
-      competitionLifecycleErrorMessage("invalid_transition"),
-      competitionLifecycleErrorStatus("invalid_transition"),
-      {
-        currentStatus: competition.status,
-      },
-    );
-  }
-
   const adminClientResult = requireCompetitionAdminClient();
   if ("response" in adminClientResult) {
     return adminClientResult.response;
@@ -73,20 +62,66 @@ export async function POST(request: Request, context: { params: Promise<{ compet
   });
 
   if (error && isLegacyCompetitionSchemaError(error)) {
+    if (competition.status !== "published") {
+      return jsonError(
+        "invalid_transition",
+        competitionLifecycleErrorMessage("invalid_transition"),
+        competitionLifecycleErrorStatus("invalid_transition"),
+        {
+          currentStatus: competition.status,
+        },
+      );
+    }
+
+    const fallbackUpdate = await adminClient
+      .from("competitions")
+      .update({
+        status: "live",
+        published: true,
+        is_paused: false,
+      })
+      .eq("id", competitionId)
+      .eq("organizer_id", actor.userId)
+      .select("id")
+      .maybeSingle();
+
+    if (fallbackUpdate.error && isLegacyCompetitionSchemaError(fallbackUpdate.error)) {
+      return jsonError(
+        "service_unavailable",
+        "Competition lifecycle mutations are temporarily unavailable while database migrations are incomplete.",
+        503,
+        {
+          currentStatus: competition.status,
+          replayed: false,
+          changed: false,
+        },
+      );
+    }
+
+    if (fallbackUpdate.error) {
+      return jsonDatabaseError(fallbackUpdate.error);
+    }
+
+    if (!fallbackUpdate.data) {
+      return jsonError("not_found", "Requested resource was not found.", 404);
+    }
+
+    const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);
+    if ("response" in refreshed) {
+      return refreshed.response;
+    }
+
     return jsonOk({
       code: "ok",
-      competition: {
-        ...competition,
-        status: "live",
-      },
+      competition: refreshed.competition,
       lifecycle: {
         machineCode: "ok",
-        status: "live",
+        status: refreshed.competition.status,
         eventId: null,
         replayed: false,
         changed: true,
         requestIdempotencyToken,
-        draftRevision: competition.draftRevision,
+        draftRevision: refreshed.competition.draftRevision,
         selectedProblemCount: null,
       },
     });
