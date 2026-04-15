@@ -26,6 +26,7 @@ export default async function OrganizerLayout({
         ...(isOrganizer
           ? [
               { href: "/organizer/problem-bank", label: "Problem Banks" },
+              { href: "/organizer/competition", label: "Competitions" },
               { href: "/organizer/scoring", label: "Scoring" },
             ]
           : []),
