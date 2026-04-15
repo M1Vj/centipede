@@ -66,6 +66,7 @@ export function TeamForm() {
         type: "success",
         message: "Team created. Redirecting to your roster...",
       });
+      setName("");
       feedbackRouter.push(`/mathlete/teams/${response.payload.team.id}`);
     } catch {
       setStatus({
@@ -94,6 +95,7 @@ export function TeamForm() {
               value={name}
               onChange={(event) => setName(event.target.value)}
               maxLength={80}
+              minLength={2}
               required
             />
           </div>

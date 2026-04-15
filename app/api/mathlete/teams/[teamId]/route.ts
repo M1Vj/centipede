@@ -4,6 +4,7 @@ import {
   normalizeTeamMembershipRow,
   normalizeTeamRow,
 } from "@/lib/teams/types";
+import { isUuid } from "@/lib/teams/validation";
 import {
   jsonDatabaseError,
   jsonError,
@@ -32,6 +33,9 @@ export async function GET(_: Request, context: RouteContext) {
   }
 
   const { teamId } = await context.params;
+  if (!isUuid(teamId)) {
+    return jsonError("invalid_input", "Request payload is invalid.", 400);
+  }
   const { supabase, actor } = auth;
 
   const { data: membershipRow, error: membershipError } = await supabase

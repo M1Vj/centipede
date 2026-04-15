@@ -3,6 +3,8 @@ import { normalizeWhitespace } from "@/lib/problem-bank/normalization";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const IDEMPOTENCY_TOKEN_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
+const TEAM_NAME_MIN_LENGTH = 2;
+const TEAM_NAME_CONTENT_PATTERN = /[\p{L}\p{N}]/u;
 
 export const TEAM_CODE_LENGTH = 10;
 export const TEAM_CODE_PATTERN = new RegExp(`^[A-Z0-9]{${TEAM_CODE_LENGTH}}$`);
@@ -50,6 +52,20 @@ export function validateTeamNameInput(value: unknown): TeamValidationResult<stri
     errors.push({
       field: "name",
       reason: "Team name is required.",
+    });
+  }
+
+  if (name && name.length < TEAM_NAME_MIN_LENGTH) {
+    errors.push({
+      field: "name",
+      reason: `Team name must be at least ${TEAM_NAME_MIN_LENGTH} characters long.`,
+    });
+  }
+
+  if (name && !TEAM_NAME_CONTENT_PATTERN.test(name)) {
+    errors.push({
+      field: "name",
+      reason: "Team name must include at least one letter or number.",
     });
   }
 
