@@ -7,6 +7,7 @@ import {
   ArrowUp,
   CheckCircle2,
   Clock3,
+  Info,
   CopyPlus,
   GripVertical,
   Search,
@@ -46,6 +47,48 @@ function createFormErrorLookup(errors: { field: string; reason: string }[]) {
   return new Map(errors.map((error) => [error.field, error.reason]));
 }
 
+const FIELD_TO_ELEMENT_ID: Record<string, string> = {
+  name: "competition-name",
+  description: "competition-description",
+  instructions: "competition-instructions",
+  registrationStart: "registration-start",
+  registrationEnd: "registration-end",
+  startTime: "competition-start",
+  endTime: "competition-end",
+  format: "competition-format",
+  attemptsAllowed: "attempts-allowed",
+  maxParticipants: "max-participants",
+  participantsPerTeam: "participants-per-team",
+  maxTeams: "max-teams",
+  answerKeyVisibility: "answer-key-visibility",
+};
+
+function focusFirstValidationField(errors: { field: string; reason: string }[]) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const firstError = errors[0];
+  if (!firstError) {
+    return;
+  }
+
+  const elementId = FIELD_TO_ELEMENT_ID[firstError.field];
+  if (!elementId) {
+    return;
+  }
+
+  const field = document.getElementById(elementId);
+  if (field instanceof HTMLElement) {
+    field.focus();
+  }
+}
+
+function buildValidationStatusMessage(baseMessage: string, errors: { field: string; reason: string }[]) {
+  const firstReason = errors[0]?.reason;
+  return firstReason ? `${baseMessage} ${firstReason}` : baseMessage;
+}
+
 function competitionStatusLabel(status: CompetitionStatus) {
   switch (status) {
     case "draft":
@@ -63,6 +106,44 @@ function competitionStatusLabel(status: CompetitionStatus) {
     default:
       return "Draft";
   }
+}
+
+function parseCompetitionStatus(value: unknown): CompetitionStatus | null {
+  if (
+    value === "draft" ||
+    value === "published" ||
+    value === "live" ||
+    value === "paused" ||
+    value === "ended" ||
+    value === "archived"
+  ) {
+    return value;
+  }
+
+  return null;
+}
+
+function resolveCompetitionStatusFromResponse(body: Record<string, unknown> | null): CompetitionStatus | null {
+  if (!body) {
+    return null;
+  }
+
+  const competitionRecord =
+    typeof body.competition === "object" && body.competition !== null && !Array.isArray(body.competition)
+      ? (body.competition as Record<string, unknown>)
+      : null;
+  const lifecycleRecord =
+    typeof body.lifecycle === "object" && body.lifecycle !== null && !Array.isArray(body.lifecycle)
+      ? (body.lifecycle as Record<string, unknown>)
+      : null;
+
+  return (
+    parseCompetitionStatus(lifecycleRecord?.status) ??
+    parseCompetitionStatus(lifecycleRecord?.currentStatus) ??
+    parseCompetitionStatus(body.currentStatus) ??
+    parseCompetitionStatus(body.status) ??
+    parseCompetitionStatus(competitionRecord?.status)
+  );
 }
 
 function formatDateTime(value: string | null) {
@@ -99,6 +180,84 @@ function buildScoringConfig(state: CompetitionDraftFormState): ScoringRuleConfig
 
 function buildSelectedProblemSet(selectedProblemIds: string[]) {
   return new Set(selectedProblemIds);
+}
+
+function buildProblemBankOptions(problems: CompetitionProblemOption[]) {
+  return Array.from(new Map(problems.map((problem) => [problem.bankId, problem.bankName])));
+}
+
+function getSuggestedProblemPoints(problem: CompetitionProblemOption) {
+  if (problem.difficulty === "easy") {
+    return 1;
+  }
+
+  if (problem.difficulty === "difficult") {
+    return 3;
+  }
+
+  return 2;
+}
+
+function seedCustomPoints(
+  currentPoints: Record<string, number>,
+  problemsToSeed: CompetitionProblemOption[],
+) {
+  const nextPoints = { ...currentPoints };
+
+  problemsToSeed.forEach((problem) => {
+    if (typeof nextPoints[problem.id] !== "number") {
+      nextPoints[problem.id] = getSuggestedProblemPoints(problem);
+    }
+  });
+
+  return nextPoints;
+}
+
+function pruneCustomPoints(
+  currentPoints: Record<string, number>,
+  selectedProblemIds: string[],
+) {
+  const selectedIds = new Set(selectedProblemIds);
+
+  return Object.fromEntries(
+    Object.entries(currentPoints).filter(([problemId]) => selectedIds.has(problemId)),
+  );
+}
+
+function buildProblemLabel(problem: CompetitionProblemOption) {
+  const rawLabel = problem.contentLatex || `${problem.bankName} ${problem.type} problem`;
+  const compactLabel = rawLabel.replace(/\s+/g, " ").trim();
+
+  if (compactLabel.length <= 80) {
+    return compactLabel;
+  }
+
+  return `${compactLabel.slice(0, 77).trimEnd()}...`;
+}
+
+function getResponseErrorMessage(
+  body: Record<string, unknown> | null,
+  fallbackMessage: string,
+) {
+  if (!body) {
+    return fallbackMessage;
+  }
+
+  if (Array.isArray(body.errors)) {
+    const firstError = body.errors.find(
+      (entry): entry is { reason?: string } =>
+        typeof entry === "object" && entry !== null && "reason" in entry,
+    );
+    if (typeof firstError?.reason === "string" && firstError.reason.trim()) {
+      return firstError.reason;
+    }
+  }
+
+  if (typeof body.message === "string" && body.message.trim()) {
+    return body.message;
+  }
+
+  return fallbackMessage;
 }
 
 async function readJsonResponse(response: Response) {
@@ -147,6 +306,7 @@ export function CompetitionWizard({
   const publishValidation = validateCompetitionPublishReadiness(draftState);
   const scoringConfig = buildScoringConfig(draftState);
   const selectedProblemSet = buildSelectedProblemSet(draftState.selectedProblemIds);
+  const bankOptions = buildProblemBankOptions(availableProblems);
 
   const selectedProblems = draftState.selectedProblemIds
     .map((problemId) => availableProblems.find((problem) => problem.id === problemId))
@@ -178,12 +338,45 @@ export function CompetitionWizard({
   const formErrorLookup = createFormErrorLookup(draftValidation.errors);
   const publishErrorLookup = createFormErrorLookup(publishValidation.errors);
   const selectedProblemCount = draftState.selectedProblemIds.length;
+  const scheduleErrors = draftValidation.errors.filter((error) =>
+    ["type", "registrationStart", "registrationEnd", "startTime", "endTime"].includes(error.field),
+  );
+  const visibleProblemIds = filteredProblems.map((problem) => problem.id);
+  const activeBankName = bankOptions.find(([bankId]) => bankId === bankFilter)?.[1] ?? null;
   const isEditable = competitionStatus === "draft";
   const canPublish = competitionStatus === "draft" && publishValidation.ok && publishValidation.value !== null;
   const canStart = competitionStatus === "published" && draftState.type === "open";
   const canEnd = (competitionStatus === "live" || competitionStatus === "paused") && draftState.type === "open";
   const canArchive = competitionStatus === "ended" || (competitionStatus === "paused" && draftState.type === "open");
   const canDelete = competitionStatus === "draft";
+
+  function syncStateFromResponse(body: Record<string, unknown> | null) {
+    if (!body) {
+      return;
+    }
+
+    const lifecycleRecord =
+      typeof body.lifecycle === "object" && body.lifecycle !== null && !Array.isArray(body.lifecycle)
+        ? (body.lifecycle as Record<string, unknown>)
+        : null;
+
+    const nextStatus = resolveCompetitionStatusFromResponse(body);
+
+    if (nextStatus) {
+      setCompetitionStatus(nextStatus);
+    }
+
+    const nextRevision =
+      typeof body.currentDraftRevision === "number"
+        ? body.currentDraftRevision
+        : typeof lifecycleRecord?.draftRevision === "number"
+          ? lifecycleRecord.draftRevision
+          : null;
+
+    if (typeof nextRevision === "number" && Number.isFinite(nextRevision)) {
+      setDraftRevision(Math.trunc(nextRevision));
+    }
+  }
 
   function updateDraft<K extends keyof CompetitionDraftFormState>(field: K, value: CompetitionDraftFormState[K]) {
     setDraftState((current) => ({ ...current, [field]: value }));
@@ -197,6 +390,34 @@ export function CompetitionWizard({
     setStatusMessage(null);
   }
 
+  function setCompetitionType(nextType: "open" | "scheduled") {
+    setDraftState((current) => {
+      if (nextType === "open") {
+        return {
+          ...current,
+          type: "open",
+          format: "individual",
+          registrationStart: "",
+          registrationEnd: "",
+          startTime: "",
+          endTime: "",
+          attemptsAllowed: Math.max(1, Math.min(3, current.attemptsAllowed)),
+          maxParticipants: current.maxParticipants ?? 3,
+          participantsPerTeam: null,
+          maxTeams: null,
+        };
+      }
+
+      return {
+        ...current,
+        type: "scheduled",
+        attemptsAllowed: 1,
+      };
+    });
+    setStatus("idle");
+    setStatusMessage(null);
+  }
+
   function toggleProblem(problemId: string) {
     if (!isEditable && mode === "edit") {
       return;
@@ -204,13 +425,24 @@ export function CompetitionWizard({
 
     setDraftState((current) => {
       const selected = new Set(current.selectedProblemIds);
+      const problem = availableProblems.find((entry) => entry.id === problemId);
+
       if (selected.has(problemId)) {
         selected.delete(problemId);
       } else {
         selected.add(problemId);
       }
 
-      return { ...current, selectedProblemIds: Array.from(selected) };
+      const nextSelectedProblemIds = Array.from(selected);
+      const nextCustomPointsByProblemId = selected.has(problemId) && current.scoringMode === "custom" && problem
+        ? seedCustomPoints(current.customPointsByProblemId, [problem])
+        : pruneCustomPoints(current.customPointsByProblemId, nextSelectedProblemIds);
+
+      return {
+        ...current,
+        selectedProblemIds: nextSelectedProblemIds,
+        customPointsByProblemId: nextCustomPointsByProblemId,
+      };
     });
   }
 
@@ -234,6 +466,60 @@ export function CompetitionWizard({
     });
   }
 
+  function addProblemIds(problemIds: string[]) {
+    if (!isEditable && mode === "edit") {
+      return;
+    }
+
+    setDraftState((current) => {
+      const selected = new Set(current.selectedProblemIds);
+      problemIds.forEach((problemId) => selected.add(problemId));
+
+      const nextSelectedProblemIds = Array.from(selected);
+      const problemsToSeed = availableProblems.filter((problem) => problemIds.includes(problem.id));
+
+      return {
+        ...current,
+        selectedProblemIds: nextSelectedProblemIds,
+        customPointsByProblemId:
+          current.scoringMode === "custom"
+            ? seedCustomPoints(current.customPointsByProblemId, problemsToSeed)
+            : current.customPointsByProblemId,
+      };
+    });
+  }
+
+  function removeProblemIds(problemIds: string[]) {
+    if (!isEditable && mode === "edit") {
+      return;
+    }
+
+    setDraftState((current) => {
+      const blockedIds = new Set(problemIds);
+      const nextSelectedProblemIds = current.selectedProblemIds.filter((problemId) => !blockedIds.has(problemId));
+
+      return {
+        ...current,
+        selectedProblemIds: nextSelectedProblemIds,
+        customPointsByProblemId: pruneCustomPoints(current.customPointsByProblemId, nextSelectedProblemIds),
+      };
+    });
+  }
+
+  function updateCustomPoint(problemId: string, nextPoints: string) {
+    const parsed = Number.parseInt(nextPoints, 10);
+
+    setDraftState((current) => ({
+      ...current,
+      customPointsByProblemId: {
+        ...current.customPointsByProblemId,
+        [problemId]: Number.isFinite(parsed) ? Math.max(0, parsed) : 0,
+      },
+    }));
+    setStatus("idle");
+    setStatusMessage(null);
+  }
+
   async function submitCreateDraft() {
     if (draftValidation.ok && draftValidation.value) {
       setSavingAction("create");
@@ -251,7 +537,7 @@ export function CompetitionWizard({
 
         const body = await readJsonResponse(response);
         if (!response.ok || !body) {
-          throw new Error((body?.message as string) ?? "Competition create failed.");
+          throw new Error(getResponseErrorMessage(body, "Competition create failed."));
         }
 
         const competition = body.competition as CompetitionRecord | undefined;
@@ -271,7 +557,8 @@ export function CompetitionWizard({
     }
 
     setStatus("error");
-    setStatusMessage("Fix validation issues before creating draft.");
+    setStatusMessage(buildValidationStatusMessage("Fix validation issues before creating draft.", draftValidation.errors));
+    focusFirstValidationField(draftValidation.errors);
   }
 
   async function saveDraft() {
@@ -281,7 +568,8 @@ export function CompetitionWizard({
 
     if (!draftValidation.ok || !draftValidation.value) {
       setStatus("error");
-      setStatusMessage("Fix validation issues before saving draft.");
+      setStatusMessage(buildValidationStatusMessage("Fix validation issues before saving draft.", draftValidation.errors));
+      focusFirstValidationField(draftValidation.errors);
       return;
     }
 
@@ -302,17 +590,12 @@ export function CompetitionWizard({
       });
 
       const body = await readJsonResponse(response);
+      syncStateFromResponse(body);
+
       if (!response.ok || !body) {
-        throw new Error((body?.message as string) ?? "Competition save failed.");
+        throw new Error(getResponseErrorMessage(body, "Competition save failed."));
       }
 
-      const nextCompetition = body.competition as CompetitionRecord | undefined;
-      if (nextCompetition) {
-        setCompetitionStatus(nextCompetition.status);
-      }
-
-      const nextRevision = typeof body.currentDraftRevision === "number" ? body.currentDraftRevision : draftRevision;
-      setDraftRevision(nextRevision);
       setStatus("saved");
       setStatusMessage("Draft saved.");
     } catch (error) {
@@ -333,8 +616,8 @@ export function CompetitionWizard({
   ] as const;
 
   return (
-    <div className="grid gap-8 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-      <div className="space-y-6">
+    <div className="grid gap-8 2xl:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.88fr)]">
+      <div className="min-w-0 space-y-6">
         <Card className="surface-card border-border/60">
           <CardHeader className="space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -376,6 +659,21 @@ export function CompetitionWizard({
             </div>
           </CardHeader>
         </Card>
+
+        {mode === "edit" && !isEditable ? (
+          <Card className="border-amber-300/60 bg-amber-50/80 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
+            <CardContent className="flex gap-3 p-4 text-sm text-amber-950 dark:text-amber-100">
+              <Info className="mt-0.5 size-4 shrink-0" />
+              <div className="space-y-1">
+                <p className="font-semibold">This competition is read-only now.</p>
+                <p>
+                  Drafts can still be edited. Published, live, ended, and archived competitions keep frozen problem
+                  and scoring snapshots.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <section id="overview" className="scroll-mt-24 space-y-4">
           <Card className="border-border/60 bg-background/90 shadow-sm">
@@ -446,9 +744,7 @@ export function CompetitionWizard({
                   <select
                     id="competition-type"
                     value={draftState.type}
-                    onChange={(event) =>
-                      updateDraft("type", event.target.value === "open" ? "open" : "scheduled")
-                    }
+                    onChange={(event) => setCompetitionType(event.target.value === "open" ? "open" : "scheduled")}
                     className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                     disabled={!isEditable && mode === "edit"}
                   >
@@ -517,8 +813,25 @@ export function CompetitionWizard({
                 </div>
               </div>
 
+              {scheduleErrors.length > 0 ? (
+                <Card className="border-amber-300/60 bg-amber-50/80 shadow-none dark:border-amber-900/60 dark:bg-amber-950/20">
+                  <CardContent className="p-4">
+                    <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+                      Schedule needs attention before save or publish.
+                    </p>
+                    <ul className="mt-2 space-y-1 text-sm text-amber-900 dark:text-amber-200">
+                      {scheduleErrors.map((error) => (
+                        <li key={`${error.field}:${error.reason}`}>{error.reason}</li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              ) : null}
+
               <div className="rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
-                Scheduled competitions must provide registration and start times. Open competitions stay flexible and use manual lifecycle controls.
+                {draftState.type === "scheduled"
+                  ? "Scheduled competitions must provide registration and start times. Registration must close before competition start."
+                  : "Open competitions clear registration windows and scheduled start times. They use manual lifecycle controls instead."}
               </div>
             </CardContent>
           </Card>
@@ -672,7 +985,7 @@ export function CompetitionWizard({
               <CardDescription>Select, search, and order problems before publish.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -692,19 +1005,68 @@ export function CompetitionWizard({
                     className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                   >
                     <option value="all">All banks</option>
-                    {Array.from(new Map(availableProblems.map((problem) => [problem.bankId, problem.bankName]))).map(
-                      ([bankId, bankName]) => (
-                        <option key={bankId} value={bankId}>
-                          {bankName}
-                        </option>
-                      ),
-                    )}
+                    {bankOptions.map(([bankId, bankName]) => (
+                      <option key={bankId} value={bankId}>
+                        {bankName}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                <div className="space-y-3 rounded-2xl border border-border/60 bg-muted/10 p-4">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addProblemIds(visibleProblemIds)}
+                  disabled={!isEditable || visibleProblemIds.length === 0}
+                >
+                  Select visible
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => removeProblemIds(visibleProblemIds)}
+                  disabled={!isEditable || visibleProblemIds.length === 0}
+                >
+                  Remove visible
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    addProblemIds(
+                      availableProblems
+                        .filter((problem) => problem.bankId === bankFilter)
+                        .map((problem) => problem.id),
+                    )
+                  }
+                  disabled={!isEditable || bankFilter === "all"}
+                >
+                  {activeBankName ? `Select ${activeBankName}` : "Select bank"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    removeProblemIds(
+                      availableProblems
+                        .filter((problem) => problem.bankId === bankFilter)
+                        .map((problem) => problem.id),
+                    )
+                  }
+                  disabled={!isEditable || bankFilter === "all"}
+                >
+                  Remove bank
+                </Button>
+              </div>
+
+              <div className="grid gap-4 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                <div className="min-w-0 space-y-3 rounded-2xl border border-border/60 bg-muted/10 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-foreground">Selected problems</p>
@@ -725,15 +1087,34 @@ export function CompetitionWizard({
                     <div className="space-y-3">
                       {selectedProblems.map((problem, index) => (
                         <div key={problem.id} className="rounded-xl border border-border/60 bg-background p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="space-y-1">
+                          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                            <div className="min-w-0 flex-1 space-y-1">
                               <p className="text-sm font-semibold text-foreground">{problem.bankName}</p>
-                              <p className="line-clamp-2 text-sm text-muted-foreground">
+                              <p className="line-clamp-2 break-all text-sm text-muted-foreground">
                                 {problem.contentLatex || "Untitled problem"}
                               </p>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="break-words text-xs text-muted-foreground">
                                 {problem.type} · {problem.difficulty} · {problem.tags.join(" | ") || "No tags"}
                               </p>
+
+                              {draftState.scoringMode === "custom" ? (
+                                <div className="grid max-w-52 gap-2 pt-2">
+                                  <Label htmlFor={`custom-points-${problem.id}`}>
+                                    Custom points for {buildProblemLabel(problem)}
+                                  </Label>
+                                  <Input
+                                    id={`custom-points-${problem.id}`}
+                                    type="number"
+                                    min={0}
+                                    value={
+                                      draftState.customPointsByProblemId[problem.id] ??
+                                      getSuggestedProblemPoints(problem)
+                                    }
+                                    onChange={(event) => updateCustomPoint(problem.id, event.target.value)}
+                                    disabled={!isEditable && mode === "edit"}
+                                  />
+                                </div>
+                              ) : null}
                             </div>
                             <div className="flex flex-col gap-2">
                               <Button
@@ -774,7 +1155,7 @@ export function CompetitionWizard({
                   )}
                 </div>
 
-                <div className="space-y-3 rounded-2xl border border-border/60 bg-background/80 p-4">
+                <div className="min-w-0 space-y-3 rounded-2xl border border-border/60 bg-background/80 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-foreground">Available problems</p>
@@ -782,13 +1163,25 @@ export function CompetitionWizard({
                         {filteredProblems.length} visible after search and bank filter.
                       </p>
                     </div>
-                    <Button type="button" variant="outline" size="sm" onClick={() => setDraftState((current) => ({ ...current, selectedProblemIds: [] }))}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setDraftState((current) => ({
+                          ...current,
+                          selectedProblemIds: [],
+                          customPointsByProblemId: {},
+                        }))
+                      }
+                      disabled={!isEditable && mode === "edit"}
+                    >
                       <CopyPlus className="size-4" />
                       Clear
                     </Button>
                   </div>
 
-                  <div className="max-h-[32rem] space-y-3 overflow-y-auto pr-1">
+                  <div className="max-h-[32rem] space-y-3 overflow-x-hidden overflow-y-auto pr-1">
                     {filteredProblems.map((problem) => {
                       const isSelected = selectedProblemSet.has(problem.id);
                       return (
@@ -805,16 +1198,16 @@ export function CompetitionWizard({
                           )}
                         >
                           <div className="flex items-start justify-between gap-3">
-                            <div className="space-y-2">
+                            <div className="min-w-0 space-y-2">
                               <div className="flex flex-wrap items-center gap-2">
                                 <Badge variant={isSelected ? "default" : "outline"}>{problem.bankName}</Badge>
                                 <Badge variant="outline">{problem.difficulty}</Badge>
                                 <Badge variant="outline">{problem.type}</Badge>
                               </div>
-                              <p className="line-clamp-2 text-sm text-foreground">
+                              <p className="line-clamp-2 break-all text-sm text-foreground">
                                 {problem.contentLatex || "Untitled problem"}
                               </p>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="break-words text-xs text-muted-foreground">
                                 {problem.tags.join(" | ") || "No tags"}
                               </p>
                             </div>
@@ -857,6 +1250,10 @@ export function CompetitionWizard({
                   replaceDraft({
                     ...draftState,
                     ...nextValue,
+                    customPointsByProblemId:
+                      nextValue.scoringMode === "custom"
+                        ? seedCustomPoints(nextValue.customPointsByProblemId, selectedProblems)
+                        : draftState.customPointsByProblemId,
                   })
                 }
                 validationErrors={draftValidation.ok ? [] : draftValidation.errors.filter((error) =>
@@ -873,24 +1270,14 @@ export function CompetitionWizard({
                 disabled={!isEditable && mode === "edit"}
               />
 
-              <div className="grid gap-6 xl:grid-cols-2">
-                <ScoringSummaryCard
-                  config={scoringConfig}
-                  context="wizard"
-                  options={{
-                    competitionType: draftState.type,
-                    selectedProblemCount,
-                  }}
-                />
-                <ScoringSummaryCard
-                  config={scoringConfig}
-                  context="review"
-                  options={{
-                    competitionType: draftState.type,
-                    selectedProblemCount,
-                  }}
-                />
-              </div>
+              <ScoringSummaryCard
+                config={scoringConfig}
+                context="wizard"
+                options={{
+                  competitionType: draftState.type,
+                  selectedProblemCount,
+                }}
+              />
             </CardContent>
           </Card>
         </section>
@@ -923,7 +1310,7 @@ export function CompetitionWizard({
 
               {mode === "edit" ? (
                 <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/10 p-4">
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex w-full flex-wrap items-center gap-3">
                     <Button
                       type="button"
                       onClick={() => void saveDraft()}
@@ -1026,7 +1413,7 @@ export function CompetitionWizard({
         </section>
       </div>
 
-      <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
+      <aside className="space-y-6 2xl:sticky 2xl:top-24 2xl:self-start">
         <Card className="border-border/60 bg-background/90 shadow-sm">
           <CardHeader>
             <CardTitle className="text-xl">Snapshot preview</CardTitle>
@@ -1111,8 +1498,42 @@ export function CompetitionWizard({
             return;
           }
 
+          if (!draftValidation.ok || !draftValidation.value) {
+            setStatus("error");
+            setStatusMessage(buildValidationStatusMessage("Fix validation issues before publishing.", draftValidation.errors));
+            focusFirstValidationField(draftValidation.errors);
+            return;
+          }
+
           setSavingAction("publish");
           try {
+            setStatus("saving");
+            setStatusMessage("Saving draft before publish...");
+
+            const saveResponse = await fetch(`/api/organizer/competitions/${competitionId}`, {
+              method: "PATCH",
+              headers: {
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({
+                ...draftValidation.value,
+                expectedDraftRevision: draftRevision,
+              }),
+            });
+
+            const saveBody = await readJsonResponse(saveResponse);
+            syncStateFromResponse(saveBody);
+
+            if (!saveResponse.ok || !saveBody) {
+              throw new Error(getResponseErrorMessage(saveBody, "Competition save failed."));
+            }
+
+            const nextRevision =
+              typeof saveBody.currentDraftRevision === "number" && Number.isFinite(saveBody.currentDraftRevision)
+                ? Math.trunc(saveBody.currentDraftRevision)
+                : draftRevision;
+            setDraftRevision(nextRevision);
+
             const response = await fetch(`/api/organizer/competitions/${competitionId}/publish`, {
               method: "POST",
               headers: {
@@ -1121,13 +1542,10 @@ export function CompetitionWizard({
             });
 
             const body = await readJsonResponse(response);
-            if (!response.ok || !body) {
-              throw new Error((body?.message as string) ?? "Competition publish failed.");
-            }
+            syncStateFromResponse(body);
 
-            const nextCompetition = body.competition as CompetitionRecord | undefined;
-            if (nextCompetition) {
-              setCompetitionStatus(nextCompetition.status);
+            if (!response.ok || !body) {
+              throw new Error(getResponseErrorMessage(body, "Competition publish failed."));
             }
 
             setStatus("saved");
@@ -1136,8 +1554,10 @@ export function CompetitionWizard({
           } catch (error) {
             setStatus("error");
             setStatusMessage(error instanceof Error ? error.message : "Competition publish failed.");
+            setPublishConfirmOpen(false);
           } finally {
             setSavingAction(null);
+            router.refresh();
           }
         }}
       />
@@ -1166,13 +1586,10 @@ export function CompetitionWizard({
             });
 
             const body = await readJsonResponse(response);
-            if (!response.ok || !body) {
-              throw new Error((body?.message as string) ?? "Competition start failed.");
-            }
+            syncStateFromResponse(body);
 
-            const nextCompetition = body.competition as CompetitionRecord | undefined;
-            if (nextCompetition) {
-              setCompetitionStatus(nextCompetition.status);
+            if (!response.ok || !body) {
+              throw new Error(getResponseErrorMessage(body, "Competition start failed."));
             }
 
             setStatus("saved");
@@ -1181,8 +1598,10 @@ export function CompetitionWizard({
           } catch (error) {
             setStatus("error");
             setStatusMessage(error instanceof Error ? error.message : "Competition start failed.");
+            setStartConfirmOpen(false);
           } finally {
             setSavingAction(null);
+            router.refresh();
           }
         }}
       />
@@ -1210,13 +1629,10 @@ export function CompetitionWizard({
             });
 
             const body = await readJsonResponse(response);
-            if (!response.ok || !body) {
-              throw new Error((body?.message as string) ?? "Competition end failed.");
-            }
+            syncStateFromResponse(body);
 
-            const nextCompetition = body.competition as CompetitionRecord | undefined;
-            if (nextCompetition) {
-              setCompetitionStatus(nextCompetition.status);
+            if (!response.ok || !body) {
+              throw new Error(getResponseErrorMessage(body, "Competition end failed."));
             }
 
             setStatus("saved");
@@ -1225,8 +1641,10 @@ export function CompetitionWizard({
           } catch (error) {
             setStatus("error");
             setStatusMessage(error instanceof Error ? error.message : "Competition end failed.");
+            setEndConfirmOpen(false);
           } finally {
             setSavingAction(null);
+            router.refresh();
           }
         }}
       />
@@ -1254,13 +1672,10 @@ export function CompetitionWizard({
             });
 
             const body = await readJsonResponse(response);
-            if (!response.ok || !body) {
-              throw new Error((body?.message as string) ?? "Competition archive failed.");
-            }
+            syncStateFromResponse(body);
 
-            const nextCompetition = body.competition as CompetitionRecord | undefined;
-            if (nextCompetition) {
-              setCompetitionStatus(nextCompetition.status);
+            if (!response.ok || !body) {
+              throw new Error(getResponseErrorMessage(body, "Competition archive failed."));
             }
 
             setStatus("saved");
@@ -1269,8 +1684,10 @@ export function CompetitionWizard({
           } catch (error) {
             setStatus("error");
             setStatusMessage(error instanceof Error ? error.message : "Competition archive failed.");
+            setArchiveConfirmOpen(false);
           } finally {
             setSavingAction(null);
+            router.refresh();
           }
         }}
       />
@@ -1298,8 +1715,10 @@ export function CompetitionWizard({
             });
 
             const body = await readJsonResponse(response);
+            syncStateFromResponse(body);
+
             if (!response.ok || !body) {
-              throw new Error((body?.message as string) ?? "Competition delete failed.");
+              throw new Error(getResponseErrorMessage(body, "Competition delete failed."));
             }
 
             setStatus("saved");
