@@ -4,7 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import { createClient } from "@/lib/supabase/server";
-import { COMPETITION_SELECT_COLUMNS, normalizeCompetitionRecord } from "@/lib/competition/api";
+import {
+  COMPETITION_SELECT_COLUMNS,
+  LEGACY_COMPETITION_SELECT_COLUMNS,
+  isLegacyCompetitionSelectError,
+  normalizeCompetitionRecord,
+} from "@/lib/competition/api";
 import type { CompetitionRecord } from "@/lib/competition/types";
 
 function statusBadgeVariant(status: CompetitionRecord["status"]) {
@@ -23,11 +28,23 @@ export default async function OrganizerCompetitionPage() {
   const { profile } = await getWorkspaceContext({ requireRole: "organizer" });
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  const primaryResult = await supabase
     .from("competitions")
     .select(COMPETITION_SELECT_COLUMNS)
     .eq("organizer_id", profile?.id)
     .order("created_at", { ascending: false });
+
+  const fallbackResult =
+    primaryResult.error && isLegacyCompetitionSelectError(primaryResult.error)
+      ? await supabase
+          .from("competitions")
+          .select(LEGACY_COMPETITION_SELECT_COLUMNS)
+          .eq("organizer_id", profile?.id)
+          .order("created_at", { ascending: false })
+      : null;
+
+  const data = fallbackResult ? fallbackResult.data : primaryResult.data;
+  const error = fallbackResult ? fallbackResult.error : primaryResult.error;
 
   const competitions = !error
     ? (data ?? [])

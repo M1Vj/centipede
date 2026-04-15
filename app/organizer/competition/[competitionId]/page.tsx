@@ -9,10 +9,13 @@ interface PageProps {
 }
 
 export default async function OrganizerCompetitionDetailPage({ params }: PageProps) {
-  await getWorkspaceContext({ requireRole: "organizer" });
+  const { profile } = await getWorkspaceContext({ requireRole: "organizer" });
   const { competitionId } = await params;
 
-  const workspaceData = await loadCompetitionEditWorkspaceData(competitionId);
+  const workspaceData = await loadCompetitionEditWorkspaceData(
+    competitionId,
+    profile?.id ?? "",
+  );
   if (!workspaceData.competition) {
     notFound();
   }
