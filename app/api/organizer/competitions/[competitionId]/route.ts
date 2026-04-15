@@ -1,3 +1,4 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   COMPETITION_SELECT_COLUMNS,
@@ -21,18 +22,62 @@ import {
 } from "../_shared";
 
 async function fetchSelectedProblemIds(supabase: Awaited<ReturnType<typeof createClient>>, competitionId: string) {
-  const { data, error } = await supabase
+  const normalizeIds = (rows: Array<{ problem_id: unknown }> | null) =>
+    (rows ?? []).map((row) => row.problem_id).filter((id): id is string => typeof id === "string");
+
+  const scopedResult = await supabase
     .from("competition_problems")
     .select("problem_id, order_index")
     .eq("competition_id", competitionId)
     .order("order_index", { ascending: true });
 
-  if (error) {
-    return { response: jsonDatabaseError(error) } as const;
+  if (!scopedResult.error) {
+    const scopedIds = normalizeIds(scopedResult.data as Array<{ problem_id: unknown }> | null);
+    if (scopedIds.length > 0) {
+      return {
+        selectedProblemIds: scopedIds,
+      } as const;
+    }
+
+    const adminClient = createAdminClient();
+    if (!adminClient) {
+      return {
+        selectedProblemIds: scopedIds,
+      } as const;
+    }
+
+    const adminResult = await adminClient
+      .from("competition_problems")
+      .select("problem_id, order_index")
+      .eq("competition_id", competitionId)
+      .order("order_index", { ascending: true });
+
+    if (!adminResult.error) {
+      return {
+        selectedProblemIds: normalizeIds(adminResult.data as Array<{ problem_id: unknown }> | null),
+      } as const;
+    }
+
+    return { response: jsonDatabaseError(adminResult.error) } as const;
+  }
+
+  const adminClient = createAdminClient();
+  if (!adminClient) {
+    return { response: jsonDatabaseError(scopedResult.error) } as const;
+  }
+
+  const adminResult = await adminClient
+    .from("competition_problems")
+    .select("problem_id, order_index")
+    .eq("competition_id", competitionId)
+    .order("order_index", { ascending: true });
+
+  if (adminResult.error) {
+    return { response: jsonDatabaseError(adminResult.error) } as const;
   }
 
   return {
-    selectedProblemIds: (data ?? []).map((row) => row.problem_id).filter((id): id is string => typeof id === "string"),
+    selectedProblemIds: normalizeIds(adminResult.data as Array<{ problem_id: unknown }> | null),
   } as const;
 }
 

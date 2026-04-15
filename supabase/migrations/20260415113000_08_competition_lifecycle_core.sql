@@ -239,6 +239,7 @@ declare
   v_now timestamptz := timezone('utc', now());
   v_status_from_legacy public.competition_status;
   v_has_active_attempts boolean := false;
+  v_draft_fields_changed boolean := false;
 begin
   new.updated_at := v_now;
   new.is_deleted := coalesce(new.is_deleted, false);

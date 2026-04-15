@@ -18,10 +18,36 @@ import {
 } from "./types";
 
 export const COMPETITION_SELECT_COLUMNS =
+  "id, organizer_id, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
+
+export const LEGACY_COMPETITION_SELECT_COLUMNS =
   "id, organizer_id, name, description, instructions, type, format, registration_start, registration_end, start_time, duration_minutes, attempts_allowed, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, published, is_paused, created_at";
 
 export const COMPETITION_BANK_SELECT_COLUMNS =
   "id, organizer_id, name, description, is_default_bank, is_visible_to_organizers, is_deleted, created_at, updated_at";
+
+export function isLegacyCompetitionSelectError(
+  error: { code?: string | null; message?: string | null; details?: string | null } | null | undefined,
+) {
+  if (!error) {
+    return false;
+  }
+
+  const message = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    message.includes("column competitions.status does not exist") ||
+    message.includes("column competitions.answer_key_visibility does not exist") ||
+    message.includes("column competitions.end_time does not exist") ||
+    message.includes("column competitions.multi_attempt_grading_mode does not exist") ||
+    message.includes("column competitions.scoring_snapshot_json does not exist") ||
+    message.includes("column competitions.draft_revision does not exist") ||
+    message.includes("column competitions.draft_version does not exist") ||
+    message.includes("column competitions.is_deleted does not exist") ||
+    message.includes("column competitions.published_at does not exist")
+  );
+}
 
 export function buildLegacyCompetitionMutationPayload(input: CompetitionDraftMutationPayload) {
   function toLegacyScoringMode(value: CompetitionDraftMutationPayload["scoringMode"]) {
