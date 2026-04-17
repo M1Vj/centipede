@@ -8,6 +8,8 @@ import {
 } from "@/lib/scoring/validation";
 import {
   ANSWER_KEY_VISIBILITY_VALUES,
+  REGISTRATION_TIMING_MODES,
+  type CompetitionRegistrationTimingMode,
   type CompetitionAnswerKeyVisibility,
   type CompetitionDraftFormState,
   type CompetitionDraftInput,
@@ -137,6 +139,27 @@ function normalizeCompetitionFormat(type: unknown): CompetitionFormat {
   return type === "team" ? "team" : "individual";
 }
 
+function normalizeRegistrationTimingMode(
+  value: unknown,
+  competitionType: "open" | "scheduled",
+  registrationStart: string | null,
+  registrationEnd: string | null,
+): CompetitionRegistrationTimingMode {
+  if (competitionType !== "scheduled") {
+    return "default";
+  }
+
+  if (REGISTRATION_TIMING_MODES.includes(value as CompetitionRegistrationTimingMode)) {
+    return value as CompetitionRegistrationTimingMode;
+  }
+
+  if (registrationStart || registrationEnd) {
+    return "manual";
+  }
+
+  return "default";
+}
+
 export function createDefaultCompetitionDraftState(): CompetitionDraftFormState {
   return {
     name: "",
@@ -144,6 +167,7 @@ export function createDefaultCompetitionDraftState(): CompetitionDraftFormState 
     instructions: "",
     type: "scheduled",
     format: "individual",
+    registrationTimingMode: "default",
     registrationStart: "",
     registrationEnd: "",
     startTime: "",
@@ -182,6 +206,12 @@ export function validateCompetitionDraftInput(
   const registrationEnd = parseDateTimeLocalValue(input.registrationEnd);
   const startTime = parseDateTimeLocalValue(input.startTime);
   const endTime = parseDateTimeLocalValue(input.endTime);
+  const registrationTimingMode = normalizeRegistrationTimingMode(
+    input.registrationTimingMode,
+    type,
+    registrationStart,
+    registrationEnd,
+  );
   const durationMinutes = Math.max(1, normalizeInteger(input.durationMinutes, 60));
   const attemptsAllowed = Math.max(1, normalizeInteger(input.attemptsAllowed, 1));
   const maxParticipants = normalizeNullableInteger(input.maxParticipants);
@@ -217,25 +247,27 @@ export function validateCompetitionDraftInput(
   }
 
   if (type === "scheduled") {
-    if (!registrationStart) {
-      errors.push({
-        field: "registrationStart",
-        reason: "Scheduled competitions require a registration start time.",
-      });
-    }
-
-    if (!registrationEnd) {
-      errors.push({
-        field: "registrationEnd",
-        reason: "Scheduled competitions require a registration end time.",
-      });
-    }
-
     if (!startTime) {
       errors.push({
         field: "startTime",
         reason: "Scheduled competitions require a competition start time.",
       });
+    }
+
+    if (registrationTimingMode === "manual") {
+      if (!registrationStart) {
+        errors.push({
+          field: "registrationStart",
+          reason: "Manual registration requires a registration start time.",
+        });
+      }
+
+      if (!registrationEnd) {
+        errors.push({
+          field: "registrationEnd",
+          reason: "Manual registration requires a registration end time.",
+        });
+      }
     }
 
     if (format === "team") {
@@ -282,7 +314,7 @@ export function validateCompetitionDraftInput(
       }
     }
 
-    if (registrationStart && registrationEnd) {
+    if (registrationTimingMode === "manual" && registrationStart && registrationEnd) {
       const registrationStartTime = new Date(registrationStart).getTime();
       const registrationEndTime = new Date(registrationEnd).getTime();
       const competitionStartTime = startTime ? new Date(startTime).getTime() : Number.NaN;
@@ -297,7 +329,7 @@ export function validateCompetitionDraftInput(
       if (Number.isFinite(competitionStartTime) && registrationEndTime > competitionStartTime) {
         errors.push({
           field: "registrationEnd",
-          reason: "Registration must close before competition start.",
+          reason: "Registration must close at or before competition start.",
         });
       }
     }
@@ -367,9 +399,17 @@ export function validateCompetitionDraftInput(
     return fail(errors);
   }
 
+  const derivedRegistrationStart =
+    type === "scheduled" && registrationTimingMode === "manual" ? registrationStart : null;
+  const derivedRegistrationEnd =
+    type === "scheduled"
+      ? registrationTimingMode === "manual"
+        ? registrationEnd
+        : startTime
+      : null;
   const derivedEndTime =
     type === "scheduled" && startTime
-      ? endTime ?? new Date(new Date(startTime).getTime() + durationMinutes * 60_000).toISOString()
+      ? new Date(new Date(startTime).getTime() + durationMinutes * 60_000).toISOString()
       : null;
 
   return ok({
@@ -378,8 +418,9 @@ export function validateCompetitionDraftInput(
     instructions,
     type,
     format,
-    registrationStart: type === "scheduled" ? registrationStart : null,
-    registrationEnd: type === "scheduled" ? registrationEnd : null,
+    registrationTimingMode,
+    registrationStart: derivedRegistrationStart,
+    registrationEnd: derivedRegistrationEnd,
     startTime: type === "scheduled" ? startTime : null,
     endTime: derivedEndTime,
     durationMinutes,

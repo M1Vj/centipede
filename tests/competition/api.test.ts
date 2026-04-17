@@ -103,6 +103,7 @@ describe("competition api helpers", () => {
       instructions: "Legacy instructions",
       type: "scheduled",
       format: "individual",
+      registrationTimingMode: "default",
       registrationStart: "2026-05-01T01:00:00.000Z",
       registrationEnd: "2026-05-01T02:00:00.000Z",
       startTime: "2026-05-01T03:00:00.000Z",
@@ -181,8 +182,58 @@ describe("competition api helpers", () => {
 
     expect(formState.type).toBe("scheduled");
     expect(formState.format).toBe("team");
+    expect(formState.registrationTimingMode).toBe("manual");
     expect(formState.selectedProblemIds).toEqual(["problem-a", "problem-b"]);
     expect(formState.registrationStart).toContain("2026-05-01");
+  });
+
+  test("infers default registration timing when registration end and start represent same instant", () => {
+    const record = normalizeCompetitionRecord({
+      id: "competition-3",
+      organizer_id: "organizer-1",
+      name: "Timezone Invitational",
+      description: "Datetime format regression coverage",
+      instructions: "Follow all rules.",
+      type: "scheduled",
+      format: "individual",
+      status: "draft",
+      answer_key_visibility: "after_end",
+      registration_start: null,
+      registration_end: "2026-05-10T09:00:00+00:00",
+      start_time: "2026-05-10T09:00:00.000Z",
+      end_time: null,
+      duration_minutes: 60,
+      attempts_allowed: 1,
+      multi_attempt_grading_mode: "highest_score",
+      max_participants: 12,
+      participants_per_team: null,
+      max_teams: null,
+      scoring_mode: "difficulty",
+      custom_points: {},
+      penalty_mode: "none",
+      deduction_value: 0,
+      tie_breaker: "earliest_final_submission",
+      shuffle_questions: false,
+      shuffle_options: false,
+      log_tab_switch: false,
+      offense_penalties: [],
+      scoring_snapshot_json: null,
+      draft_revision: 1,
+      draft_version: 1,
+      is_deleted: false,
+      published_at: null,
+      created_at: "2026-04-01T12:00:00.000Z",
+      updated_at: "2026-04-02T12:00:00.000Z",
+    });
+
+    expect(record).not.toBeNull();
+    if (!record) {
+      return;
+    }
+
+    const formState = competitionRecordToFormState(record);
+
+    expect(formState.registrationTimingMode).toBe("default");
   });
 
   test("normalizes lifecycle rpc rows from array payloads", () => {

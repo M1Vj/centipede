@@ -25,6 +25,9 @@ export type CompetitionStatus = (typeof COMPETITION_STATUSES)[number];
 export const ANSWER_KEY_VISIBILITY_VALUES = ["after_end", "hidden"] as const;
 export type CompetitionAnswerKeyVisibility = (typeof ANSWER_KEY_VISIBILITY_VALUES)[number];
 
+export const REGISTRATION_TIMING_MODES = ["default", "manual"] as const;
+export type CompetitionRegistrationTimingMode = (typeof REGISTRATION_TIMING_MODES)[number];
+
 export const COMPETITION_WIZARD_STEPS = [
   "overview",
   "schedule",
@@ -52,6 +55,7 @@ export interface CompetitionDraftFormState {
   instructions: string;
   type: CompetitionType;
   format: CompetitionFormat;
+  registrationTimingMode: CompetitionRegistrationTimingMode;
   registrationStart: string;
   registrationEnd: string;
   startTime: string;
@@ -83,6 +87,7 @@ export interface CompetitionDraftMutationPayload {
   instructions: string;
   type: CompetitionType;
   format: CompetitionFormat;
+  registrationTimingMode: CompetitionRegistrationTimingMode;
   registrationStart: string | null;
   registrationEnd: string | null;
   startTime: string | null;

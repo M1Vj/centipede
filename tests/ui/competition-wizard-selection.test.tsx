@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { CompetitionWizard } from "@/components/competition-wizard/competition-wizard";
@@ -66,11 +66,27 @@ describe("CompetitionWizard selection and custom scoring", () => {
   test("supports bulk visible selection and removes duplicate scoring explanation card", () => {
     renderWizard();
 
-    fireEvent.click(screen.getByRole("button", { name: "Select visible" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select all visible" }));
 
     expect(screen.getByText("3 selected. Publish requires 10 to 100.")).toBeInTheDocument();
     expect(screen.queryByText("How your score is computed")).not.toBeInTheDocument();
     expect(screen.getByText("Scoring summary")).toBeInTheDocument();
+  });
+
+  test("shows one expanded problem bank at a time", async () => {
+    renderWizard();
+
+    await waitFor(() => {
+      expect(screen.getByText("First problem")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Third problem")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Bank B/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Third problem")).toBeInTheDocument();
+      expect(screen.queryByText("First problem")).not.toBeInTheDocument();
+    });
   });
 
   test("lets organizers assign custom points from selected problems", () => {

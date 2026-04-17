@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowDown,
@@ -51,6 +51,7 @@ const FIELD_TO_ELEMENT_ID: Record<string, string> = {
   name: "competition-name",
   description: "competition-description",
   instructions: "competition-instructions",
+  registrationTimingMode: "registration-timing-mode",
   registrationStart: "registration-start",
   registrationEnd: "registration-end",
   startTime: "competition-start",
@@ -159,6 +160,27 @@ function formatDateTime(value: string | null) {
   return parsed.toLocaleString();
 }
 
+function formatDateTimeLocalInput(value: Date) {
+  const pad = (input: number) => String(input).padStart(2, "0");
+
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(
+    value.getHours(),
+  )}:${pad(value.getMinutes())}`;
+}
+
+function computeScheduledEndLocal(startTime: string, durationMinutes: number) {
+  if (!startTime.trim()) {
+    return "";
+  }
+
+  const startAt = new Date(startTime);
+  if (Number.isNaN(startAt.getTime())) {
+    return "";
+  }
+
+  return formatDateTimeLocalInput(new Date(startAt.getTime() + durationMinutes * 60_000));
+}
+
 function escapeSearch(value: string) {
   return value.trim().toLowerCase();
 }
@@ -260,6 +282,29 @@ function getResponseErrorMessage(
   return fallbackMessage;
 }
 
+function extractValidationErrors(body: Record<string, unknown> | null) {
+  if (!body || !Array.isArray(body.errors)) {
+    return [] as Array<{ field: string; reason: string }>;
+  }
+
+  return body.errors
+    .map((entry) => {
+      if (typeof entry !== "object" || entry === null) {
+        return null;
+      }
+
+      const field = "field" in entry && typeof entry.field === "string" ? entry.field : "form";
+      const reason = "reason" in entry && typeof entry.reason === "string" ? entry.reason.trim() : "";
+
+      if (!reason) {
+        return null;
+      }
+
+      return { field, reason };
+    })
+    .filter((entry): entry is { field: string; reason: string } => Boolean(entry));
+}
+
 async function readJsonResponse(response: Response) {
   try {
     return (await response.json()) as Record<string, unknown>;
@@ -292,6 +337,10 @@ export function CompetitionWizard({
   const [competitionStatus, setCompetitionStatus] = useState<CompetitionStatus>(initialCompetition?.status ?? "draft");
   const [problemSearch, setProblemSearch] = useState("");
   const [bankFilter, setBankFilter] = useState("all");
+  const [expandedBankIds, setExpandedBankIds] = useState<Record<string, boolean>>({});
+  const [maxParticipantsInput, setMaxParticipantsInput] = useState<string>(
+    initialState.maxParticipants === null ? "" : String(initialState.maxParticipants),
+  );
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [startConfirmOpen, setStartConfirmOpen] = useState(false);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
@@ -307,6 +356,14 @@ export function CompetitionWizard({
   const scoringConfig = buildScoringConfig(draftState);
   const selectedProblemSet = buildSelectedProblemSet(draftState.selectedProblemIds);
   const bankOptions = buildProblemBankOptions(availableProblems);
+  const computedScheduledEndLocal =
+    draftState.type === "scheduled"
+      ? computeScheduledEndLocal(draftState.startTime, draftState.durationMinutes)
+      : "";
+  const computedRegistrationEndLocal =
+    draftState.type === "scheduled" && draftState.registrationTimingMode === "default"
+      ? draftState.startTime
+      : draftState.registrationEnd;
 
   const selectedProblems = draftState.selectedProblemIds
     .map((problemId) => availableProblems.find((problem) => problem.id === problemId))
@@ -342,13 +399,64 @@ export function CompetitionWizard({
     ["type", "registrationStart", "registrationEnd", "startTime", "endTime"].includes(error.field),
   );
   const visibleProblemIds = filteredProblems.map((problem) => problem.id);
-  const activeBankName = bankOptions.find(([bankId]) => bankId === bankFilter)?.[1] ?? null;
+  const groupedVisibleProblems = bankOptions
+    .map(([bankId, bankName]) => ({
+      bankId,
+      bankName,
+      problems: filteredProblems.filter((problem) => problem.bankId === bankId),
+    }))
+    .filter((group) => group.problems.length > 0);
   const isEditable = competitionStatus === "draft";
   const canPublish = competitionStatus === "draft" && publishValidation.ok && publishValidation.value !== null;
   const canStart = competitionStatus === "published" && draftState.type === "open";
   const canEnd = (competitionStatus === "live" || competitionStatus === "paused") && draftState.type === "open";
   const canArchive = competitionStatus === "ended" || (competitionStatus === "paused" && draftState.type === "open");
   const canDelete = competitionStatus === "draft";
+
+  useEffect(() => {
+    if (draftState.type === "scheduled") {
+      if (draftState.endTime === computedScheduledEndLocal) {
+        return;
+      }
+
+      setDraftState((current) => {
+        if (current.type !== "scheduled" || current.endTime === computedScheduledEndLocal) {
+          return current;
+        }
+
+        return {
+          ...current,
+          endTime: computedScheduledEndLocal,
+        };
+      });
+      return;
+    }
+
+    if (!draftState.endTime) {
+      return;
+    }
+
+    setDraftState((current) => {
+      if (current.type === "scheduled" || !current.endTime) {
+        return current;
+      }
+
+      return {
+        ...current,
+        endTime: "",
+      };
+    });
+  }, [computedScheduledEndLocal, draftState.endTime, draftState.type]);
+
+  useEffect(() => {
+    if (draftState.format !== "individual") {
+      return;
+    }
+
+    setMaxParticipantsInput(draftState.maxParticipants === null ? "" : String(draftState.maxParticipants));
+  }, [draftState.format, draftState.maxParticipants]);
+
+
 
   function syncStateFromResponse(body: Record<string, unknown> | null) {
     if (!body) {
@@ -397,6 +505,7 @@ export function CompetitionWizard({
           ...current,
           type: "open",
           format: "individual",
+          registrationTimingMode: "default",
           registrationStart: "",
           registrationEnd: "",
           startTime: "",
@@ -411,11 +520,49 @@ export function CompetitionWizard({
       return {
         ...current,
         type: "scheduled",
+        registrationTimingMode: "default",
+        registrationStart: "",
+        registrationEnd: "",
         attemptsAllowed: 1,
       };
     });
     setStatus("idle");
     setStatusMessage(null);
+  }
+
+  function setRegistrationTimingMode(nextMode: "default" | "manual") {
+    setDraftState((current) => {
+      if (current.type !== "scheduled") {
+        return current;
+      }
+
+      if (nextMode === "manual") {
+        return {
+          ...current,
+          registrationTimingMode: "manual",
+        };
+      }
+
+      return {
+        ...current,
+        registrationTimingMode: "default",
+        registrationStart: "",
+        registrationEnd: "",
+      };
+    });
+    setStatus("idle");
+    setStatusMessage(null);
+  }
+
+  function commitMaxParticipantsInput(rawValue: string) {
+    const normalized = rawValue.trim();
+    if (!normalized) {
+      updateDraft("maxParticipants", null);
+      return;
+    }
+
+    const parsed = Number.parseInt(normalized, 10);
+    updateDraft("maxParticipants", Number.isFinite(parsed) ? parsed : null);
   }
 
   function toggleProblem(problemId: string) {
@@ -520,8 +667,34 @@ export function CompetitionWizard({
     setStatusMessage(null);
   }
 
+  function getDraftStateForSubmit() {
+    if (draftState.format !== "individual") {
+      return draftState;
+    }
+
+    const normalized = maxParticipantsInput.trim();
+    const parsed = normalized ? Number.parseInt(normalized, 10) : Number.NaN;
+    const nextMaxParticipants =
+      !normalized || !Number.isFinite(parsed) ? null : Math.trunc(parsed);
+
+    if (nextMaxParticipants === draftState.maxParticipants) {
+      return draftState;
+    }
+
+    return {
+      ...draftState,
+      maxParticipants: nextMaxParticipants,
+    };
+  }
+
   async function submitCreateDraft() {
-    if (draftValidation.ok && draftValidation.value) {
+    const draftStateForSubmit = getDraftStateForSubmit();
+    if (draftStateForSubmit !== draftState) {
+      setDraftState(draftStateForSubmit);
+    }
+
+    const submitValidation = validateCompetitionDraftInput(draftStateForSubmit);
+    if (submitValidation.ok && submitValidation.value) {
       setSavingAction("create");
       setStatus("saving");
       setStatusMessage("Creating draft...");
@@ -532,12 +705,26 @@ export function CompetitionWizard({
           headers: {
             "content-type": "application/json",
           },
-          body: JSON.stringify(draftValidation.value),
+          body: JSON.stringify(submitValidation.value),
         });
 
         const body = await readJsonResponse(response);
-        if (!response.ok || !body) {
+        if (!response.ok) {
+          const responseErrors = extractValidationErrors(body);
+          if (responseErrors.length > 0) {
+            setStatus("error");
+            setStatusMessage(
+              buildValidationStatusMessage("Competition draft could not be created.", responseErrors),
+            );
+            focusFirstValidationField(responseErrors);
+            return;
+          }
+
           throw new Error(getResponseErrorMessage(body, "Competition create failed."));
+        }
+
+        if (!body) {
+          throw new Error("Competition create failed.");
         }
 
         const competition = body.competition as CompetitionRecord | undefined;
@@ -557,8 +744,8 @@ export function CompetitionWizard({
     }
 
     setStatus("error");
-    setStatusMessage(buildValidationStatusMessage("Fix validation issues before creating draft.", draftValidation.errors));
-    focusFirstValidationField(draftValidation.errors);
+    setStatusMessage(buildValidationStatusMessage("Fix validation issues before creating draft.", submitValidation.errors));
+    focusFirstValidationField(submitValidation.errors);
   }
 
   async function saveDraft() {
@@ -566,10 +753,16 @@ export function CompetitionWizard({
       return;
     }
 
-    if (!draftValidation.ok || !draftValidation.value) {
+    const draftStateForSubmit = getDraftStateForSubmit();
+    if (draftStateForSubmit !== draftState) {
+      setDraftState(draftStateForSubmit);
+    }
+
+    const submitValidation = validateCompetitionDraftInput(draftStateForSubmit);
+    if (!submitValidation.ok || !submitValidation.value) {
       setStatus("error");
-      setStatusMessage(buildValidationStatusMessage("Fix validation issues before saving draft.", draftValidation.errors));
-      focusFirstValidationField(draftValidation.errors);
+      setStatusMessage(buildValidationStatusMessage("Fix validation issues before saving draft.", submitValidation.errors));
+      focusFirstValidationField(submitValidation.errors);
       return;
     }
 
@@ -584,7 +777,7 @@ export function CompetitionWizard({
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          ...draftValidation.value,
+          ...submitValidation.value,
           expectedDraftRevision: draftRevision,
         }),
       });
@@ -768,6 +961,24 @@ export function CompetitionWizard({
                   />
                 </div>
 
+                {draftState.type === "scheduled" ? (
+                  <div className="grid gap-2 md:col-span-2">
+                    <Label htmlFor="registration-timing-mode">Registration timing</Label>
+                    <select
+                      id="registration-timing-mode"
+                      value={draftState.registrationTimingMode}
+                      onChange={(event) =>
+                        setRegistrationTimingMode(event.target.value === "manual" ? "manual" : "default")
+                      }
+                      className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                      disabled={!isEditable && mode === "edit"}
+                    >
+                      <option value="default">Default: open until competition start</option>
+                      <option value="manual">Manual registration window</option>
+                    </select>
+                  </div>
+                ) : null}
+
                 <div className="grid gap-2">
                   <Label htmlFor="registration-start">Registration start</Label>
                   <Input
@@ -775,7 +986,11 @@ export function CompetitionWizard({
                     type="datetime-local"
                     value={draftState.registrationStart}
                     onChange={(event) => updateDraft("registrationStart", event.target.value)}
-                    disabled={draftState.type !== "scheduled" || (!isEditable && mode === "edit")}
+                    disabled={
+                      draftState.type !== "scheduled" ||
+                      draftState.registrationTimingMode !== "manual" ||
+                      (!isEditable && mode === "edit")
+                    }
                   />
                 </div>
 
@@ -784,10 +999,19 @@ export function CompetitionWizard({
                   <Input
                     id="registration-end"
                     type="datetime-local"
-                    value={draftState.registrationEnd}
+                    value={computedRegistrationEndLocal}
                     onChange={(event) => updateDraft("registrationEnd", event.target.value)}
-                    disabled={draftState.type !== "scheduled" || (!isEditable && mode === "edit")}
+                    disabled={
+                      draftState.type !== "scheduled" ||
+                      draftState.registrationTimingMode !== "manual" ||
+                      (!isEditable && mode === "edit")
+                    }
                   />
+                  {draftState.type === "scheduled" && draftState.registrationTimingMode === "default" ? (
+                    <p className="text-xs text-muted-foreground">
+                      Default mode keeps registration open until competition start.
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-2">
@@ -806,10 +1030,14 @@ export function CompetitionWizard({
                   <Input
                     id="competition-end"
                     type="datetime-local"
-                    value={draftState.endTime}
-                    onChange={(event) => updateDraft("endTime", event.target.value)}
+                    value={computedScheduledEndLocal}
+                    readOnly
                     disabled={draftState.type !== "scheduled" || (!isEditable && mode === "edit")}
+                    placeholder="Set start and duration to compute end"
                   />
+                  {draftState.type === "scheduled" ? (
+                    <p className="text-xs text-muted-foreground">Computed from competition start plus duration.</p>
+                  ) : null}
                 </div>
               </div>
 
@@ -830,7 +1058,9 @@ export function CompetitionWizard({
 
               <div className="rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
                 {draftState.type === "scheduled"
-                  ? "Scheduled competitions must provide registration and start times. Registration must close before competition start."
+                  ? draftState.registrationTimingMode === "manual"
+                    ? "Manual mode requires explicit registration start and end. Registration must close at or before competition start."
+                    : "Default mode keeps registration open until competition start."
                   : "Open competitions clear registration windows and scheduled start times. They use manual lifecycle controls instead."}
               </div>
             </CardContent>
@@ -906,10 +1136,22 @@ export function CompetitionWizard({
                       type="number"
                       min={3}
                       max={100}
-                      value={draftState.maxParticipants ?? 3}
-                      onChange={(event) =>
-                        updateDraft("maxParticipants", Number.parseInt(event.target.value, 10) || 3)
-                      }
+                      value={maxParticipantsInput}
+                      onChange={(event) => {
+                        setMaxParticipantsInput(event.target.value);
+                        setStatus("idle");
+                        setStatusMessage(null);
+                      }}
+                      onBlur={() => commitMaxParticipantsInput(maxParticipantsInput)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
+
+                        event.preventDefault();
+                        commitMaxParticipantsInput(maxParticipantsInput);
+                        event.currentTarget.blur();
+                      }}
                       disabled={!isEditable && mode === "edit"}
                     />
                     {formErrorLookup.get("maxParticipants") ? (
@@ -985,24 +1227,24 @@ export function CompetitionWizard({
               <CardDescription>Select, search, and order problems before publish.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px] items-end">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={problemSearch}
                     onChange={(event) => setProblemSearch(event.target.value)}
                     placeholder="Search problems, banks, tags, or difficulty"
-                    className="pl-9"
+                    className="h-10 pl-9"
                   />
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="problem-bank-filter">Bank filter</Label>
+                <div className="grid gap-2 min-w-0">
+                  <Label htmlFor="problem-bank-filter" className="truncate">Bank filter</Label>
                   <select
                     id="problem-bank-filter"
                     value={bankFilter}
                     onChange={(event) => setBankFilter(event.target.value)}
-                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    className="h-10 w-full truncate rounded-md border border-input bg-background px-3 text-sm"
                   >
                     <option value="all">All banks</option>
                     {bankOptions.map(([bankId, bankName]) => (
@@ -1019,49 +1261,37 @@ export function CompetitionWizard({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => addProblemIds(visibleProblemIds)}
+                  onClick={() => {
+                    addProblemIds(visibleProblemIds);
+                    setExpandedBankIds((prev) => {
+                      const next = { ...prev };
+                      groupedVisibleProblems.forEach((group) => {
+                        next[group.bankId] = false;
+                      });
+                      return next;
+                    });
+                  }}
                   disabled={!isEditable || visibleProblemIds.length === 0}
                 >
-                  Select visible
+                  Select all visible
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => removeProblemIds(visibleProblemIds)}
+                  onClick={() => {
+                    removeProblemIds(visibleProblemIds);
+                    setExpandedBankIds((prev) => {
+                      const next = { ...prev };
+                      groupedVisibleProblems.forEach((group) => {
+                        next[group.bankId] = true;
+                      });
+                      return next;
+                    });
+                  }}
                   disabled={!isEditable || visibleProblemIds.length === 0}
                 >
-                  Remove visible
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    addProblemIds(
-                      availableProblems
-                        .filter((problem) => problem.bankId === bankFilter)
-                        .map((problem) => problem.id),
-                    )
-                  }
-                  disabled={!isEditable || bankFilter === "all"}
-                >
-                  {activeBankName ? `Select ${activeBankName}` : "Select bank"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    removeProblemIds(
-                      availableProblems
-                        .filter((problem) => problem.bankId === bankFilter)
-                        .map((problem) => problem.id),
-                    )
-                  }
-                  disabled={!isEditable || bankFilter === "all"}
-                >
-                  Remove bank
+                  Remove all visible
                 </Button>
               </div>
 
@@ -1182,45 +1412,111 @@ export function CompetitionWizard({
                   </div>
 
                   <div className="max-h-[32rem] space-y-3 overflow-x-hidden overflow-y-auto pr-1">
-                    {filteredProblems.map((problem) => {
-                      const isSelected = selectedProblemSet.has(problem.id);
+                    {groupedVisibleProblems.map((group) => {
+                      const bankProblemIds = group.problems.map((problem) => problem.id);
+                      const selectedInBank = group.problems.filter((problem) => selectedProblemSet.has(problem.id)).length;
+                      const expanded = expandedBankIds[group.bankId] ?? (selectedInBank < group.problems.length);
+
                       return (
-                        <button
-                          key={problem.id}
-                          type="button"
-                          onClick={() => toggleProblem(problem.id)}
-                          disabled={!isEditable && mode === "edit"}
-                          className={cn(
-                            "w-full rounded-xl border p-4 text-left transition-colors",
-                            isSelected
-                              ? "border-primary/70 bg-primary/5"
-                              : "border-border/60 bg-background hover:border-primary/40 hover:bg-muted/20",
-                          )}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge variant={isSelected ? "default" : "outline"}>{problem.bankName}</Badge>
-                                <Badge variant="outline">{problem.difficulty}</Badge>
-                                <Badge variant="outline">{problem.type}</Badge>
+                        <div key={group.bankId} className="rounded-xl border border-border/60 bg-background/60 p-3">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="h-auto flex-1 justify-start px-0 py-0 text-left"
+                              onClick={() => setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: !expanded }))}
+                            >
+                              <div className="space-y-1">
+                                <p className="text-sm font-semibold text-foreground">{group.bankName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {selectedInBank} of {group.problems.length} selected
+                                </p>
                               </div>
-                              <p className="line-clamp-2 break-all text-sm text-foreground">
-                                {problem.contentLatex || "Untitled problem"}
-                              </p>
-                              <p className="break-words text-xs text-muted-foreground">
-                                {problem.tags.join(" | ") || "No tags"}
-                              </p>
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                              <GripVertical className="size-4" />
-                              {isSelected ? "Selected" : "Add"}
+                            </Button>
+
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  addProblemIds(bankProblemIds);
+                                  setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: false }));
+                                }}
+                                disabled={!isEditable || bankProblemIds.length === 0}
+                              >
+                                Select bank
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  removeProblemIds(bankProblemIds);
+                                  setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: true }));
+                                }}
+                                disabled={!isEditable || bankProblemIds.length === 0}
+                              >
+                                Remove bank
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: !expanded }))}
+                                aria-label={expanded ? "Collapse bank" : "Expand bank"}
+                              >
+                                {expanded ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
+                              </Button>
                             </div>
                           </div>
-                        </button>
+
+                          {expanded ? (
+                            <div className="mt-3 space-y-3 border-t border-border/50 pt-3">
+                              {group.problems.map((problem) => {
+                                const isSelected = selectedProblemSet.has(problem.id);
+                                return (
+                                  <button
+                                    key={problem.id}
+                                    type="button"
+                                    onClick={() => toggleProblem(problem.id)}
+                                    disabled={!isEditable && mode === "edit"}
+                                    className={cn(
+                                      "w-full rounded-xl border p-4 text-left transition-colors",
+                                      isSelected
+                                        ? "border-primary/70 bg-primary/5"
+                                        : "border-border/60 bg-background hover:border-primary/40 hover:bg-muted/20",
+                                    )}
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0 space-y-2">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <Badge variant={isSelected ? "default" : "outline"}>{problem.bankName}</Badge>
+                                          <Badge variant="outline">{problem.difficulty}</Badge>
+                                          <Badge variant="outline">{problem.type}</Badge>
+                                        </div>
+                                        <p className="line-clamp-2 break-all text-sm text-foreground">
+                                          {problem.contentLatex || "Untitled problem"}
+                                        </p>
+                                        <p className="break-words text-xs text-muted-foreground">
+                                          {problem.tags.join(" | ") || "No tags"}
+                                        </p>
+                                      </div>
+                                      <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                                        <GripVertical className="size-4" />
+                                        {isSelected ? "Selected" : "Add"}
+                                      </div>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </div>
                       );
                     })}
 
-                    {filteredProblems.length === 0 ? (
+                    {groupedVisibleProblems.length === 0 ? (
                       <div className="rounded-xl border border-dashed border-border/60 p-6 text-sm text-muted-foreground">
                         No problems match current filters.
                       </div>
@@ -1498,10 +1794,16 @@ export function CompetitionWizard({
             return;
           }
 
-          if (!draftValidation.ok || !draftValidation.value) {
+          const draftStateForSubmit = getDraftStateForSubmit();
+          if (draftStateForSubmit !== draftState) {
+            setDraftState(draftStateForSubmit);
+          }
+
+          const submitValidation = validateCompetitionDraftInput(draftStateForSubmit);
+          if (!submitValidation.ok || !submitValidation.value) {
             setStatus("error");
-            setStatusMessage(buildValidationStatusMessage("Fix validation issues before publishing.", draftValidation.errors));
-            focusFirstValidationField(draftValidation.errors);
+            setStatusMessage(buildValidationStatusMessage("Fix validation issues before publishing.", submitValidation.errors));
+            focusFirstValidationField(submitValidation.errors);
             return;
           }
 
@@ -1516,7 +1818,7 @@ export function CompetitionWizard({
                 "content-type": "application/json",
               },
               body: JSON.stringify({
-                ...draftValidation.value,
+                ...submitValidation.value,
                 expectedDraftRevision: draftRevision,
               }),
             });

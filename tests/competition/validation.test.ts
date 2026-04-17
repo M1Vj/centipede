@@ -49,6 +49,7 @@ function buildScheduledTeamDraft(): CompetitionDraftFormState {
     ...createDefaultCompetitionDraftState(),
     type: "scheduled",
     format: "team",
+    registrationTimingMode: "manual",
     name: "Scheduled Team Finals",
     description: "Timed team competition with fixed registration windows.",
     instructions: "Teams share one attempt and one answer sheet.",
@@ -71,6 +72,10 @@ describe("competition draft validation", () => {
     expect(createDefaultCompetitionDraftState().answerKeyVisibility).toBe("after_end");
   });
 
+  test("default draft state uses scheduled default registration timing mode", () => {
+    expect(createDefaultCompetitionDraftState().registrationTimingMode).toBe("default");
+  });
+
   test("default draft state starts as individual competition without team capacity", () => {
     const draft = createDefaultCompetitionDraftState();
 
@@ -80,15 +85,35 @@ describe("competition draft validation", () => {
     expect(draft.maxTeams).toBeNull();
   });
 
-  test("requires schedule windows and competition start time for scheduled drafts", () => {
+  test("requires competition start time for scheduled drafts", () => {
     const result = validateCompetitionDraftInput(createDefaultCompetitionDraftState());
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "startTime" }),
+      ]),
+    );
+  });
+
+  test("requires registration window fields only in manual registration timing mode", () => {
+    const result = validateCompetitionDraftInput({
+      ...createDefaultCompetitionDraftState(),
+      type: "scheduled",
+      registrationTimingMode: "manual",
+      name: "Manual Registration Draft",
+      description: "Manual window test",
+      instructions: "Manual mode",
+      startTime: "2026-04-05T09:00",
+      durationMinutes: 60,
+      selectedProblemIds: Array.from({ length: 10 }, (_, index) => `problem-${index + 1}`),
+    });
 
     expect(result.ok).toBe(false);
     expect(result.errors).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ field: "registrationStart" }),
         expect.objectContaining({ field: "registrationEnd" }),
-        expect.objectContaining({ field: "startTime" }),
       ]),
     );
   });
@@ -110,6 +135,54 @@ describe("competition draft validation", () => {
     expect(result.value?.format).toBe("team");
     expect(result.value?.participantsPerTeam).toBe(3);
     expect(result.value?.maxTeams).toBe(12);
+  });
+
+  test("default registration mode keeps registration open until start", () => {
+    const expectedStartIso = new Date("2026-04-05T09:00").toISOString();
+    const expectedEndIso = new Date(new Date("2026-04-05T09:00").getTime() + 90 * 60_000).toISOString();
+
+    const result = validateCompetitionDraftInput({
+      ...createDefaultCompetitionDraftState(),
+      type: "scheduled",
+      registrationTimingMode: "default",
+      name: "Default registration schedule",
+      description: "Default registration timing",
+      instructions: "Registration stays open until start.",
+      startTime: "2026-04-05T09:00",
+      durationMinutes: 90,
+      selectedProblemIds: Array.from({ length: 10 }, (_, index) => `problem-${index + 1}`),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.value?.registrationStart).toBeNull();
+    expect(result.value?.registrationEnd).toBe(expectedStartIso);
+    expect(result.value?.endTime).toBe(expectedEndIso);
+  });
+
+  test("manual registration mode enforces end at or before competition start", () => {
+    const result = validateCompetitionDraftInput({
+      ...createDefaultCompetitionDraftState(),
+      type: "scheduled",
+      registrationTimingMode: "manual",
+      name: "Manual conflict schedule",
+      description: "Window conflict",
+      instructions: "Registration must close before start.",
+      registrationStart: "2026-04-05T07:00",
+      registrationEnd: "2026-04-05T10:00",
+      startTime: "2026-04-05T09:00",
+      durationMinutes: 60,
+      selectedProblemIds: Array.from({ length: 10 }, (_, index) => `problem-${index + 1}`),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: "registrationEnd",
+          reason: "Registration must close at or before competition start.",
+        }),
+      ]),
+    );
   });
 
   test("rejects publish readiness when fewer than 10 problems are selected", () => {

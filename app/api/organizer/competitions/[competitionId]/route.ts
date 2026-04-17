@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
-  COMPETITION_SELECT_COLUMNS,
+  LEGACY_COMPETITION_SELECT_COLUMNS,
   competitionRecordToFormState,
   normalizeCompetitionLifecycleResult,
   normalizeCompetitionRecord,
@@ -210,7 +210,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ compe
         ...buildLegacyCompetitionMutationPayload(validation.value),
       })
       .eq("id", competitionId)
-      .select(COMPETITION_SELECT_COLUMNS)
+      .select(LEGACY_COMPETITION_SELECT_COLUMNS)
       .single();
 
     if (legacyUpdateResult.error) {
@@ -318,6 +318,47 @@ export async function DELETE(request: Request, context: { params: Promise<{ comp
     p_competition_id: competitionId,
     p_request_idempotency_token: request.headers.get("x-idempotency-key") ?? request.headers.get("idempotency-key"),
   });
+
+  if (error && isLegacyCompetitionSchemaError(error)) {
+    const fallbackDelete = await adminClient
+      .from("competitions")
+      .update({
+        is_deleted: true,
+      })
+      .eq("id", competitionId)
+      .eq("organizer_id", actor.userId)
+      .eq("published", false)
+      .select("id")
+      .maybeSingle();
+
+    if (fallbackDelete.error && isLegacyCompetitionSchemaError(fallbackDelete.error)) {
+      return jsonError(
+        "service_unavailable",
+        "Competition draft deletion is temporarily unavailable while database migrations are incomplete.",
+        503,
+        {
+          currentStatus: competition.status,
+          changed: false,
+          replayed: false,
+        },
+      );
+    }
+
+    if (fallbackDelete.error) {
+      return jsonDatabaseError(fallbackDelete.error);
+    }
+
+    if (!fallbackDelete.data) {
+      return jsonError("not_found", "Requested resource was not found.", 404);
+    }
+
+    return jsonOk({
+      code: "ok",
+      machineCode: "ok",
+      currentStatus: competition.status,
+      isDeleted: true,
+    });
+  }
 
   if (error) {
     return jsonDatabaseError(error);

@@ -7,8 +7,10 @@ import {
 } from "@/lib/problem-bank/api-helpers";
 import {
   buildLegacyCompetitionMutationPayload,
-  normalizeCompetitionRecord,
   COMPETITION_SELECT_COLUMNS,
+  LEGACY_COMPETITION_SELECT_COLUMNS,
+  isLegacyCompetitionSelectError,
+  normalizeCompetitionRecord,
 } from "@/lib/competition/api";
 import type { CompetitionLifecycleResult, CompetitionRecord } from "@/lib/competition/types";
 
@@ -336,12 +338,24 @@ export async function fetchCompetition(
   | { competition: CompetitionRecord }
   | { response: NextResponse }
 > {
-  const { data, error } = await supabase
+  const primaryResult = await supabase
     .from("competitions")
     .select(COMPETITION_SELECT_COLUMNS)
     .eq("id", competitionId)
     .eq("organizer_id", organizerId)
     .maybeSingle();
+
+  const fallbackResult =
+    primaryResult.error && isLegacyCompetitionSelectError(primaryResult.error)
+      ? await supabase
+          .from("competitions")
+          .select(LEGACY_COMPETITION_SELECT_COLUMNS)
+          .eq("id", competitionId)
+          .eq("organizer_id", organizerId)
+          .maybeSingle()
+      : null;
+
+  const { data, error } = fallbackResult ?? primaryResult;
 
   if (error) {
     return {

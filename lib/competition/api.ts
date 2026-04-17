@@ -13,6 +13,7 @@ import {
   type CompetitionDraftMutationPayload,
   type CompetitionLifecycleResult,
   type CompetitionProblemPreview,
+  type CompetitionRegistrationTimingMode,
   type CompetitionRecord,
   type CompetitionStatus,
 } from "./types";
@@ -258,6 +259,21 @@ function normalizeDateTimeInput(value: unknown): string {
   )}:${pad(parsed.getMinutes())}`;
 }
 
+function areDateTimeStringsSameInstant(left: string | null, right: string | null): boolean {
+  if (!left || !right) {
+    return left === right;
+  }
+
+  const leftMs = new Date(left).getTime();
+  const rightMs = new Date(right).getTime();
+
+  if (Number.isNaN(leftMs) || Number.isNaN(rightMs)) {
+    return left === right;
+  }
+
+  return leftMs === rightMs;
+}
+
 function normalizeStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -422,12 +438,25 @@ export function competitionRecordToFormState(
   competition: CompetitionRecord,
   selectedProblemIds: string[] = [],
 ): CompetitionDraftFormState {
+  const registrationEndDiffersFromStart =
+    Boolean(competition.registrationEnd) &&
+    (!competition.startTime ||
+      !areDateTimeStringsSameInstant(competition.registrationEnd, competition.startTime));
+
+  const registrationTimingMode: CompetitionRegistrationTimingMode =
+    competition.type !== "scheduled"
+      ? "default"
+      : competition.registrationStart || registrationEndDiffersFromStart
+        ? "manual"
+        : "default";
+
   return {
     name: competition.name,
     description: competition.description,
     instructions: competition.instructions,
     type: competition.type,
     format: competition.format,
+    registrationTimingMode,
     registrationStart: normalizeDateTimeInput(competition.registrationStart),
     registrationEnd: normalizeDateTimeInput(competition.registrationEnd),
     startTime: normalizeDateTimeInput(competition.startTime),

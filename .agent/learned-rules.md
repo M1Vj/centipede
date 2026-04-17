@@ -101,6 +101,12 @@ Do not apply custom selection-color overrides to MathLive text mode; keep native
 **React Rendering Constraints**  
 When rendering lists of items containing user-editable ID fields, never use the editable field itself as the React `key`. This triggers forceful component remounts and destroys internal DOM state (caret positions, focus, MathLive modes). Use stable monotonic counters or UUID-based generation instead.
 
+### 3.13
+Competition create and post-save refresh paths must apply the same legacy-column fallback used by organizer competition reads. Under-migrated environments can fail on modern `competitions` select lists even when insert/save succeeds, so create flows must retry with legacy select columns before surfacing a generic 500.
+
+### 3.14
+Competition mutation routes must use the same legacy competition-read fallback as organizer pages, not just create flow. Publish/save/delete can succeed or partially succeed on older schemas while the follow-up modern read fails; compatibility reads and delete fallbacks must turn those cases into deterministic success or explicit `service_unavailable`, never generic `operation_failed`.
+
 ## 4. Workflow Rules
 
 ### 4.1

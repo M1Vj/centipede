@@ -1,8 +1,16 @@
 import { createDefaultCompetitionDraftState, validateCompetitionDraftInput } from "@/lib/competition/validation";
-import { COMPETITION_SELECT_COLUMNS, normalizeCompetitionLifecycleResult, normalizeCompetitionRecord } from "@/lib/competition/api";
-import type { CompetitionDraftFormState, CompetitionRecord } from "@/lib/competition/types";
+import {
+  COMPETITION_SELECT_COLUMNS,
+  LEGACY_COMPETITION_SELECT_COLUMNS,
+  isLegacyCompetitionSelectError,
+  normalizeCompetitionLifecycleResult,
+  normalizeCompetitionRecord,
+} from "@/lib/competition/api";
+import type { CompetitionDraftFormState, CompetitionDraftInput, CompetitionRecord } from "@/lib/competition/types";
 import {
   buildLegacyCompetitionMutationPayload,
+  competitionLifecycleErrorMessage,
+  competitionLifecycleErrorStatus,
   jsonDatabaseError,
   jsonError,
   jsonOk,
@@ -14,10 +22,51 @@ import {
   validateCompetitionProblemSelection,
 } from "./_shared";
 
+type CompetitionReadResult = {
+  data: unknown;
+  error: { code?: string | null; message?: string | null; details?: string | null } | null;
+};
+
+type CompetitionReadQuery = {
+  eq: (column: "id" | "organizer_id", value: string) => CompetitionReadQuery;
+  maybeSingle: () => Promise<CompetitionReadResult>;
+};
+
+type CompetitionReadClient = {
+  from: (table: "competitions") => {
+    select: (columns: string) => CompetitionReadQuery;
+  };
+};
+
+async function readCompetitionWithFallback(
+  client: CompetitionReadClient,
+  competitionId: string,
+  organizerId: string,
+) {
+  const primaryResult = await client
+    .from("competitions")
+    .select(COMPETITION_SELECT_COLUMNS)
+    .eq("id", competitionId)
+    .eq("organizer_id", organizerId)
+    .maybeSingle();
+
+  if (primaryResult.error && isLegacyCompetitionSelectError(primaryResult.error)) {
+    return client
+      .from("competitions")
+      .select(LEGACY_COMPETITION_SELECT_COLUMNS)
+      .eq("id", competitionId)
+      .eq("organizer_id", organizerId)
+      .maybeSingle();
+  }
+
+  return primaryResult;
+}
+
 function buildCreationDraftState(payload: Record<string, unknown> | null): CompetitionDraftFormState {
   const baseState = createDefaultCompetitionDraftState();
   const type = payload?.type === "scheduled" ? "scheduled" : "open";
   const format = payload?.format === "team" ? "team" : "individual";
+  const registrationTimingMode = payload?.registrationTimingMode === "manual" ? "manual" : "default";
   const selectedProblemIds = Array.isArray(payload?.selectedProblemIds)
     ? payload.selectedProblemIds.filter((problemId): problemId is string => typeof problemId === "string")
     : [];
@@ -26,10 +75,11 @@ function buildCreationDraftState(payload: Record<string, unknown> | null): Compe
     ...baseState,
     type,
     format,
-    registrationStart: "",
-    registrationEnd: "",
-    startTime: "",
-    endTime: "",
+    registrationTimingMode,
+    registrationStart: typeof payload?.registrationStart === "string" ? payload.registrationStart : "",
+    registrationEnd: typeof payload?.registrationEnd === "string" ? payload.registrationEnd : "",
+    startTime: typeof payload?.startTime === "string" ? payload.startTime : "",
+    endTime: typeof payload?.endTime === "string" ? payload.endTime : "",
     durationMinutes: typeof payload?.durationMinutes === "number" ? payload.durationMinutes : baseState.durationMinutes,
     attemptsAllowed: typeof payload?.attemptsAllowed === "number" ? payload.attemptsAllowed : 1,
     maxParticipants: format === "individual" ? 3 : null,
@@ -93,7 +143,7 @@ export async function POST(request: Request) {
   const payload = (await request.json().catch(() => null)) as Record<string, unknown> | null;
 
   const baseState = buildCreationDraftState(payload);
-  const draftInput = (payload ?? {}) as Partial<CompetitionDraftFormState>;
+  const draftInput = (payload ?? {}) as CompetitionDraftInput;
   const selectedProblemIds = Array.isArray(draftInput.selectedProblemIds)
     ? draftInput.selectedProblemIds.filter((problemId): problemId is string => typeof problemId === "string")
     : baseState.selectedProblemIds;
@@ -118,6 +168,12 @@ export async function POST(request: Request) {
   if (selectionCheck.missingProblemIds.length > 0) {
     return jsonError("problem_selection_invalid", "One or more selected problems are not accessible.", 400, {
       missingProblemIds: selectionCheck.missingProblemIds,
+      errors: [
+        {
+          field: "selectedProblemIds",
+          reason: "One or more selected problems are not accessible.",
+        },
+      ],
     });
   }
 
@@ -173,7 +229,7 @@ export async function POST(request: Request) {
     createdCompetitionResult = await adminClient
       .from("competitions")
       .insert(legacyInsertPayload)
-      .select(COMPETITION_SELECT_COLUMNS)
+      .select(LEGACY_COMPETITION_SELECT_COLUMNS)
       .single();
   }
 
@@ -181,7 +237,14 @@ export async function POST(request: Request) {
 
   if (error) {
     if (error.code === "23505") {
-      return jsonError("duplicate_name", "A competition with this name already exists.", 409);
+      return jsonError("duplicate_name", "A competition with this name already exists.", 409, {
+        errors: [
+          {
+            field: "name",
+            reason: "A competition with this name already exists.",
+          },
+        ],
+      });
     }
 
     return jsonDatabaseError(error);
@@ -227,18 +290,26 @@ export async function POST(request: Request) {
 
     const savedLifecycle = normalizeCompetitionLifecycleResult(savedResult);
     if (!savedLifecycle || savedLifecycle.machineCode !== "ok") {
-      return jsonError("operation_failed", "Competition could not be created.", 500, {
-        machineCode: savedLifecycle?.machineCode ?? null,
+      const machineCode = savedLifecycle?.machineCode ?? "operation_failed";
+      const status = competitionLifecycleErrorStatus(machineCode);
+      const reason = competitionLifecycleErrorMessage(machineCode);
+      return jsonError(machineCode, reason, status, {
+        machineCode,
         selectedProblemCount: savedLifecycle?.selectedProblemCount ?? null,
+        errors: [
+          {
+            field: "form",
+            reason,
+          },
+        ],
       });
     }
 
-    const refreshed = await supabase
-      .from("competitions")
-      .select(COMPETITION_SELECT_COLUMNS)
-      .eq("id", competition.id)
-      .eq("organizer_id", actor.userId)
-      .maybeSingle();
+    const refreshed = await readCompetitionWithFallback(
+      supabase as unknown as CompetitionReadClient,
+      competition.id,
+      actor.userId,
+    );
 
     if (refreshed.error) {
       return jsonDatabaseError(refreshed.error);
