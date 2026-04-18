@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, CircleAlert } from "lucide-react";
+import { CheckCircle2, CircleAlert, KeyRound } from "lucide-react";
+import { ProgressLink } from "@/components/ui/progress-link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -93,42 +93,58 @@ export function TeamJoinForm() {
   };
 
   return (
-    <Card className="border-border/60 bg-background/90 shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-2xl">Join a team</CardTitle>
-        <CardDescription>
-          Enter the 10-character team code shared by your team leader.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-5" onSubmit={handleSubmit} aria-busy={isSubmitting}>
-          <div className="grid gap-2">
-            <Label htmlFor="team-code">Team code</Label>
-            <Input
-              id="team-code"
-              value={teamCode}
-              onChange={(event) => setTeamCode(event.target.value.toUpperCase())}
-              maxLength={10}
-              autoComplete="off"
-              required
-            />
-          </div>
+    <form className="space-y-6" onSubmit={handleSubmit} aria-busy={isSubmitting}>
+      <div className="rounded-[2rem] border border-slate-200/80 bg-[#fcfaf6] p-5 sm:p-6">
+        <div className="flex h-14 w-14 items-center justify-center rounded-[1.35rem] bg-[#f49700]/12 text-[#f49700]">
+          <KeyRound className="size-6" />
+        </div>
+        <div className="mt-5 space-y-2">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+            Have team code?
+          </p>
+          <p className="max-w-lg text-sm leading-7 text-slate-500">
+            Enter the 10-character team code shared by your team leader.
+          </p>
+        </div>
+      </div>
 
-          <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
-            <FormStatusMessage
-              status={status.type}
-              message={status.message}
-              icon={status.type === "error" ? CircleAlert : status.type === "success" ? CheckCircle2 : undefined}
-            />
-          </div>
+      <div className="grid gap-2">
+        <Label htmlFor="team-code" className="text-sm font-semibold text-slate-700">
+          Team Code
+        </Label>
+        <Input
+          id="team-code"
+          value={teamCode}
+          onChange={(event) => setTeamCode(event.target.value.toUpperCase())}
+          maxLength={10}
+          autoComplete="off"
+          className="h-14 rounded-2xl border-slate-200 bg-white px-4 font-semibold uppercase tracking-[0.16em] shadow-none"
+          required
+        />
+        <p className="text-xs tracking-[0.08em] text-slate-400 uppercase">Code format example: MW-4X9K2.</p>
+      </div>
 
-          <div className="flex items-center justify-end">
-            <Button type="submit" pending={isSubmitting} pendingText="Joining...">
-              Join team
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
+        <FormStatusMessage
+          status={status.type}
+          message={status.message}
+          icon={status.type === "error" ? CircleAlert : status.type === "success" ? CheckCircle2 : undefined}
+        />
+      </div>
+
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <Button asChild type="button" variant="ghost" className="h-12 rounded-full px-5 text-slate-500 hover:bg-slate-100 hover:text-slate-700">
+          <ProgressLink href="/mathlete/teams">Cancel</ProgressLink>
+        </Button>
+        <Button
+          type="submit"
+          pending={isSubmitting}
+          pendingText="Joining..."
+          className="h-12 rounded-full bg-[#f49700] px-8 text-sm font-bold text-white hover:bg-[#e68b00]"
+        >
+          Join Team
+        </Button>
+      </div>
+    </form>
   );
 }
