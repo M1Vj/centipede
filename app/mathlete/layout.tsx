@@ -1,10 +1,4 @@
-import { ProgressLink } from "@/components/ui/progress-link";
-
-const navItems = [
-  { href: "/mathlete", label: "Dashboard" },
-  { href: "/mathlete/teams", label: "Teams" },
-  { href: "/mathlete/settings", label: "Settings" },
-];
+import { MathleteWorkspaceNav } from "@/components/mathlete/workspace-nav";
 
 export default function MathleteLayout({
   children,
@@ -12,29 +6,11 @@ export default function MathleteLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-muted/20">
-      <header className="border-b bg-background/95 backdrop-blur">
-        <div className="shell flex min-h-16 items-center justify-between gap-4 py-3">
-          <ProgressLink
-            href="/mathlete"
-            className="text-sm font-bold uppercase tracking-widest text-foreground"
-          >
-            Mathlete
-          </ProgressLink>
-          <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground md:gap-x-3 md:gap-y-1">
-            {navItems.map((item) => (
-              <ProgressLink
-                key={item.href}
-                href={item.href}
-                className="rounded-md px-3 py-2 font-medium hover:bg-muted hover:text-foreground md:px-2 md:py-1"
-              >
-                {item.label}
-              </ProgressLink>
-            ))}
-          </nav>
-        </div>
-      </header>
-      {children}
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f8f6f6_0%,#faf7f5_100%)]">
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-[460px] bg-[radial-gradient(circle_at_top,rgba(244,151,0,0.12),transparent_44%)]" />
+      <div className="pointer-events-none fixed left-1/2 top-[28rem] h-40 w-40 -translate-x-1/2 rounded-full bg-slate-300/25 blur-3xl" />
+      <MathleteWorkspaceNav />
+      <main className="relative">{children}</main>
     </div>
   );
 }
