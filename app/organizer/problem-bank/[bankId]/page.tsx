@@ -1,9 +1,15 @@
 import { notFound } from "next/navigation";
-import { PlusCircle } from "lucide-react";
+import { ArrowLeft, PlusCircle } from "lucide-react";
 import { BankForm } from "@/components/problem-bank/bank-form";
 import { ImportControls } from "@/components/problem-bank/import-controls";
 import { ProblemList } from "@/components/problem-bank/problem-list";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  OrganizerWorkspaceHeader,
+  OrganizerWorkspacePanel,
+  OrganizerWorkspaceShell,
+  organizerPrimaryActionClass,
+  organizerSecondaryActionClass,
+} from "@/components/organizer/workspace-patterns";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import {
@@ -69,71 +75,80 @@ export default async function OrganizerProblemBankDetailPage({ params }: PagePro
     : [];
 
   return (
-    <section className="shell py-12 space-y-8">
-      <div className="space-y-2">
-        <ProgressLink
-          href="/organizer/problem-bank"
-          className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
-        >
-          Back to problem banks
-        </ProgressLink>
-        <h1 className="text-3xl font-semibold tracking-tight">{bank.name}</h1>
-        <p className="text-sm text-muted-foreground">
-          {canEdit
+    <OrganizerWorkspaceShell className="space-y-6">
+      <OrganizerWorkspaceHeader
+        breadcrumbs={[
+          { label: "Problem Banks", href: "/organizer/problem-bank" },
+          { label: bank.name },
+        ]}
+        eyebrow={canEdit ? "Problem Bank Editor" : "Shared Problem Bank"}
+        title={bank.name}
+        description={
+          canEdit
             ? "Maintain bank metadata, import CSV rows, and author reusable problems."
-            : "This is a read-only default bank visible to organizers."}
-        </p>
-      </div>
+            : "This is a read-only default bank visible to organizers."
+        }
+        actions={
+          <>
+            <ProgressLink href="/organizer/problem-bank" className={organizerSecondaryActionClass}>
+              <ArrowLeft className="size-4" />
+              Back
+            </ProgressLink>
+            {canEdit ? (
+              <ProgressLink
+                href={`/organizer/problem-bank/${bank.id}/problem/new`}
+                className={organizerPrimaryActionClass}
+              >
+                <PlusCircle className="size-4" />
+                Add New Problem
+              </ProgressLink>
+            ) : null}
+          </>
+        }
+      />
 
       {canEdit ? (
-        <BankForm
-          mode="edit"
-          initialValue={{
-            id: bank.id,
-            name: bank.name,
-            description: bank.description,
-            updatedAt: bank.updatedAt,
-          }}
-          successRedirectHref="/organizer/problem-bank"
-        />
+        <OrganizerWorkspacePanel className="border-amber-200/60 dark:border-amber-700/50">
+          <BankForm
+            mode="edit"
+            initialValue={{
+              id: bank.id,
+              name: bank.name,
+              description: bank.description,
+              updatedAt: bank.updatedAt,
+            }}
+            successRedirectHref="/organizer/problem-bank"
+          />
+        </OrganizerWorkspacePanel>
       ) : (
-        <Card className="border-border/60 bg-background/90 shadow-sm">
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            {bank.description || "No description provided."}
-          </CardContent>
-        </Card>
+        <OrganizerWorkspacePanel className="text-sm text-slate-600 dark:text-slate-300">
+          {bank.description || "No description provided."}
+        </OrganizerWorkspacePanel>
       )}
 
       {canEdit ? (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-2xl font-semibold tracking-tight">Author problems</h2>
-            <ProgressLink
-              href={`/organizer/problem-bank/${bank.id}/problem/new`}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90"
-            >
-              <PlusCircle className="size-4" />
-              Create problem
-            </ProgressLink>
-          </div>
+        <OrganizerWorkspacePanel className="space-y-4">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Import and bulk actions</h2>
           <ImportControls bankId={bank.id} />
-        </div>
+        </OrganizerWorkspacePanel>
       ) : null}
 
-      <ProblemList
-        title="Problems"
-        problems={problems.map((problem) => ({
-          id: problem.id,
-          type: problem.type,
-          difficulty: problem.difficulty,
-          tags: problem.tags,
-          contentLatex: problem.contentLatex,
-          explanationLatex: problem.explanationLatex,
-          updatedAt: problem.updatedAt,
-        }))}
-        problemHrefBase={canEdit ? `/organizer/problem-bank/${bank.id}/problem` : undefined}
-        editable={canEdit}
-      />
-    </section>
+      <OrganizerWorkspacePanel className="p-4 md:p-5">
+        <ProblemList
+          title="Problems"
+          problems={problems.map((problem) => ({
+            id: problem.id,
+            type: problem.type,
+            difficulty: problem.difficulty,
+            tags: problem.tags,
+            contentLatex: problem.contentLatex,
+            explanationLatex: problem.explanationLatex,
+            updatedAt: problem.updatedAt,
+          }))}
+          problemHrefBase={canEdit ? `/organizer/problem-bank/${bank.id}/problem` : undefined}
+          editable={canEdit}
+        />
+      </OrganizerWorkspacePanel>
+    </OrganizerWorkspaceShell>
   );
 }

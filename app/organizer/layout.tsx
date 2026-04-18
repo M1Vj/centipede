@@ -1,5 +1,5 @@
 import { ProgressLink } from "@/components/ui/progress-link";
-import { WorkspaceMobileNav } from "@/components/navigation/workspace-mobile-nav";
+import { OrganizerNav } from "@/components/organizer/organizer-nav";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function OrganizerLayout({
@@ -20,46 +20,25 @@ export default async function OrganizerLayout({
     isOrganizer = profile?.role === "organizer";
   }
   
-  // Decide which navigation items to show based on login status
-  const navItems = user 
-    ? [
-        { href: "/organizer", label: "Dashboard" },
-        ...(isOrganizer
-          ? [
-              { href: "/organizer/problem-bank", label: "Problem Banks" },
-              { href: "/organizer/competition", label: "Competitions" },
-            ]
-          : []),
-        { href: "/organizer/profile", label: "Profile" },
-        { href: "/organizer/settings", label: "Settings" },
-      ]
-    : [
-        { href: "/organizer/apply", label: "Apply" },
-        { href: "/organizer/status", label: "Status" },
-      ];
-
   return (
-    <div className="min-h-screen bg-muted/20">
-      <header className="border-b bg-background/95 backdrop-blur">
-        <div className="shell py-3">
-          <div className="hidden min-h-16 items-center justify-between gap-4 md:flex">
-            <ProgressLink href="/organizer" className="text-sm font-bold uppercase tracking-widest text-foreground">
-              Organizer
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f8f6f6_0%,#f8f6f6_100%)]">
+      <header className="sticky top-0 z-40 px-2 py-4 sm:px-4">
+        <div className="shell">
+          <div className="relative flex min-h-16 items-center justify-between gap-3 rounded-full border border-slate-200/80 bg-[#10182b] px-4 py-2 text-slate-100 shadow-[0_26px_58px_-34px_rgba(2,6,23,0.9)] sm:px-5">
+            <ProgressLink
+              href="/organizer"
+              className="flex items-center gap-3 rounded-full px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#10182b]"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#11192c] text-xs font-black uppercase tracking-[0.16em] text-[#f59f0a]">
+                MW
+              </div>
+              <div className="hidden leading-tight sm:block">
+                <p className="text-xs font-bold text-[#f59f0a]">Organizer</p>
+                <p className="text-[11px] text-white/70">MathWiz</p>
+              </div>
             </ProgressLink>
-            <nav className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-              {navItems.map((item) => (
-                <ProgressLink key={item.href} href={item.href} className="rounded-md px-2 py-1 font-medium hover:bg-muted hover:text-foreground">
-                  {item.label}
-                </ProgressLink>
-              ))}
-            </nav>
+            <OrganizerNav isOrganizer={isOrganizer} isAuthenticated={Boolean(user)} />
           </div>
-
-          <WorkspaceMobileNav
-            title="Organizer"
-            homeHref="/organizer"
-            items={navItems}
-          />
         </div>
       </header>
       {children}
