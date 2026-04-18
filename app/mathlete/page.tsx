@@ -15,8 +15,10 @@ export default async function MathletePage() {
   return (
     <MathleteDashboardOverview
       displayName={displayName}
-      userEmail={userEmail}
       profileComplete={Boolean(profile?.school && profile?.grade_level)}
+      liveCards={[]}
+      upcomingCards={[]}
+      activityItems={[]}
     />
   );
 }

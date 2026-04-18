@@ -119,7 +119,7 @@ function CountdownCell({
 function buildCalendarRows(cards: MathleteUpcomingCard[]) {
   const datedCards = cards
     .map((card) => (card.timestamp ? new Date(card.timestamp) : null))
-    .filter((date): date is Date => Boolean(date) && !Number.isNaN(date.getTime()))
+    .filter((date): date is Date => date !== null && !Number.isNaN(date.getTime()))
     .sort((left, right) => left.getTime() - right.getTime());
 
   const baseDate = datedCards[0] ?? new Date();
