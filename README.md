@@ -9,11 +9,26 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 
 | Release Code | Date Released |
 | ------------ | ------------- |
+| CP.010.007   | 2026-04-16    |
 | CP.010.006   | 2026-04-11    |
 | CP.010.005   | 2026-04-08    |
 | CP.010.004   | 2026-04-05    |
+| CP.010.003   | 2026-03-28    |
 | CP.010.002   | 2026-03-14    |
 | CP.010.001   | 2026-02-28    |
+
+---
+
+## CP.010.007 Release Notes
+
+- Designed and integrated the complete Competition Wizard lifecycle, supporting scheduled/open variations, fallback mechanisms, snapshot management, and draft publication flows.
+- Implemented robust Team Management systems, including secure invitations, roster management, leadership transfers, and real-time validation via idempotency ledgers.
+- Solidified team-based schemas, competition lifecycle definitions, and unified navigation components across mathlete arenas and organizer workspaces.
+- Refined validation helpers, testing structures, and domain contracts related to teams, open competitions, and strict data consistency guarantees.
+
+Known Issues:
+
+- None at this time.
 
 ---
 

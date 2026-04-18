@@ -98,7 +98,7 @@ Mutation guards by status:
 - support scheduled and open competition types
 - support individual and team formats with their validation rules, including team mode as scheduled-only
 - require an overview-step Rules & Instructions box that is persisted to `competitions.instructions` and later acknowledged in the arena
-- validate registration window, start time, duration, and attempt rules
+- validate registration timing mode (`default` open-until-start vs `manual` explicit window), start time, duration, and attempt rules
 - enforce open-competition attempt count between one and three
 - enforce individual competitions at 3 to 100 participants
 - enforce scheduled team competitions at 2 to 5 participants per team and 3 to 50 teams
@@ -116,7 +116,7 @@ Mutation guards by status:
 
 1. Build the organizer competition list and draft-create entry point.
 2. Implement the multi-step wizard with persistent draft state.
-3. Add the overview and schedule steps with strong date/time validation plus the required Rules & Instructions field persisted to `competitions.instructions`.
+3. Add the overview and schedule steps with strong date/time validation, scheduled registration timing mode (`default` or `manual`), computed end-time behavior (`start + duration`), plus the required Rules & Instructions field persisted to `competitions.instructions`.
 4. Add the format step with individual vs team and scheduled vs open rules, including scheduled-only team enforcement, open-attempt limits, and the exact participant or team-count constraints.
 5. Add the problem selection step with bank browsing, filter/search, selected problem ordering, and the 10-to-100 problem guardrail.
 6. Add scoring and anti-cheat configuration steps using the rules from branch 07.
@@ -156,6 +156,21 @@ Mutation guards by status:
 - concurrency QA: same-token retries are idempotent; competing lifecycle requests produce deterministic conflict behavior
 - lifecycle QA: prohibited transitions are blocked with deterministic machine-code outcomes
 - audit QA: publish/start/end/archive writes produce expected lifecycle events and metadata
+
+### Execution Update (2026-04-15)
+
+- Verified branch-quality gates after lifecycle hardening: `npm run lint`, `npm run test` (45 files / 222 tests), and `npm run build` all pass.
+- Added legacy-schema compatibility fallback for organizer lifecycle start/end/archive routes when RPCs are missing in under-migrated environments (`PGRST202`/signature drift), returning deterministic JSON results instead of raw 500 failures.
+- Added regression coverage in `tests/competition/lifecycle-route-fallback.test.ts` for start/end/archive compatibility behavior.
+- Updated lifecycle fallback behavior to persist status updates through compatibility writes when RPCs are unavailable; when compatibility writes cannot persist canonical status (for example missing status column), routes now return deterministic `service_unavailable` instead of synthetic success payloads.
+- Removed route-level start-status short-circuit so idempotent replay responses remain owned by `start_competition` RPC semantics.
+- Completed manual organizer lifecycle click-through in UI on real route handlers: save draft -> publish (200) -> start (200) -> end (200) -> archive (200), with visible status progression `Published -> Live -> Ended -> Archived`.
+- Responsive QA spot-check completed on competition detail/create pages at mobile (`390x844`) and tablet (`768x1024`) viewports; core wizard controls and lifecycle status/action surfaces remain accessible.
+- Publish action guard hardened to draft-only in wizard UI so non-draft states cannot trigger invalid publish attempts.
+- Hardened draft creation for under-migrated competition schemas: create-route insert fallback now retries with legacy competition select columns, and post-save refresh uses the same legacy read fallback instead of returning a generic 500 after successful draft persistence.
+- Added regression coverage in `tests/competition/create-route.test.ts` for both legacy insert-response fallback and legacy post-save refresh fallback.
+- Hardened organizer mutation compatibility beyond create flow: shared competition reads now retry with legacy competition select columns, draft save fallback now reads legacy rows after compatibility updates, and draft delete now has a legacy soft-delete fallback when `delete_draft_competition` RPC is unavailable.
+- Added regression coverage in `tests/competition/edit-route.test.ts` and extended `tests/competition/publish-route.test.ts` so save, delete, and publish paths no longer regress into generic operation-failed responses on under-migrated schemas.
 
 ## Git Branching
 
