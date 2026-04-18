@@ -11,8 +11,14 @@ import {
 import { Laptop, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 
-const ThemeSwitcher = () => {
+type ThemeSwitcherProps = {
+  buttonClassName?: string;
+  iconClassName?: string;
+};
+
+const ThemeSwitcher = ({ buttonClassName, iconClassName }: ThemeSwitcherProps) => {
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
 
@@ -30,42 +36,48 @@ const ThemeSwitcher = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size={"sm"} aria-label="Change theme" title="Change theme">
+        <Button
+          variant="ghost"
+          size={"sm"}
+          className={cn("text-foreground hover:bg-accent hover:text-accent-foreground", buttonClassName)}
+          aria-label="Change theme"
+          title="Change theme"
+        >
           {theme === "light" ? (
             <Sun
               key="light"
               size={ICON_SIZE}
-              className={"text-muted-foreground"}
+              className={cn("text-muted-foreground", iconClassName)}
             />
           ) : theme === "dark" ? (
             <Moon
               key="dark"
               size={ICON_SIZE}
-              className={"text-muted-foreground"}
+              className={cn("text-muted-foreground", iconClassName)}
             />
           ) : (
             <Laptop
               key="system"
               size={ICON_SIZE}
-              className={"text-muted-foreground"}
+              className={cn("text-muted-foreground", iconClassName)}
             />
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-content" align="start">
+      <DropdownMenuContent className="w-40 rounded-xl border-border/70 bg-popover/95 p-1" align="start">
         <DropdownMenuRadioGroup
-          value={theme}
-          onValueChange={(e) => setTheme(e)}
+          value={theme ?? "system"}
+          onValueChange={(value) => setTheme(value)}
         >
-          <DropdownMenuRadioItem className="flex gap-2" value="light">
+          <DropdownMenuRadioItem className="flex gap-2 rounded-md" value="light">
             <Sun size={ICON_SIZE} className="text-muted-foreground" />{" "}
             <span>Light</span>
           </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem className="flex gap-2" value="dark">
+          <DropdownMenuRadioItem className="flex gap-2 rounded-md" value="dark">
             <Moon size={ICON_SIZE} className="text-muted-foreground" />{" "}
             <span>Dark</span>
           </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem className="flex gap-2" value="system">
+          <DropdownMenuRadioItem className="flex gap-2 rounded-md" value="system">
             <Laptop size={ICON_SIZE} className="text-muted-foreground" />{" "}
             <span>System</span>
           </DropdownMenuRadioItem>
