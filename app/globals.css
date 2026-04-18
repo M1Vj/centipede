@@ -4,31 +4,31 @@
 
 @layer base {
   :root {
-    --background: 210 33% 98%;
-    --foreground: 226 31% 12%;
+    --background: 32 27% 97%;
+    --foreground: 221 54% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 226 31% 12%;
+    --card-foreground: 221 54% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 226 31% 12%;
-    --primary: 226 49% 28%;
+    --popover-foreground: 221 54% 13%;
+    --primary: 221 65% 12%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 214 32% 95%;
-    --secondary-foreground: 226 31% 12%;
-    --muted: 214 32% 93%;
-    --muted-foreground: 221 16% 38%;
-    --accent: 213 86% 94%;
-    --accent-foreground: 226 49% 28%;
+    --secondary: 36 31% 95%;
+    --secondary-foreground: 221 54% 13%;
+    --muted: 34 20% 93%;
+    --muted-foreground: 218 17% 43%;
+    --accent: 37 94% 52%;
+    --accent-foreground: 221 54% 13%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 26% 88%;
-    --input: 220 26% 88%;
-    --ring: 226 49% 28%;
-    --chart-1: 226 49% 28%;
-    --chart-2: 202 89% 48%;
-    --chart-3: 221 50% 37%;
-    --chart-4: 40 92% 58%;
-    --chart-5: 167 65% 38%;
-    --shadow: 226 49% 28%;
+    --border: 31 22% 88%;
+    --input: 31 22% 88%;
+    --ring: 37 94% 52%;
+    --chart-1: 221 65% 12%;
+    --chart-2: 208 44% 59%;
+    --chart-3: 218 17% 43%;
+    --chart-4: 37 94% 52%;
+    --chart-5: 146 48% 45%;
+    --shadow: 221 65% 12%;
     --radius: 1.25rem;
   }
 
@@ -74,7 +74,7 @@
     @apply bg-background text-foreground;
     font-family: var(--font-sans), sans-serif;
     background-image:
-      radial-gradient(circle at top, hsl(var(--accent) / 0.9), transparent 30%),
+      radial-gradient(circle at top, hsl(var(--accent) / 0.12), transparent 28%),
       linear-gradient(180deg, hsl(var(--background)), hsl(var(--background)));
   }
 
@@ -127,7 +127,8 @@
   }
 
   .content-fade {
-    animation: fade-up 700ms ease-out both;
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 
   .float-slow {
@@ -142,7 +143,7 @@
 
 @keyframes fade-up {
   from {
-    opacity: 0;
+    opacity: 0.8;
     transform: translate3d(0, 18px, 0);
   }
 
@@ -170,6 +171,12 @@
 
   to {
     transform: translateX(18%);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .content-fade {
+    animation: fade-up 700ms ease-out forwards;
   }
 }
 

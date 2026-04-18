@@ -72,6 +72,13 @@ Unblocks: anti-cheat, submission/review, leaderboards, monitoring.
 - Branch `11` render ownership is limited to `pre_entry` and `arena_runtime` modes; `detail_register` mode is owned by branch `10`.
 - Branch `11` may add nested subroutes under that segment only; alias or equivalent arena root paths are prohibited.
 
+## Figma UI Provenance
+
+- Source file URL: https://www.figma.com/design/cBQPJi1UVMFzrHlfsNPbsx/Mathwiz?node-id=1-125&t=wi7iD40k8rPMSyLH-1
+- Baseline nodes for migration effort: `1:125`, `45:2`, `62:5`, `164:2488`, `167:3350`.
+- Use baseline nodes as starting anchors; map branch-specific frames/components before implementation.
+- When implementing UI changes in this branch, verify frame coverage first; if no frame exists for page/state, document gap and use current design system tokens without inventing unsupported Figma details.
+
 ## Atomic Steps
 
 1. Build the pre-entry page with eligibility checks, rules acknowledgement, explicit device-responsibility acknowledgement checkboxes, and trusted route-mode gating from branch `10` arbitration.

@@ -163,6 +163,13 @@ Unblocks: notifications, operational monitoring, release readiness.
 - all branch-14 math displays render via KaTeX from stored LaTeX snapshots
 - route/entity naming uses explicit `competitionId` and related identifiers without generic route placeholders
 
+## Figma UI Provenance
+
+- Source file URL: https://www.figma.com/design/cBQPJi1UVMFzrHlfsNPbsx/Mathwiz?node-id=1-125&t=wi7iD40k8rPMSyLH-1
+- Baseline nodes for migration effort: `1:125`, `45:2`, `62:5`, `164:2488`, `167:3350`.
+- Use baseline nodes as starting anchors; map branch-specific frames/components before implementation.
+- When implementing UI changes in this branch, verify frame coverage first; if no frame exists for page/state, document gap and use current design system tokens without inventing unsupported Figma details.
+
 ## Atomic Steps
 
 1. Build leaderboard reads from `leaderboard_entries` using the explicit visibility contract.

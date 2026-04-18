@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, CircleAlert } from "lucide-react";
+import { CheckCircle2, CircleAlert, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -102,41 +101,48 @@ export function TeamInviteForm({ teamId }: TeamInviteFormProps) {
   };
 
   return (
-    <Card className="border-border/60 bg-background/90 shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-xl">Invite a member</CardTitle>
-        <CardDescription>
+    <div className="rounded-[2rem] border border-white/10 bg-[#10182b] p-5 text-white shadow-[0_30px_64px_-40px_rgba(16,24,43,0.9)]">
+      <div className="space-y-3 pb-4">
+        <div className="flex h-11 w-11 items-center justify-center rounded-[1rem] bg-white/10 text-[#f49700]">
+          <Send className="size-4" />
+        </div>
+        <h2 className="text-xl font-semibold tracking-[-0.03em] text-white">Invite member</h2>
+        <p className="text-sm leading-7 text-white/65">
           Send an invite using a mathlete name, email, or profile id.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-5" onSubmit={handleSubmit} aria-busy={isSubmitting}>
-          <div className="grid gap-2">
-            <Label htmlFor="invitee">Invitee handle or id</Label>
-            <Input
-              id="invitee"
-              value={invitee}
-              onChange={(event) => setInvitee(event.target.value)}
-              autoComplete="off"
-              required
-            />
-          </div>
+        </p>
+      </div>
+      <form className="space-y-5" onSubmit={handleSubmit} aria-busy={isSubmitting}>
+        <div className="grid gap-2">
+          <Label htmlFor="invitee" className="text-sm font-semibold text-white/82">
+            Invitee handle or id
+          </Label>
+          <Input
+            id="invitee"
+            value={invitee}
+            onChange={(event) => setInvitee(event.target.value)}
+            autoComplete="off"
+            className="h-12 rounded-2xl border-white/10 bg-white/6 text-white placeholder:text-white/35"
+            required
+          />
+        </div>
 
-          <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
-            <FormStatusMessage
-              status={status.type}
-              message={status.message}
-              icon={status.type === "error" ? CircleAlert : status.type === "success" ? CheckCircle2 : undefined}
-            />
-          </div>
+        <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
+          <FormStatusMessage
+            status={status.type}
+            message={status.message}
+            icon={status.type === "error" ? CircleAlert : status.type === "success" ? CheckCircle2 : undefined}
+          />
+        </div>
 
-          <div className="flex items-center justify-end">
-            <Button type="submit" pending={isSubmitting} pendingText="Sending...">
-              Send invite
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+        <Button
+          type="submit"
+          pending={isSubmitting}
+          pendingText="Sending..."
+          className="h-11 rounded-full bg-[#f49700] px-5 text-sm font-bold text-white hover:bg-[#e68b00]"
+        >
+          Send invite
+        </Button>
+      </form>
+    </div>
   );
 }

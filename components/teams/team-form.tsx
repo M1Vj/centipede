@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, CircleAlert } from "lucide-react";
+import { CheckCircle2, CircleAlert, Users2 } from "lucide-react";
+import { ProgressLink } from "@/components/ui/progress-link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,42 +79,58 @@ export function TeamForm() {
   };
 
   return (
-    <Card className="border-border/60 bg-background/90 shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-2xl">Create a team</CardTitle>
-        <CardDescription>
-          Teams let you coordinate with schoolmates before team competitions go live.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-5" onSubmit={handleSubmit} aria-busy={isSubmitting}>
-          <div className="grid gap-2">
-            <Label htmlFor="team-name">Team name</Label>
-            <Input
-              id="team-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              maxLength={80}
-              minLength={2}
-              required
-            />
-          </div>
+    <form className="space-y-6" onSubmit={handleSubmit} aria-busy={isSubmitting}>
+      <div className="rounded-[2rem] border border-slate-200/80 bg-[#fcfaf6] p-5 sm:p-6">
+        <div className="flex h-14 w-14 items-center justify-center rounded-[1.35rem] bg-[#f49700]/12 text-[#f49700]">
+          <Users2 className="size-6" />
+        </div>
+        <div className="mt-5 space-y-2">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+            Private mathlete squad
+          </p>
+          <p className="max-w-lg text-sm leading-7 text-slate-500">
+            Teams let you coordinate with schoolmates before team competitions go live.
+          </p>
+        </div>
+      </div>
 
-          <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
-            <FormStatusMessage
-              status={status.type}
-              message={status.message}
-              icon={status.type === "error" ? CircleAlert : status.type === "success" ? CheckCircle2 : undefined}
-            />
-          </div>
+      <div className="grid gap-2">
+        <Label htmlFor="team-name" className="text-sm font-semibold text-slate-700">
+          Team Name
+        </Label>
+        <Input
+          id="team-name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          maxLength={80}
+          minLength={2}
+          className="h-14 rounded-2xl border-slate-200 bg-white px-4 text-base shadow-none"
+          required
+        />
+        <p className="text-xs tracking-[0.08em] text-slate-400 uppercase">Use 2 to 80 characters.</p>
+      </div>
 
-          <div className="flex items-center justify-end">
-            <Button type="submit" pending={isSubmitting} pendingText="Creating...">
-              Create team
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
+        <FormStatusMessage
+          status={status.type}
+          message={status.message}
+          icon={status.type === "error" ? CircleAlert : status.type === "success" ? CheckCircle2 : undefined}
+        />
+      </div>
+
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <Button asChild type="button" variant="ghost" className="h-12 rounded-full px-5 text-slate-500 hover:bg-slate-100 hover:text-slate-700">
+          <ProgressLink href="/mathlete/teams">Cancel</ProgressLink>
+        </Button>
+        <Button
+          type="submit"
+          pending={isSubmitting}
+          pendingText="Creating..."
+          className="h-12 rounded-full bg-[#f49700] px-8 text-sm font-bold text-white hover:bg-[#e68b00]"
+        >
+          Create Team
+        </Button>
+      </div>
+    </form>
   );
 }

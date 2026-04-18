@@ -1,5 +1,13 @@
 import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import {
+  OrganizerWorkspaceHeader,
+  OrganizerWorkspacePanel,
+  OrganizerWorkspaceShell,
+  organizerSecondaryActionClass,
+} from "@/components/organizer/workspace-patterns";
 import { ProblemForm } from "@/components/problem-bank/problem-form";
+import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import {
   canViewBank,
@@ -113,14 +121,39 @@ export default async function OrganizerProblemEditorPage({ params }: PageProps) 
     };
   }
 
+  const isCreateMode = problemId === "new";
+
   return (
-    <section className="shell py-12">
-      <ProblemForm
-        bankId={bank.id}
-        backHref={`/organizer/problem-bank/${bank.id}`}
-        initialValue={initialValue}
-        editable
+    <OrganizerWorkspaceShell className="space-y-6">
+      <OrganizerWorkspaceHeader
+        breadcrumbs={[
+          { label: "Problem Banks", href: "/organizer/problem-bank" },
+          { label: bank.name, href: `/organizer/problem-bank/${bank.id}` },
+          { label: isCreateMode ? "Add Problem" : "Edit Problem" },
+        ]}
+        eyebrow="Problem Authoring"
+        title={isCreateMode ? "Add Problem" : "Edit Problem"}
+        description={
+          isCreateMode
+            ? "Create a new problem for this bank using validated math-authoring inputs."
+            : "Update problem content, options, answer keys, and metadata."
+        }
+        actions={
+          <ProgressLink href={`/organizer/problem-bank/${bank.id}`} className={organizerSecondaryActionClass}>
+            <ArrowLeft className="size-4" />
+            Back to bank
+          </ProgressLink>
+        }
       />
-    </section>
+
+      <OrganizerWorkspacePanel className="border-amber-200/60 p-3 md:p-4 dark:border-amber-700/50">
+        <ProblemForm
+          bankId={bank.id}
+          backHref={`/organizer/problem-bank/${bank.id}`}
+          initialValue={initialValue}
+          editable
+        />
+      </OrganizerWorkspacePanel>
+    </OrganizerWorkspaceShell>
   );
 }

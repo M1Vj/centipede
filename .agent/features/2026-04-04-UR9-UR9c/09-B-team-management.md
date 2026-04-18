@@ -41,6 +41,8 @@ Unblocks: team competition registration, team arena participation, participant m
 - Keep leadership transfer deterministic using earliest active join time.
 - Lock or constrain roster mutation once a team is registered for a scheduled competition, except for account-deletion recovery rules.
 - Model invalid rosters as `ineligible` rather than silently withdrawing them so organizers and team leaders retain traceability.
+- Current UI migration reference for mathlete-facing team surfaces comes from Figma file `https://www.figma.com/design/cBQPJi1UVMFzrHlfsNPbsx/Mathwiz?node-id=1-125&t=wi7iD40k8rPMSyLH-1`, especially nodes `167:3055`, `171:27`, `172:628`, `172:682`, `173:726`, `173:794`, `190:154`, and `193:986`.
+- Current repo-owned migration keeps existing team create/join/invite logic intact while restyling around those nodes; team-detail lock/upcoming visuals remain partially placeholder-driven until a later branch exposes registration lock and next-event payloads through trusted APIs.
 
 ## Requirements
 

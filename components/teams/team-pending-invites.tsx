@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, CircleAlert } from "lucide-react";
+import { CheckCircle2, CircleAlert, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, ErrorState, FormStatusMessage, LoadingState } from "@/components/ui/feedback-states";
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import { createIdempotencyToken, formatDate, getPayloadMessage, requestJson } from "@/components/teams/utils";
@@ -132,20 +131,22 @@ export function TeamPendingInvites({ teamId }: TeamPendingInvitesProps) {
 
   if (invites.length === 0) {
     return (
-      <EmptyState
-        title="No pending invites"
-        description="Invitations you send will appear here until they are accepted or declined."
-      />
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-44px_rgba(15,23,42,0.35)]">
+        <EmptyState
+          title="No pending invites"
+          description="Invitations you send will appear here until they are accepted or declined."
+        />
+      </div>
     );
   }
 
   return (
-    <Card className="border-border/60 bg-background/90 shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-xl">Pending invites</CardTitle>
-        <CardDescription>Track outgoing invitations and revoke if needed.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-44px_rgba(15,23,42,0.35)]">
+      <div className="space-y-2">
+        <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#13233b]">Pending invites</h2>
+        <p className="text-sm leading-7 text-slate-500">Track outgoing invitations and revoke if needed.</p>
+      </div>
+      <div className="mt-5 space-y-4">
         <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
           <FormStatusMessage
             status={actionStatus.type}
@@ -165,11 +166,12 @@ export function TeamPendingInvites({ teamId }: TeamPendingInvitesProps) {
             return (
               <div
                 key={invite.id}
-                className="flex flex-col gap-3 rounded-xl border border-border/60 bg-background/80 p-4 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-3 rounded-[1.5rem] border border-slate-200/80 bg-slate-50/70 p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-foreground">{name}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm font-semibold text-[#13233b]">{name}</p>
+                  <p className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                    <Clock3 className="size-3.5" />
                     Invited {formatDate(invite.createdAt)}
                     {details ? ` | ${details}` : ""}
                   </p>
@@ -178,6 +180,7 @@ export function TeamPendingInvites({ teamId }: TeamPendingInvitesProps) {
                   type="button"
                   variant="outline"
                   size="sm"
+                  className="rounded-full border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-800"
                   onClick={() => void handleRevoke(invite.id)}
                   pending={isPending}
                   pendingText="Revoking..."
@@ -189,7 +192,7 @@ export function TeamPendingInvites({ teamId }: TeamPendingInvitesProps) {
             );
           })}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

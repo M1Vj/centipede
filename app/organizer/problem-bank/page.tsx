@@ -1,5 +1,11 @@
-import { Library, PlusCircle } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, Library, PlusCircle } from "lucide-react";
+import {
+  OrganizerMetricTile,
+  OrganizerWorkspaceHeader,
+  OrganizerWorkspacePanel,
+  OrganizerWorkspaceShell,
+  organizerPrimaryActionClass,
+} from "@/components/organizer/workspace-patterns";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import { normalizeProblemBankRow } from "@/lib/problem-bank/api-helpers";
@@ -29,106 +35,125 @@ export default async function OrganizerProblemBankPage() {
   const defaultBanks = banks.filter((bank) => bank.isDefaultBank && bank.isVisibleToOrganizers);
 
   return (
-    <section className="shell py-12 space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <p className="eyebrow">Problem Bank</p>
-          <h1 className="text-4xl font-semibold tracking-tight">Problem banks</h1>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Manage your authored problem banks and browse visible default banks curated by admins.
-          </p>
-        </div>
+    <OrganizerWorkspaceShell className="space-y-6">
+      <OrganizerWorkspaceHeader
+        eyebrow="Problem Bank"
+        title="Problem Banks"
+        description="Manage authored banks and browse default shared banks curated by admins for organizer reuse."
+        actions={
+          <ProgressLink href="/organizer/problem-bank/create" className={organizerPrimaryActionClass}>
+            <PlusCircle className="size-4" />
+            Add Problem Bank
+          </ProgressLink>
+        }
+      />
 
-        <ProgressLink
-          href="/organizer/problem-bank/create"
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90"
-        >
-          <PlusCircle className="size-4" />
-          Create bank
-        </ProgressLink>
-      </div>
+      <OrganizerWorkspacePanel className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-lg bg-foreground px-3 py-1.5 text-xs font-semibold text-background">
+            All Banks
+          </span>
+          <span className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+            My Banks
+          </span>
+          <span className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+            Shared with me
+          </span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <OrganizerMetricTile label="Total banks" value={banks.length} />
+          <OrganizerMetricTile label="My authored" value={ownBanks.length} />
+          <OrganizerMetricTile label="Default shared" value={defaultBanks.length} />
+        </div>
+      </OrganizerWorkspacePanel>
 
       {error ? (
-        <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="p-5 text-sm text-destructive">
-            Unable to load problem banks.
-          </CardContent>
-        </Card>
+        <OrganizerWorkspacePanel className="border-destructive/30 bg-destructive/10 text-sm text-destructive">
+          Unable to load problem banks.
+        </OrganizerWorkspacePanel>
       ) : null}
 
-      <div className="space-y-4">
-        <h2 className="text-2xl font-semibold tracking-tight">My banks</h2>
+      <OrganizerWorkspacePanel className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-foreground">My banks</h2>
+          <span className="text-xs text-muted-foreground">{ownBanks.length} banks</span>
+        </div>
         {ownBanks.length === 0 ? (
-          <Card className="border-dashed border-border/70 bg-muted/20">
-            <CardContent className="p-6 text-sm text-muted-foreground">
-              You have not created any banks yet.
-            </CardContent>
-          </Card>
+          <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+            You have not created any banks yet.
+          </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {ownBanks.map((bank) => (
-              <Card key={bank.id} className="border-border/60 bg-background/90 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="line-clamp-1 text-xl">{bank.name}</CardTitle>
-                  <CardDescription className="line-clamp-2 min-h-10">
+              <div
+                key={bank.id}
+                className="surface-card rounded-xl border border-border/60 bg-background/80 p-5 shadow-sm"
+              >
+                <div className="space-y-2">
+                  <h3 className="line-clamp-1 text-xl font-semibold text-foreground">{bank.name}</h3>
+                  <p className="line-clamp-3 min-h-[3.75rem] text-sm text-muted-foreground">
                     {bank.description || "No description provided."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
+                  </p>
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-3">
                   <p className="text-xs text-muted-foreground">
-                    Updated {new Date(bank.updatedAt).toLocaleString()}
+                    Updated {new Date(bank.updatedAt).toLocaleDateString()}
                   </p>
                   <ProgressLink
                     href={`/organizer/problem-bank/${bank.id}`}
-                    className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary/80 transition-colors"
                   >
-                    Open bank
+                    View
+                    <ArrowRight className="size-4" />
                   </ProgressLink>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             ))}
           </div>
         )}
-      </div>
+      </OrganizerWorkspacePanel>
 
-      <div className="space-y-4">
-        <h2 className="text-2xl font-semibold tracking-tight">Visible default banks</h2>
+      <OrganizerWorkspacePanel className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-foreground">Visible default banks</h2>
+          <span className="text-xs text-muted-foreground">{defaultBanks.length} shared</span>
+        </div>
         {defaultBanks.length === 0 ? (
-          <Card className="border-dashed border-border/70 bg-muted/20">
-            <CardContent className="p-6 text-sm text-muted-foreground">
-              No default banks are currently visible to organizers.
-            </CardContent>
-          </Card>
+          <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+            No default banks are currently visible to organizers.
+          </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {defaultBanks.map((bank) => (
-              <Card key={bank.id} className="border-border/60 bg-background/90 shadow-sm">
-                <CardHeader>
-                  <div className="mb-2 inline-flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
-                    <Library className="size-3" />
-                    Default bank
-                  </div>
-                  <CardTitle className="line-clamp-1 text-xl">{bank.name}</CardTitle>
-                  <CardDescription className="line-clamp-2 min-h-10">
+              <div
+                key={bank.id}
+                className="surface-card rounded-xl border border-border/60 bg-background/80 p-5 shadow-sm"
+              >
+                <div className="mb-2 inline-flex w-fit items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+                  <Library className="size-3" />
+                  Default bank
+                </div>
+                <div className="space-y-2">
+                  <h3 className="line-clamp-1 text-xl font-semibold text-foreground">{bank.name}</h3>
+                  <p className="line-clamp-3 min-h-[3.75rem] text-sm text-muted-foreground">
                     {bank.description || "No description provided."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-xs text-muted-foreground">
-                    Read-only access for organizers.
                   </p>
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">Read-only access</p>
                   <ProgressLink
                     href={`/organizer/problem-bank/${bank.id}`}
-                    className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary/80 transition-colors"
                   >
-                    Browse problems
+                    Browse
+                    <ArrowRight className="size-4" />
                   </ProgressLink>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             ))}
           </div>
         )}
-      </div>
-    </section>
+      </OrganizerWorkspacePanel>
+    </OrganizerWorkspaceShell>
   );
 }

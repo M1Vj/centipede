@@ -137,6 +137,182 @@ The current Figma direction establishes:
 
 The rebuilt app should preserve that direction while avoiding fragile one-off implementations.
 
+## Figma Integration Trace (2026-04-18)
+
+- Source design file: `https://www.figma.com/design/cBQPJi1UVMFzrHlfsNPbsx/Mathwiz?node-id=1-125&t=wi7iD40k8rPMSyLH-1`
+- Canvas reference node: `1:125`
+- Landing source node: `45:2`
+- Signin/Signup source node: `62:5`
+- Mathlete dashboard nav source nodes: `164:2488`, `167:3350`
+
+Integrated patterns in current repository implementation:
+
+- Landing:
+	- floating dark pill header direction with home anchor targets (`product`, `features`, `methodology`, `pricing`)
+	- hero hierarchy with highlighted "scaled for schools" copy treatment
+	- dual CTA treatment (`Start Free Trial`, `View Demo`) and dashboard mock analytics panel
+	- three feature cards, three stacked methodology phases, engagement metrics section, and three-tier pricing with highlighted middle plan
+- Auth:
+	- split-card composition with dark left story panel and white right form panel
+	- segmented auth switch for login vs sign-up context
+	- large bordered input style with inline icons, remember-me and forgot-password row, strong orange primary CTA, and Google secondary action
+- Mathlete navigation:
+	- floating dark pill navbar direction with orange active-state emphasis and responsive mobile nav reveal
+
+Repository surfaces updated for this integration:
+
+- `app/page.tsx`
+- `app/layout.tsx`
+- `components/header-auth-nav.tsx`
+- `components/theme-switcher.tsx`
+- `components/auth-shell.tsx`
+- `components/login-form.tsx`
+- `components/sign-up-form.tsx`
+- `components/forgot-password-form.tsx`
+- `app/auth/login/page.tsx`
+- `app/auth/sign-up/page.tsx`
+- `app/auth/forgot-password/page.tsx`
+- `app/mathlete/layout.tsx`
+
+## Figma Mathlete Workspace Migration Trace (2026-04-18)
+
+- Source design file: `https://www.figma.com/design/cBQPJi1UVMFzrHlfsNPbsx/Mathwiz?node-id=1-125&t=wi7iD40k8rPMSyLH-1`
+- Mathlete dashboard source nodes:
+	- nav shell: `164:2488`, `167:3350`
+	- hero block: `161:829`
+	- dashboard cards/calendar/activity: `161:573`
+- Mathlete teams source nodes:
+	- team index/list states: `167:3055`, `171:27`
+	- create team modal states: `172:628`, `172:682`
+	- join via code modal states: `173:726`, `173:794`
+	- team detail states: `190:154`, `193:986`
+
+Implemented pattern mapping for this migration:
+
+- Mathlete shell:
+	- floating dark pill navbar with amber active state, profile menu, and mobile reveal
+	- soft neutral workspace background with dark-shell-first hierarchy
+- Mathlete dashboard:
+	- dark hero/search treatment
+	- white live and upcoming competition cards
+	- dark calendar rail and white recent-activity card
+	- current data contract does not expose Figma-level live competition payload in this scope, so dashboard cards use presentation-safe preview content instead of mutating shared APIs
+- Mathlete teams:
+	- white card grid for team list with amber leader emphasis and dashed add-team card
+	- centered create/join modal-panel treatment preserving existing POST/join logic
+	- invite inbox restyled into Figma-direction acceptance cards
+	- team detail reframed into dark hero banner, roster panel, amber code card, dark upcoming placeholder, and leader-side invite panels
+	- current team detail endpoint does not expose competition-lock or next-event payload shown in Figma; UI keeps placeholder messaging instead of widening API scope outside owned files
+
+Repository surfaces updated for this migration:
+
+- `app/mathlete/layout.tsx`
+- `app/mathlete/page.tsx`
+- `app/mathlete/teams/page.tsx`
+- `app/mathlete/teams/create/page.tsx`
+- `app/mathlete/teams/invites/page.tsx`
+- `app/mathlete/teams/join/page.tsx`
+- `app/mathlete/teams/[teamId]/page.tsx`
+- `components/mathlete/workspace-nav.tsx`
+- `components/mathlete/page-frame.tsx`
+- `components/mathlete/modal-panel.tsx`
+- `components/mathlete/dashboard-overview.tsx`
+- `components/teams/teams-page-shell.tsx`
+- `components/teams/team-list.tsx`
+- `components/teams/team-form.tsx`
+- `components/teams/team-join-form.tsx`
+- `components/teams/team-invites-list.tsx`
+- `components/teams/team-invite-form.tsx`
+- `components/teams/team-pending-invites.tsx`
+- `components/teams/team-roster.tsx`
+
+## Landing/Auth Visual Refinement Trace (2026-04-18)
+
+- Source design file: `https://www.figma.com/design/cBQPJi1UVMFzrHlfsNPbsx/Mathwiz?node-id=1-125&t=wi7iD40k8rPMSyLH-1`
+- Refined source nodes:
+	- landing page: `45:2`
+	- signin/signup shell: `62:5`
+- Refinement goals:
+	- replace oversized/generic landing spacing with Figma-matched rhythm and flatter section cards
+	- reshape public root chrome into thinner dark pill navigation with orange CTA emphasis
+	- rebuild auth shell/forms around Figma proportions, input framing, and CTA hierarchy while preserving current auth behavior
+
+Implemented pattern mapping:
+
+- Landing:
+	- centered hero with narrower copy measure, white dashboard-preview card, and lighter section separation
+	- three feature cards with Figma-like abstract preview blocks instead of generic dashboard widgets
+	- methodology stack with orange/navy/ink panels and diagram-driven right-side visuals
+	- dark pricing rail with rounded-top section break and highlighted middle tier
+- Public chrome:
+	- home route now uses a dedicated floating landing nav with Figma-style dual CTA treatment
+	- auth and profile-complete shells suppress global chrome so the card shell owns the screen
+- Auth:
+	- two-panel shell tightened to the Figma 42/58 split with branded left story panel
+	- login/sign-up toggle centered inside the form panel
+	- email/password fields migrated to thin bordered frames with icon-leading layout and inline visibility toggle
+	- organizer/apply helper copy preserved as compact support cards below the main form instead of separate generic blocks
+
+Repository surfaces updated for this refinement:
+
+- `components/landing/mathwiz-brand.tsx`
+- `components/landing/landing-header-nav.tsx`
+- `components/landing/landing-page.tsx`
+- `components/auth/auth-form-primitives.tsx`
+- `app/page.tsx`
+- `components/layout/root-chrome.tsx`
+- `components/auth-shell.tsx`
+- `components/login-form.tsx`
+- `components/sign-up-form.tsx`
+- `app/auth/login/page.tsx`
+- `app/auth/sign-up/page.tsx`
+
+## Figma Organizer Workspace Migration Trace (2026-04-18)
+
+- Source design file: `https://www.figma.com/design/cBQPJi1UVMFzrHlfsNPbsx/Mathwiz?node-id=1-125&t=wi7iD40k8rPMSyLH-1`
+- Organizer dashboard reference node:
+	- `141:41`
+- Organizer competition reference nodes:
+	- `83:2772`
+	- `93:701`
+- Organizer problem-bank reference nodes inspected for consistency only:
+	- `102:7`
+	- `106:1237`
+	- `109:7`
+	- `208:317`
+
+Implemented pattern mapping for this migration:
+
+- Organizer shell + navbar:
+	- dark floating pill navbar with amber active-state emphasis
+	- organizer profile/settings and sign-out collapsed behind organizer pill menu on desktop and mobile overlay on small screens
+	- implemented in `app/organizer/layout.tsx` and `components/organizer/organizer-nav.tsx`
+- Organizer dashboard:
+	- centered welcome header with amber name accent
+	- three KPI cards for active competitions, registered participants, and problem-bank volume
+	- wide competition-management table with real registration counts and lifecycle states
+	- right rail calendar + recent activity panel backed by `competition_events` when available
+	- implemented in:
+		- `app/organizer/page.tsx`
+		- `components/dashboard/dashboard-header.tsx`
+		- `components/dashboard/organizer-kpi-grid.tsx`
+		- `components/dashboard/active-competitions-table.tsx`
+		- `components/dashboard/calendar-widget.tsx`
+		- `components/dashboard/recent-activity-panel.tsx`
+- Organizer competition surfaces:
+	- list page reframed to white/amber Figma-style workspace panel with stronger section hierarchy
+	- create/edit routes wrapped in progress-header shells that visually align with wizard and review reference frames while preserving existing `CompetitionWizard` behavior
+	- implemented in:
+		- `app/organizer/competition/page.tsx`
+		- `app/organizer/competition/create/page.tsx`
+		- `app/organizer/competition/[competitionId]/page.tsx`
+
+Behavioral boundaries preserved during this migration:
+
+- no competition API contract changes
+- no competition validation or mutation workflow changes
+- dashboard registration/activity widgets degrade gracefully when `competition_registrations` or `competition_events` schema is unavailable
+
 ## Performance Expectations
 
 - use server components by default for read-heavy pages

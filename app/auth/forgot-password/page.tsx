@@ -5,12 +5,11 @@ export default function Page() {
   return (
     <AuthShell
       eyebrow="Password Reset"
-      title="Recover access without leaving the arena"
-      description="If a participant or coach forgets their password, this flow stays available without exposing the rest of the protected workspace."
+      title="Reset your password"
+      description="Enter your account email and we will send a secure reset link."
+      mode="forgot-password"
     >
-      <div className="w-full max-w-md">
-        <ForgotPasswordForm />
-      </div>
+      <ForgotPasswordForm />
     </AuthShell>
   );
 }

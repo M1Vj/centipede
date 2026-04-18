@@ -1,10 +1,18 @@
 import type { Metadata } from "next";
-import { Fraunces, Space_Grotesk } from "next/font/google";
+import { Poppins } from "next/font/google";
+import { cookies } from "next/headers";
+import { Suspense } from "react";
 import { ThemeProvider } from "next-themes";
-import { HeaderAuthNav } from "@/components/header-auth-nav";
+import { RootChrome } from "@/components/layout/root-chrome";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { NavigationFeedbackProvider } from "@/components/providers/navigation-feedback-provider";
-import { ProgressLink } from "@/components/ui/progress-link";
+import { type AuthProfile, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
+import {
+  getSessionVersionCookieValue,
+  isSessionStale,
+  isSessionVersionSchemaError,
+} from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 
@@ -19,26 +27,19 @@ export const metadata: Metadata = {
     "A responsive competition platform for mathletes, coaches, and organizers.",
 };
 
-const spaceGrotesk = Space_Grotesk({
+const poppinsSans = Poppins({
   variable: "--font-sans",
   display: "swap",
+  weight: ["400", "500", "600", "700", "800", "900"],
   subsets: ["latin"],
 });
 
-const fraunces = Fraunces({
+const poppinsDisplay = Poppins({
   variable: "--font-display",
   display: "swap",
+  weight: ["600", "700", "800", "900"],
   subsets: ["latin"],
 });
-
-import { createClient } from "@/lib/supabase/server";
-import { type AuthProfile, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
-import { cookies } from "next/headers";
-import {
-  getSessionVersionCookieValue,
-  isSessionStale,
-  isSessionVersionSchemaError,
-} from "@/lib/auth/session";
 
 async function AuthHydrator({
   children,
@@ -88,8 +89,6 @@ async function AuthHydrator({
   );
 }
 
-import { Suspense } from "react";
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -97,7 +96,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
-      <body className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased`}>
+      <body className={`${poppinsSans.variable} ${poppinsDisplay.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -107,45 +106,7 @@ export default function RootLayout({
           <NavigationFeedbackProvider>
             <Suspense fallback={null}>
               <AuthHydrator>
-                <div className="relative flex min-h-screen flex-col overflow-hidden">
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/0.18),_transparent_55%)]" />
-                  <header className="sticky top-0 z-50 border-b border-border/70 bg-background/80 backdrop-blur-xl">
-                    <div className="shell flex min-h-20 items-center justify-between gap-4 py-4">
-                      <ProgressLink href="/" className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-[1.2rem] bg-primary text-primary-foreground shadow-[0_18px_40px_-20px_hsl(var(--primary)/0.85)]">
-                          <span className="text-sm font-black uppercase tracking-[0.24em]">
-                            Mw
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-primary/80">
-                            Mathwiz Arena
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Math competition platform
-                          </p>
-                        </div>
-                      </ProgressLink>
-
-                      <HeaderAuthNav />
-                    </div>
-                  </header>
-
-                  <main className="relative flex-1">{children}</main>
-
-                  <footer className="border-t border-border/70 bg-background/60">
-                    <div className="shell flex flex-col gap-3 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                      <p>Foundation branch: layout, theme, and Supabase-ready app shell.</p>
-                      <p className="flex flex-wrap gap-4">
-                        <span>Built with Next.js, Tailwind CSS, Shadcn UI, and Supabase.</span>
-                        <span className="flex gap-3">
-                          <ProgressLink href="/privacy" className="hover:text-foreground">Privacy</ProgressLink>
-                          <ProgressLink href="/terms" className="hover:text-foreground">Terms</ProgressLink>
-                        </span>
-                      </p>
-                    </div>
-                  </footer>
-                </div>
+                <RootChrome>{children}</RootChrome>
               </AuthHydrator>
             </Suspense>
           </NavigationFeedbackProvider>
