@@ -1,12 +1,24 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import { useFeedbackRouter } from "@/hooks/use-feedback-router";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { useState } from "react";
 
-export function LogoutButton() {
-  const feedbackRouter = useFeedbackRouter();
+type LogoutButtonProps = {
+  label?: string;
+  ariaLabel?: string;
+  className?: string;
+  variant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
+};
+
+export function LogoutButton({
+  label = "Logout",
+  ariaLabel,
+  className,
+  variant,
+  size,
+}: LogoutButtonProps = {}) {
   const [isPending, setIsPending] = useState(false);
 
   const logout = async () => {
@@ -15,15 +27,23 @@ export function LogoutButton() {
     try {
       const supabase = createClient();
       await supabase.auth.signOut();
-      feedbackRouter.push("/auth/login");
+      window.location.assign("/auth/login");
     } finally {
       setIsPending(false);
     }
   };
 
   return (
-    <Button onClick={() => void logout()} pending={isPending} pendingText="Logging out...">
-      Logout
+    <Button
+      onClick={() => void logout()}
+      pending={isPending}
+      pendingText="Logging out..."
+      aria-label={ariaLabel}
+      className={className}
+      variant={variant}
+      size={size}
+    >
+      {label}
     </Button>
   );
 }
