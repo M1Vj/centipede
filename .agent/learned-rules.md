@@ -37,6 +37,9 @@ If `.agent/` intentionally changes product behavior from earlier requirement ref
 ### 1.11
 External process-flow and schema artifacts are reference context only; resolve implementation text against current `.agent/` docs and current repository boundaries.
 
+### 1.12
+When integrating UI from Figma, document the exact design URL, node IDs, and the implemented pattern mapping in `.agent/PROJECT-OVERVIEW.md` during the same task so design-to-code provenance is auditable.
+
 ## 2. Product Rules
 
 ### 2.1

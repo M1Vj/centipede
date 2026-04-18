@@ -57,6 +57,13 @@ Unblocks: review/submission fairness, live monitoring, trustworthy leaderboards.
 - avoid treating normal reconnect flows as cheating automatically
 - surface organizer-facing offense counts and details for live monitoring
 
+## Figma UI Provenance
+
+- Source file URL: https://www.figma.com/design/cBQPJi1UVMFzrHlfsNPbsx/Mathwiz?node-id=1-125&t=wi7iD40k8rPMSyLH-1
+- Baseline nodes for migration effort: `1:125`, `45:2`, `62:5`, `164:2488`, `167:3350`.
+- Use baseline nodes as starting anchors; map branch-specific frames/components before implementation.
+- When implementing UI changes in this branch, verify frame coverage first; if no frame exists for page/state, document gap and use current design system tokens without inventing unsupported Figma details.
+
 ## Atomic Steps
 
 1. Add client-side `visibilitychange`, `focus`, and `blur` listeners scoped to active arena attempts.
