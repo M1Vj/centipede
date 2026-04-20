@@ -203,12 +203,16 @@ Purpose: mathlete-created teams for team competitions.
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid pk |
-| `name` | text unique |
-| `team_code` | text unique |
+| `name` | text | unique by `lower(name)` |
+| `team_code` | text | unique, stored uppercase |
 | `created_by` | uuid fk -> profiles.id |
 | `is_archived` | boolean |
 | `created_at` | timestamptz |
 | `updated_at` | timestamptz |
+
+Indexes: unique `teams_name_lower_uq` on `lower(name)`, unique `teams_team_code_uq` on `team_code`.
+
+Constraints: `team_code` must be uppercase with 10 alphanumeric characters; `updated_at` is maintained by trigger.
 
 ### `team_memberships`
 
@@ -224,7 +228,9 @@ Purpose: accepted team membership and leadership ordering.
 | `left_at` | timestamptz nullable |
 | `is_active` | boolean |
 
-Indexes: unique active membership on `(team_id, profile_id)`, `team_memberships_active_idx`.
+Indexes: unique active membership on `(team_id, profile_id)`, unique active leader on `(team_id)` where role = `leader`, `team_memberships_active_idx` for active rows.
+
+Constraints: when `is_active = true`, `left_at` must be null.
 
 ### `team_invitations`
 
@@ -239,6 +245,29 @@ Purpose: pending invite workflow separate from accepted membership rows.
 | `status` | enum `invitation_status` | `pending`, `accepted`, `declined`, `revoked` |
 | `created_at` | timestamptz |
 | `responded_at` | timestamptz nullable |
+
+Indexes: unique pending invite on `(team_id, invitee_id)` where status = `pending`.
+
+Constraints: when status is not `pending`, `responded_at` is required.
+
+### `team_action_idempotency`
+
+Purpose: deterministic idempotency ledger for team invite send/respond actions and roster mutation retries.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid pk |
+| `team_id` | uuid fk -> teams.id |
+| `actor_id` | uuid fk -> profiles.id |
+| `target_profile_id` | uuid fk -> profiles.id nullable |
+| `action_type` | text | caller-defined action key |
+| `idempotency_token` | text | caller-provided replay key |
+| `resource_id` | uuid nullable | optional pointer to created invite or membership row |
+| `created_at` | timestamptz |
+
+Indexes: unique `(team_id, actor_id, action_type, idempotency_token)`.
+
+Constraints: `action_type` and `idempotency_token` must be non-blank.
 
 ### `competitions`
 
@@ -673,7 +702,7 @@ Purpose: storage is part of the backend contract, not an implementation aftertho
 - `profiles` is the root actor table for every user-owned record.
 - `organizer_applications` represents the organizer-eligibility workflow before and after account provisioning. A row may exist before any `profiles` row is created, and approved rows link to the eventual organizer profile.
 - `problem_banks` and `problems` are mutable authoring tables; `competition_problems` is the immutable publish snapshot.
-- `teams`, `team_memberships`, and `team_invitations` model group ownership and roster history.
+- `teams`, `team_memberships`, and `team_invitations` model group ownership and roster history; `team_action_idempotency` captures replay-safe team mutations.
 - `competition_registrations` represents who is allowed into a competition. `competition_attempts` represents what actually happened in the arena.
 - `attempt_answers` always point at `competition_problems`, not `problems`, so grading is immune to later edits in the bank; untouched-question counting remains deterministic through pre-seeded blank rows with trusted blank inference fallback for older compatibility attempts.
 - `leaderboard_entries` is derived from attempts and registrations and should be treated as read-optimized output, not the grading source of truth.
@@ -698,6 +727,7 @@ Purpose: storage is part of the backend contract, not an implementation aftertho
 - `problem_banks` and `problems`: owner organizer or admin-managed default-bank owner can mutate; other organizers cannot read private banks; admins can read all and mutate only the default bank or explicitly moderated records through trusted server paths; organizer reads for shared defaults require `is_default_bank = true`, `is_visible_to_organizers = true`, and active organizer profile status
 - `problem_import_jobs`: actors read and mutate only their own import jobs (`actor_id = auth.uid()`), and insert or update is additionally scoped to writable banks (owner non-default bank or admin-managed default bank)
 - `teams`, `team_memberships`, `team_invitations`: members can read their own team data; leaders can invite/remove within policy; admins can read all for moderation
+- `team_action_idempotency`: service-role-only ledger for invite and roster idempotency
 - `competitions`: organizers can manage their own competitions, but hard delete is allowed only for `draft` through trusted draft-delete paths; organizer pause is allowed only for open competitions and must let active attempts finish while blocking new starts; scheduled competition pause is reserved for trusted admin force-pause moderation; admins can read all and may perform non-draft moderation delete only for abuse or fraud through approved server actions with explicit audit reason; mathletes read only published competitions they are eligible to see
 - `competition_problems`: organizers and admins for their competitions; participants only after the competition starts, and only through joins scoped to an owned registration or attempt. `answer_key_snapshot_json` and explanation fields must additionally enforce `answer_key_visibility` (`after_end`: competition ended and viewer has owned registration/attempt context, `hidden`: never visible to participants)
 - `competition_registrations`: writes are allowed only through trusted validation RPCs (`register_for_competition`, `withdraw_registration`); team-path registration additionally requires active team-leader ownership checks
@@ -755,9 +785,12 @@ Required trusted functions:
 - `snapshot_competition_problems(competition_id)`
 - `publish_competition(competition_id, request_idempotency_token)`
 - `start_competition(competition_id, request_idempotency_token)` trusted scheduled-competition promotion from `published` to `live` with idempotent event logging at the server-authoritative start boundary
-- `end_competition(competition_id, transition_source, reason, request_idempotency_token)` trusted lifecycle transition from `live` or `paused` to `ended`; `transition_source` must be `system_timer` or `trusted_manual_action` with split enforcement: scheduled competitions accept `system_timer` only and do not allow organizer manual end, while open manual end accepts organizer-only `trusted_manual_action` with required non-empty reason and `request_idempotency_token`; repeated requests are idempotent and return existing terminal state
+- `end_competition(competition_id, reason, request_idempotency_token, transition_source)` trusted lifecycle transition from `live` or `paused` to `ended`; `transition_source` must be `system_timer` or `trusted_manual_action` with split enforcement: scheduled competitions accept `system_timer` only and do not allow organizer manual end, while open manual end accepts organizer-only `trusted_manual_action` with required non-empty reason and `request_idempotency_token`; repeated requests are idempotent and return existing terminal state
 - `archive_competition(competition_id, request_idempotency_token)` trusted retirement path for historically significant competitions and paused open competitions with no active attempts
-- `delete_draft_competition(competition_id)` trusted hard-delete path allowed only for `status = 'draft'`
+- `delete_draft_competition(competition_id, request_idempotency_token)` trusted draft-delete path allowed only for `status = 'draft'` with deterministic idempotent replay semantics.
+- `competition_lifecycle_guard()` trigger helper for canonical status transitions, legacy boolean sync (`published`/`is_paused`), scoring snapshot immutability after publish, and draft revision/version bumping
+- `competition_active_name_guard()` trigger helper that blocks organizer duplicate active competition names in statuses `draft`, `published`, `live`, `paused`, and `ended` when `is_deleted = false`
+- `competition_problem_snapshot_guard()` trigger helper that freezes publish-time snapshot columns in `competition_problems` once competition status is `published` or later
 - `moderate_delete_competition(competition_id, reason, request_idempotency_token)` trusted admin-only abuse or fraud deletion path for non-draft competitions with mandatory audit trace
 - `register_for_competition(competition_id, team_id default null)`
 - `withdraw_registration(registration_id)`
@@ -785,6 +818,10 @@ Required trusted functions:
 - `enqueue_notification(recipient_id, type, title, body, link_path, event_identity_key, metadata_json)` de-duplicates by `(recipient_id, event_identity_key)`
 - `mark_notification_read(notification_id)`
 - `mark_all_notifications_read()`
+- `team_set_updated_at()` trigger helper for `teams.updated_at`
+- `team_bootstrap_leader_membership()` trigger helper for initial leader membership on team create
+- `team_membership_handle_leader_departure()` trigger helper for auto leadership transfer
+- `is_active_team_member(team_id, profile_id)` helper used by team RLS predicates
 - `transfer_team_leadership(team_id)`
 
 ### Policy Consistency Contracts
@@ -867,7 +904,7 @@ Recommended migration order (branch-aligned canonical):
 7. `06-problem-bank`: `problem_banks`, `problems`, `problem_import_jobs`, and `problem-assets` storage policy helpers
 8. `07-scoring-system`: scoring enums and scoring RPC contracts
 9. `08-competition-wizard`: `competitions`, `competition_problems`, initial `competition_events` schema for lifecycle or audit events, publish or start or end or archive lifecycle helpers, and trusted draft-delete path
-10. `09-team-management`: `teams`, `team_memberships`, `team_invitations`
+10. `09-team-management`: `teams`, `team_memberships`, `team_invitations`, `team_action_idempotency`
 11. `10-competition-search`: `competition_registrations` plus registration and withdrawal RPCs
 12. `11-arena`: `competition_attempts`, `attempt_intervals`, `attempt_answers`, plus start or resume or submit attempt lifecycle helpers
 13. `12-anti-cheat`: `tab_switch_logs` and offense logging RPC
@@ -933,7 +970,7 @@ Risky migrations and backfills:
 | `06-problem-bank` | `problem_banks`, `problems`, `problem_import_jobs` | `problem_bank_set_updated_at`, `touch_problem_bank_updated_at_from_problem`, `refresh_problem_import_jobs_updated_at`, `sync_problem_legacy_and_canonical_columns`, `prevent_problem_bank_hard_delete`, and `problem_assets_path_*` helper functions |
 | `07-scoring-system` | scoring enums and scoring contract definitions only (no `competitions` table columns introduced in branch `07`) | `grade_attempt`, `recalculate_competition_scores`, `refresh_leaderboard_entries` |
 | `08-competition-wizard` | `competitions`, `competition_problems`, initial `competition_events` (lifecycle or audit baseline) | `snapshot_competition_problems`, `publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `delete_draft_competition` |
-| `09-team-management` | `teams`, `team_memberships`, `team_invitations` | `transfer_team_leadership` |
+| `09-team-management` | `teams`, `team_memberships`, `team_invitations`, `team_action_idempotency` | `team_set_updated_at`, `team_bootstrap_leader_membership`, `team_membership_handle_leader_departure`, `is_active_team_member`, `transfer_team_leadership` |
 | `10-competition-search` | `competition_registrations` | `register_for_competition`, `withdraw_registration`, `validate_team_registration` |
 | `11-arena` | `competition_attempts`, `attempt_intervals`, `attempt_answers` | `start_competition_attempt`, `resume_competition_attempt`, `close_active_attempt_interval`, `save_attempt_answer`, `submit_competition_attempt` |
 | `12-anti-cheat` | `tab_switch_logs` | `log_tab_switch_offense` |
@@ -945,6 +982,8 @@ Risky migrations and backfills:
 
 ## Section H - Change Log
 
+- 2026-04-14: Added team-management schema alignment, leadership transfer helpers, and team idempotency ledger support for invite and roster retries.
+- 2026-04-15: Added branch-08 lifecycle core migration introducing canonical `competition_status` and `answer_key_visibility`, deterministic status backfill from legacy booleans, draft revision/version support, immutable scoring snapshot guard after publish, competition-problem frozen snapshot columns with guard trigger, hardened `competition_events` payload/metadata/idempotency fields, and trusted lifecycle RPCs (`snapshot_competition_problems`, `publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `delete_draft_competition`) with deterministic replay semantics.
 - 2026-04-09: Added branch-07 contract-first scoring RPC signature migration for `grade_attempt(uuid)`, `recalculate_competition_scores(uuid, text)`, and `refresh_leaderboard_entries(uuid)` as trusted service-role-only placeholders with deterministic deferred owner-schema machine codes until branches `11`, `13`, and `14` activate executable wiring.
 - 2026-04-08: Added canonical trigger contract `touch_problem_bank_updated_at_from_problem()` so parent `problem_banks.updated_at` refreshes on `problems` insert, update, and delete writes, including bank reassignment updates.
 - 2026-04-06: Synced branch `06-problem-bank` migration artifacts into canonical contracts: schema alignment constraints and triggers for `problem_banks` and `problems`, private `problem-assets` storage key and policy model, and `problem_import_jobs` idempotency-ledger schema with RLS scope.

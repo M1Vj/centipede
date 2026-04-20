@@ -15,6 +15,7 @@ import {
   ChartColumnIncreasing,
   ClipboardList,
   Library,
+  Trophy,
   Settings,
 } from "lucide-react";
 import { ProgressLink } from "@/components/ui/progress-link";
@@ -43,6 +44,12 @@ const organizerCards = [
     description: "Create and maintain reusable banks with math authoring, imports, and problem-level workflows.",
     href: "/organizer/problem-bank",
   },
+  {
+    icon: Trophy,
+    title: "Competitions",
+    description: "Create draft competitions, manage problem snapshots, and publish with lifecycle safeguards.",
+    href: "/organizer/competition",
+  },
 ];
 
 const organizerStatShell = [
@@ -68,21 +75,35 @@ async function OrganizerPageContent() {
   const supabase = await createClient();
 
   let problemBankCount = 0;
+  let competitionCount = 0;
   if (profile?.id) {
-    const { count, error } = await supabase
-      .from("problem_banks")
-      .select("id", { count: "exact", head: true })
-      .eq("organizer_id", profile.id)
-      .eq("is_deleted", false);
+    const [{ count: banksCount, error: banksError }, { count: competitionsTotal, error: competitionsError }] =
+      await Promise.all([
+        supabase
+          .from("problem_banks")
+          .select("id", { count: "exact", head: true })
+          .eq("organizer_id", profile.id)
+          .eq("is_deleted", false),
+        supabase
+          .from("competitions")
+          .select("id", { count: "exact", head: true })
+          .eq("organizer_id", profile.id),
+      ]);
 
-    if (!error) {
-      problemBankCount = count ?? 0;
+    if (!banksError) {
+      problemBankCount = banksCount ?? 0;
+    }
+
+    if (!competitionsError) {
+      competitionCount = competitionsTotal ?? 0;
     }
   }
 
   const organizerStats = organizerStatShell.map((stat) =>
     stat.label === "Problem banks"
       ? { ...stat, value: String(problemBankCount) }
+      : stat.label === "Competitions hosted"
+        ? { ...stat, value: String(competitionCount) }
       : stat,
   );
 

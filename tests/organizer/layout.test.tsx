@@ -69,20 +69,17 @@ describe("organizer layout navigation", () => {
     );
 
     const nav = screen.getByRole("navigation");
-    expect(nav).toHaveClass("gap-x-4");
-    expect(nav).toHaveClass("gap-y-2");
-    expect(nav).toHaveClass("md:gap-x-3");
-    expect(nav).toHaveClass("md:gap-y-1");
+    expect(nav).toHaveClass("gap-x-3");
+    expect(nav).toHaveClass("gap-y-1");
+    expect(screen.getByRole("button", { name: "Open organizer navigation" })).toBeInTheDocument();
 
-    for (const label of ["Dashboard", "Problem Banks", "Scoring", "Profile", "Settings"]) {
+    for (const label of ["Dashboard", "Problem Banks", "Competitions", "Profile", "Settings"]) {
       expect(within(nav).getByRole("link", { name: label })).toBeInTheDocument();
     }
 
     for (const link of within(nav).getAllByRole("link")) {
-      expect(link).toHaveClass("px-3");
-      expect(link).toHaveClass("py-2");
-      expect(link).toHaveClass("md:px-2");
-      expect(link).toHaveClass("md:py-1");
+      expect(link).toHaveClass("px-2");
+      expect(link).toHaveClass("py-1");
     }
 
     expect(client.mocks.from).toHaveBeenCalledWith("profiles");
@@ -102,6 +99,7 @@ describe("organizer layout navigation", () => {
     expect(within(nav).getByRole("link", { name: "Apply" })).toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Status" })).toBeInTheDocument();
     expect(within(nav).queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open organizer navigation" })).toBeInTheDocument();
     expect(client.mocks.from).not.toHaveBeenCalled();
   });
 });
