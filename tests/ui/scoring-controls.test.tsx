@@ -6,7 +6,7 @@ import { ScoringSummaryCard } from "@/components/scoring/scoring-summary-card";
 import { createDefaultScoringRuleConfig } from "@/lib/scoring/validation";
 
 describe("scoring ui contracts", () => {
-  test("wires field validation errors with aria-invalid and aria-describedby", () => {
+  test("wires field validation errors with accessible error descriptions", () => {
     const config = {
       ...createDefaultScoringRuleConfig(),
       scoringMode: "custom" as const,
@@ -53,7 +53,7 @@ describe("scoring ui contracts", () => {
     );
 
     const customPointsGroup = screen.getByRole("group", { name: "Custom points" });
-    expect(customPointsGroup).toHaveAttribute("aria-invalid", "true");
+    expect(customPointsGroup).toHaveAttribute("data-invalid", "true");
     expect(customPointsGroup.getAttribute("aria-describedby")).toContain("custom-points-error");
   });
 

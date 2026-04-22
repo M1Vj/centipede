@@ -357,7 +357,9 @@ Constraint: exactly one of `profile_id` or `team_id` must be populated. `entry_s
 
 ### Registration RPC Contract (Canonical)
 
-`register_for_competition(competition_id uuid, actor_user_id uuid, team_id uuid default null)` is the only trusted write path for creating new `competition_registrations` rows.
+`register_for_competition(competition_id uuid, team_id uuid default null, request_idempotency_token text)` is the branch `10` trusted participant-facing write path for creating new `competition_registrations` rows, using `auth.uid()` for actor ownership.
+
+`register_for_competition(competition_id uuid, actor_user_id uuid, team_id uuid default null)` is the branch `11` service-role arena entry write path for pre-entry registration repair, and must fail closed unless `auth.role() = 'service_role'`.
 
 - Individual registration path (`team_id is null`):
 	- writes `profile_id = actor_user_id` and `team_id = null`
@@ -374,7 +376,7 @@ Constraint: exactly one of `profile_id` or `team_id` must be populated. `entry_s
 	- capacity and duplicate-registration guards pass, except trusted re-entry for the same `(competition_id, team_id)` when the prior status is `ineligible` OR `withdrawn` and registration timing still allows entry. When repairing an `ineligible` or `withdrawn` registration back to `registered` via re-entry, `entry_snapshot_json` MUST be regenerated and overwritten to capture the new context.
 	- responses return deterministic machine-readable error codes for UI mapping
 
-`withdraw_registration(registration_id uuid)` is the only trusted write path for withdrawal state transitions.
+`withdraw_registration(registration_id uuid, status_reason text, request_idempotency_token text)` is the only trusted write path for withdrawal state transitions.
 
 - Participant-initiated withdrawal timing:
 	- scheduled competitions: allowed only while `now() < competitions.start_time` and only when zero attempt rows exist for the registration

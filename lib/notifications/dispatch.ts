@@ -17,6 +17,10 @@ export type TeamNotificationEvent =
   | "team_invite_declined"
   | "team_roster_invalidated";
 
+export type CompetitionNotificationEvent =
+  | "competition_registration_confirmed"
+  | "competition_registration_withdrawn";
+
 export type TeamNotificationDispatchInput = {
   event: TeamNotificationEvent;
   eventIdentityKey: string;
@@ -27,8 +31,29 @@ export type TeamNotificationDispatchInput = {
   metadata?: Record<string, unknown>;
 };
 
+export type CompetitionNotificationDispatchInput = {
+  event: CompetitionNotificationEvent;
+  eventIdentityKey: string;
+  recipientId: string;
+  actorId?: string | null;
+  competitionId: string;
+  registrationId?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
 export async function dispatchTeamNotification(
   input: TeamNotificationDispatchInput,
+): Promise<NotificationDispatchResult> {
+  return {
+    ok: true,
+    eventIdentityKey: input.eventIdentityKey,
+    skipped: true,
+    reason: "not_configured",
+  };
+}
+
+export async function dispatchCompetitionNotification(
+  input: CompetitionNotificationDispatchInput,
 ): Promise<NotificationDispatchResult> {
   return {
     ok: true,

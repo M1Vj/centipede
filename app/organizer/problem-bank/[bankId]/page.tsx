@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
-import { PlusCircle } from "lucide-react";
-import { BankForm } from "@/components/problem-bank/bank-form";
-import { ImportControls } from "@/components/problem-bank/import-controls";
+import { BookOpen, ChevronRight, Plus, TrendingUp } from "lucide-react";
+import { EditBankModal } from "@/components/problem-bank/edit-bank-modal";
+import { ImportCsvModal } from "@/components/problem-bank/import-csv-modal";
 import { ProblemList } from "@/components/problem-bank/problem-list";
-import { Card, CardContent } from "@/components/ui/card";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import {
@@ -68,72 +67,116 @@ export default async function OrganizerProblemBankDetailPage({ params }: PagePro
         .filter((row): row is NonNullable<typeof row> => row !== null)
     : [];
 
+  // Derive avg difficulty label
+  const difficultyScore = problems.reduce((acc, p) => {
+    if (p.difficulty === "easy") return acc + 1;
+    if (p.difficulty === "average") return acc + 2;
+    return acc + 3;
+  }, 0);
+  const avgScore = problems.length > 0 ? difficultyScore / problems.length : 0;
+  const avgDifficultyLabel =
+    avgScore === 0 ? "—" : avgScore <= 1.5 ? "Easy" : avgScore <= 2.5 ? "Average" : "Difficult";
+
   return (
-    <section className="shell py-12 space-y-8">
-      <div className="space-y-2">
-        <ProgressLink
-          href="/organizer/problem-bank"
-          className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
-        >
-          Back to problem banks
-        </ProgressLink>
-        <h1 className="text-3xl font-semibold tracking-tight">{bank.name}</h1>
-        <p className="text-sm text-muted-foreground">
-          {canEdit
-            ? "Maintain bank metadata, import CSV rows, and author reusable problems."
-            : "This is a read-only default bank visible to organizers."}
-        </p>
-      </div>
+    <div className="w-full flex flex-col items-center pb-12 px-4 font-['Poppins']">
+      <div className="w-full max-w-[1024px] mt-12 flex flex-col">
 
-      {canEdit ? (
-        <BankForm
-          mode="edit"
-          initialValue={{
-            id: bank.id,
-            name: bank.name,
-            description: bank.description,
-            updatedAt: bank.updatedAt,
-          }}
-          successRedirectHref="/organizer/problem-bank"
-        />
-      ) : (
-        <Card className="border-border/60 bg-background/90 shadow-sm">
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            {bank.description || "No description provided."}
-          </CardContent>
-        </Card>
-      )}
-
-      {canEdit ? (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-2xl font-semibold tracking-tight">Author problems</h2>
-            <ProgressLink
-              href={`/organizer/problem-bank/${bank.id}/problem/new`}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90"
-            >
-              <PlusCircle className="size-4" />
-              Create problem
-            </ProgressLink>
-          </div>
-          <ImportControls bankId={bank.id} />
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-slate-500 font-medium text-[14px] mb-2">
+          <ProgressLink href="/organizer/problem-bank" className="hover:text-[#10182b] transition-colors">
+            Problem Banks
+          </ProgressLink>
+          <ChevronRight className="w-4 h-4" />
+          <span className="text-[#10182b] font-bold">{bank.name}</span>
         </div>
-      ) : null}
 
-      <ProblemList
-        title="Problems"
-        problems={problems.map((problem) => ({
-          id: problem.id,
-          type: problem.type,
-          difficulty: problem.difficulty,
-          tags: problem.tags,
-          contentLatex: problem.contentLatex,
-          explanationLatex: problem.explanationLatex,
-          updatedAt: problem.updatedAt,
-        }))}
-        problemHrefBase={canEdit ? `/organizer/problem-bank/${bank.id}/problem` : undefined}
-        editable={canEdit}
-      />
-    </section>
+        {/* Page Header & Actions */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8">
+          <div className="flex-1 max-w-[600px] pr-4">
+            <h1 className="text-3xl md:text-[34px] font-black text-[#10182b] tracking-tight leading-tight mb-2">
+              {bank.name}
+            </h1>
+            <p className="text-slate-600 text-[15px] font-medium leading-relaxed">
+              {canEdit
+                ? (bank.description || "Manage and organize your curriculum content here.")
+                : "This is a read-only default bank visible to organizers."}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            {canEdit && (
+              <>
+                <EditBankModal
+                  bank={{
+                    id: bank.id,
+                    name: bank.name,
+                    description: bank.description,
+                    updatedAt: bank.updatedAt,
+                  }}
+                />
+                <ImportCsvModal bankId={bank.id} />
+                <ProgressLink
+                  href={`/organizer/problem-bank/${bank.id}/problem/new`}
+                  className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-5 py-2.5 rounded-xl font-bold text-[14px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2 shadow-sm"
+                >
+                  <Plus className="w-5 h-5" /> Add New Problem
+                </ProgressLink>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Problem List Table Card */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-sm w-full mb-6">
+          <ProblemList
+            problems={problems.map((problem) => ({
+              id: problem.id,
+              type: problem.type,
+              difficulty: problem.difficulty,
+              tags: problem.tags,
+              contentLatex: problem.contentLatex,
+              explanationLatex: problem.explanationLatex,
+              updatedAt: problem.updatedAt,
+            }))}
+            problemHrefBase={canEdit ? `/organizer/problem-bank/${bank.id}/problem` : undefined}
+            editable={canEdit}
+          />
+        </div>
+
+        {/* Bottom Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 flex items-center gap-6 shadow-sm">
+            <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-[#10182b] shrink-0">
+              <BookOpen className="w-7 h-7" />
+            </div>
+            <div>
+              <div className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-1">
+                Total Problems
+              </div>
+              <div className="text-[32px] font-black text-[#10182b] leading-none">
+                {problems.length}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 flex items-center gap-6 shadow-sm">
+            <div className="w-16 h-16 rounded-2xl bg-[#f49700]/10 border border-[#f49700]/20 flex items-center justify-center text-[#e08900] shrink-0">
+              <TrendingUp className="w-7 h-7" />
+            </div>
+            <div>
+              <div className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-1">
+                Avg. Difficulty
+              </div>
+              <div className="text-[32px] font-black text-[#10182b] leading-none">
+                {avgDifficultyLabel}
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
   );
 }

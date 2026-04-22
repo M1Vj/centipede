@@ -1,11 +1,17 @@
 "use client";
 
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
-import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Ban, Edit3, ShieldCheck, Trash2 } from "lucide-react";
 
@@ -227,61 +233,33 @@ export function UserActions({
         onConfirm={handleSuspendConfirm}
       />
 
-      <AlertDialog.Root
+      <ConfirmDialog
         open={deleteOpen}
-        onOpenChange={(nextOpen) => {
-          if (isPending && action === "delete" && !nextOpen) {
-            return;
-          }
-
-          setDeleteOpen(nextOpen);
-        }}
+        onOpenChange={setDeleteOpen}
+        title={`Anonymize ${displayName}?`}
+        description="This scrubs personal profile data, disables the account, and preserves historical competition records. Type DELETE to confirm."
+        confirmLabel="Anonymize account"
+        pending={isPending && action === "delete"}
+        pendingLabel="Anonymizing..."
+        onConfirm={handleDeleteConfirm}
+        confirmDisabled={deleteConfirmText !== "DELETE"}
+        contentClassName="max-w-lg"
       >
-        <AlertDialog.Portal>
-          <AlertDialog.Overlay className="fixed inset-0 z-[110] bg-foreground/25 backdrop-blur-sm" />
-          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-[120] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border/60 bg-background p-6 shadow-[0_30px_90px_-32px_hsl(var(--shadow)/0.5)]">
-            <div className="space-y-2">
-              <p className="text-xs font-bold uppercase tracking-widest text-rose-600">Irreversible anonymization</p>
-              <AlertDialog.Title className="text-xl font-semibold">Anonymize {displayName}?</AlertDialog.Title>
-              <AlertDialog.Description className="text-sm text-muted-foreground">
-                This scrubs personal profile data, disables the account, and preserves historical competition records. Type DELETE to confirm.
-              </AlertDialog.Description>
-            </div>
+        <p className="text-xs font-bold uppercase tracking-widest text-rose-600">Irreversible anonymization</p>
+        <div className="mt-4 space-y-2">
+          <label htmlFor={deleteConfirmFieldId} className="text-xs font-semibold text-muted-foreground">
+            Confirmation keyword
+          </label>
+          <Input
+            id={deleteConfirmFieldId}
+            value={deleteConfirmText}
+            onChange={(event) => setDeleteConfirmText(event.target.value)}
+            placeholder="Type DELETE to confirm"
+          />
+        </div>
+      </ConfirmDialog>
 
-            <div className="mt-4 space-y-2">
-              <label htmlFor={deleteConfirmFieldId} className="text-xs font-semibold text-muted-foreground">
-                Confirmation keyword
-              </label>
-              <Input
-                id={deleteConfirmFieldId}
-                value={deleteConfirmText}
-                onChange={(event) => setDeleteConfirmText(event.target.value)}
-                placeholder="Type DELETE to confirm"
-              />
-            </div>
-
-            <div className="mt-6 flex items-center justify-end gap-2">
-              <AlertDialog.Cancel asChild>
-                <Button type="button" variant="outline" disabled={isPending && action === "delete"}>
-                  Cancel
-                </Button>
-              </AlertDialog.Cancel>
-              <Button
-                type="button"
-                variant="destructive"
-                pending={isPending && action === "delete"}
-                pendingText="Anonymizing..."
-                onClick={handleDeleteConfirm}
-                disabled={deleteConfirmText !== "DELETE"}
-              >
-                Anonymize account
-              </Button>
-            </div>
-          </AlertDialog.Content>
-        </AlertDialog.Portal>
-      </AlertDialog.Root>
-
-      <Dialog.Root
+      <Dialog
         open={detailOpen}
         onOpenChange={(nextOpen) => {
           if (isPending && action === "update" && !nextOpen) {
@@ -291,75 +269,75 @@ export function UserActions({
           setDetailOpen(nextOpen);
         }}
       >
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-[100] bg-foreground/25 backdrop-blur-sm" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 z-[110] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border/60 bg-background p-6 shadow-[0_30px_90px_-32px_hsl(var(--shadow)/0.5)]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">User Details</p>
-                <Dialog.Title className="mt-2 text-xl font-semibold">{displayName}</Dialog.Title>
-                <Dialog.Description className="text-sm text-muted-foreground">
-                  Edit profile fields and permissions.
-                </Dialog.Description>
-              </div>
-              <Dialog.Close asChild>
-                <Button type="button" variant="ghost" size="icon" aria-label="Close user details dialog">
-                  X
-                </Button>
-              </Dialog.Close>
+        <DialogContent
+          showCloseButton={false}
+          className="max-w-lg rounded-2xl border border-border/60 bg-background p-6 shadow-[0_30px_90px_-32px_hsl(var(--shadow)/0.5)]"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">User Details</p>
+              <DialogTitle className="mt-2 text-xl font-semibold">{displayName}</DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
+                Edit profile fields and permissions.
+              </DialogDescription>
+            </div>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost" size="icon" aria-label="Close user details dialog">
+                X
+              </Button>
+            </DialogClose>
+          </div>
+
+          <form className="mt-6 space-y-4" onSubmit={handleUpdate}>
+            <div className="space-y-2">
+              <label htmlFor={fullNameFieldId} className="text-xs font-semibold text-muted-foreground">
+                Full name
+              </label>
+              <Input
+                id={fullNameFieldId}
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground">Email</label>
+              <Input value={user.email} readOnly disabled />
+              <p className="text-xs text-muted-foreground">
+                Email stays immutable here so profile data remains consistent with authentication credentials.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor={roleFieldId} className="text-xs font-semibold text-muted-foreground">
+                Role
+              </label>
+              <select
+                id={roleFieldId}
+                value={role}
+                onChange={(event) => setRole(event.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                {roleOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <form className="mt-6 space-y-4" onSubmit={handleUpdate}>
-              <div className="space-y-2">
-                <label htmlFor={fullNameFieldId} className="text-xs font-semibold text-muted-foreground">
-                  Full name
-                </label>
-                <Input
-                  id={fullNameFieldId}
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground">Email</label>
-                <Input value={user.email} readOnly disabled />
-                <p className="text-xs text-muted-foreground">
-                  Email stays immutable here so profile data remains consistent with authentication credentials.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <label htmlFor={roleFieldId} className="text-xs font-semibold text-muted-foreground">
-                  Role
-                </label>
-                <select
-                  id={roleFieldId}
-                  value={role}
-                  onChange={(event) => setRole(event.target.value)}
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  {roleOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <Dialog.Close asChild>
-                  <Button type="button" variant="outline" disabled={isPending && action === "update"}>
-                    Cancel
-                  </Button>
-                </Dialog.Close>
-                <Button type="submit" pending={isPending && action === "update"} pendingText="Saving...">
-                  Save changes
+            <DialogFooter className="items-center justify-end gap-2 pt-2 sm:flex-row">
+              <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={isPending && action === "update"}>
+                  Cancel
                 </Button>
-              </div>
-            </form>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+              </DialogClose>
+              <Button type="submit" pending={isPending && action === "update"} pendingText="Saving...">
+                Save changes
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

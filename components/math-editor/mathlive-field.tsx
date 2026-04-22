@@ -8,6 +8,7 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { Eye, EyeOff, Keyboard, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KatexPreview } from "@/components/math-editor/katex-preview";
 import { Label } from "@/components/ui/label";
@@ -59,6 +60,22 @@ const TEXT_TOKEN_HIGHLIGHT_STYLE = {
   "--text-highlight-background-color": "hsl(var(--primary) / 0.1)",
   "--highlight-text": "hsl(var(--primary) / 0.1)",
 } as CSSProperties;
+
+const MATHLIVE_SURFACE_STYLE = {
+  ...TEXT_TOKEN_HIGHLIGHT_STYLE,
+  backgroundColor: "#FAFAFB",
+  color: "#1A1E2E",
+  caretColor: "#F49700",
+} as CSSProperties;
+
+const ACTIVE_MODE_BUTTON_CLASS =
+  "rounded-xl border border-[#f49700] bg-[#f49700] text-[#1A1E2E] shadow-sm hover:bg-[#e08900] hover:text-[#1A1E2E] focus-visible:ring-[#f49700]/30";
+const INACTIVE_MODE_BUTTON_CLASS =
+  "rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:border-[#f49700]/40 hover:bg-slate-50 hover:text-[#1A1E2E] focus-visible:ring-[#f49700]/30";
+const SYMBOL_BUTTON_CLASS =
+  "rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:border-[#f49700]/40 hover:bg-slate-50 hover:text-[#1A1E2E] focus-visible:ring-[#f49700]/30";
+const INLINE_ICON_BUTTON_CLASS =
+  "inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#1A1E2E] transition-colors hover:bg-slate-200/80 hover:text-[#1A1E2E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/30 disabled:pointer-events-none disabled:opacity-50";
 
 let hasConfiguredCompleteVirtualKeyboard = false;
 
@@ -724,6 +741,41 @@ export function MathliveField({
     executeMathfieldCommand(field, "hideVirtualKeyboard");
   }, []);
 
+  const handleToggleVirtualKeyboard = useCallback(() => {
+    const field = fieldRef.current;
+    if (!field || disabled) {
+      return;
+    }
+
+    focusMathfieldHostWithRecovery(field);
+
+    if (typeof window !== "undefined" && window.mathVirtualKeyboard) {
+      const keyboard = window.mathVirtualKeyboard;
+      keyboard.visible = !keyboard.visible;
+      return;
+    }
+
+    executeMathfieldCommand(field, "toggleVirtualKeyboard");
+  }, [disabled]);
+
+  const handleToggleContextMenu = useCallback(() => {
+    const field = fieldRef.current;
+    if (!field || disabled) {
+      return;
+    }
+
+    focusMathfieldHostWithRecovery(field);
+    executeMathfieldCommand(field, "toggleContextMenu");
+  }, [disabled]);
+
+  const handleTogglePreview = useCallback(() => {
+    if (disabled || !showPreviewToggle) {
+      return;
+    }
+
+    setIsPreviewVisible((previous) => !previous);
+  }, [disabled, showPreviewToggle]);
+
   useEffect(() => {
     if (!isReady) {
       return;
@@ -1035,16 +1087,58 @@ export function MathliveField({
     >
       <Label htmlFor={id}>{label}</Label>
       <div
-        className="min-w-0 overflow-x-auto rounded-md border border-input bg-background px-3 py-2 shadow-sm"
+        className="relative min-w-0 overflow-x-auto rounded-2xl border border-slate-200 bg-[#fafafb] px-3 py-2 shadow-sm transition-all focus-within:border-[#f49700]/50 focus-within:ring-2 focus-within:ring-[#f49700]/15"
         onPointerDown={handleEditorSurfacePointerDown}
       >
+        <div className="pointer-events-none absolute right-3 top-3 z-10 flex items-center gap-1">
+          <button
+            type="button"
+            className={cn(INLINE_ICON_BUTTON_CLASS, "pointer-events-auto")}
+            onPointerDown={handleControlPointerDown}
+            onClick={handleToggleVirtualKeyboard}
+            disabled={disabled}
+            aria-label="Toggle virtual keyboard"
+            title="Toggle virtual keyboard"
+          >
+            <Keyboard className="h-4 w-4" />
+          </button>
+          {showPreviewToggle ? (
+            <button
+              type="button"
+              className={cn(
+                INLINE_ICON_BUTTON_CLASS,
+                "pointer-events-auto",
+                isPreviewVisible ? "bg-[#f49700]/15 text-[#1A1E2E]" : "",
+              )}
+              onPointerDown={handleControlPointerDown}
+              onClick={handleTogglePreview}
+              disabled={disabled}
+              aria-label={isPreviewVisible ? "Hide preview" : "Show preview"}
+              aria-pressed={isPreviewVisible}
+              title={isPreviewVisible ? "Hide preview" : "Show preview"}
+            >
+              {isPreviewVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={cn(INLINE_ICON_BUTTON_CLASS, "pointer-events-auto")}
+            onPointerDown={handleControlPointerDown}
+            onClick={handleToggleContextMenu}
+            disabled={disabled}
+            aria-label="Open editor menu"
+            title="Open editor menu"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+        </div>
         <math-field
           id={id}
           ref={(element) => {
             fieldRef.current = (element as MathfieldElement | null) ?? null;
           }}
-          className="block min-h-12 w-full text-sm focus:outline-none"
-          style={TEXT_TOKEN_HIGHLIGHT_STYLE}
+          className="mathwiz-math-field block min-h-12 w-full rounded-xl bg-[#fafafb] pr-28 text-sm text-[#1A1E2E] focus:outline-none"
+          style={MATHLIVE_SURFACE_STYLE}
           placeholder={placeholder}
           disabled={disabled}
           aria-disabled={disabled}
@@ -1058,6 +1152,7 @@ export function MathliveField({
           type="button"
           size="sm"
           variant={editorMode === "math" ? "default" : "outline"}
+          className={editorMode === "math" ? ACTIVE_MODE_BUTTON_CLASS : INACTIVE_MODE_BUTTON_CLASS}
           onPointerDown={handleControlPointerDown}
           onClick={() => handleSetMode("math")}
           disabled={disabled}
@@ -1068,25 +1163,13 @@ export function MathliveField({
           type="button"
           size="sm"
           variant={editorMode === "text" ? "default" : "outline"}
+          className={editorMode === "text" ? ACTIVE_MODE_BUTTON_CLASS : INACTIVE_MODE_BUTTON_CLASS}
           onPointerDown={handleControlPointerDown}
           onClick={() => handleSetMode("text")}
           disabled={disabled}
         >
           Text mode
         </Button>
-        {showPreviewToggle ? (
-          <Button
-            type="button"
-            size="sm"
-            variant={isPreviewVisible ? "default" : "outline"}
-            onPointerDown={handleControlPointerDown}
-            onClick={() => setIsPreviewVisible((previous) => !previous)}
-            disabled={disabled}
-            aria-pressed={isPreviewVisible}
-          >
-            {isPreviewVisible ? "Hide preview" : "Show preview"}
-          </Button>
-        ) : null}
       </div>
       <div className="flex flex-wrap gap-2" role="group" aria-label={`${label} symbol shortcuts`}>
         {SYMBOL_TOOLBAR.map((item) => (
@@ -1095,6 +1178,7 @@ export function MathliveField({
             type="button"
             size="sm"
             variant="outline"
+            className={SYMBOL_BUTTON_CLASS}
             onPointerDown={handleControlPointerDown}
             onClick={() => handleInsertSymbol(item.latex)}
             disabled={disabled}

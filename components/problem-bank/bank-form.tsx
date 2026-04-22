@@ -3,11 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { validateBankInput } from "@/lib/problem-bank/validation";
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 
@@ -246,76 +242,77 @@ export function BankForm({
   };
 
   return (
-    <Card className="border-border/60 bg-background/90 shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-2xl">
-          {mode === "create" ? "Create Problem Bank" : "Edit Problem Bank"}
-        </CardTitle>
-        <CardDescription>
-          Set a concise bank name and maintain a clear scope for reusable problem authoring.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-5" onSubmit={handleSubmit} aria-busy={isSaving || isDeleting}>
-          <div className="grid gap-2">
-            <Label htmlFor="bank-name">Bank name</Label>
-            <Input
-              id="bank-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              required
-              maxLength={120}
-            />
-          </div>
+    <form className="flex flex-col gap-6" onSubmit={handleSubmit} aria-busy={isSaving || isDeleting}>
 
-          <div className="grid gap-2">
-            <Label htmlFor="bank-description">Description (optional, max 200 words)</Label>
-            <textarea
-              id="bank-description"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              className="min-h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-            <p className="text-xs text-muted-foreground">Current word count: {descriptionWordCount}</p>
-          </div>
+      <div className="flex flex-col gap-2">
+        <label htmlFor="bank-name" className="text-[#10182b] font-bold text-[14px]">
+          Problem Bank Name
+        </label>
+        <input
+          id="bank-name"
+          type="text"
+          placeholder="e.g. Advanced Calculus Weekly"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          required
+          maxLength={120}
+          className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-5 py-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#f49700] focus:border-transparent transition-all placeholder:text-slate-400 font-medium"
+        />
+      </div>
 
-          <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
-            <FormStatusMessage
-              status={status.type}
-              message={status.message}
-              icon={
-                status.type === "error"
-                  ? AlertCircle
-                  : status.type === "success"
-                    ? CheckCircle2
-                    : undefined
-              }
-            />
-          </div>
+      <div className="flex flex-col gap-2">
+        <label htmlFor="bank-description" className="text-[#10182b] font-bold text-[14px]">
+          Description <span className="text-slate-400 font-medium">(optional, max 200 words)</span>
+        </label>
+        <textarea
+          id="bank-description"
+          placeholder="What topics are covered in this problem bank?"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          rows={4}
+          className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-5 py-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#f49700] focus:border-transparent transition-all placeholder:text-slate-400 font-medium resize-none"
+        />
+        <p className="text-xs text-slate-400">Current word count: {descriptionWordCount}</p>
+      </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {mode === "edit" ? (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleSoftDelete}
-                pending={isDeleting}
-                pendingText="Deleting bank..."
-                disabled={isSaving}
-              >
-                <Trash2 className="size-4" />
-                Soft delete
-              </Button>
-            ) : (
-              <span className="text-xs text-muted-foreground">Soft delete is available after creation.</span>
-            )}
+      <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
+        <FormStatusMessage
+          status={status.type}
+          message={status.message}
+          icon={
+            status.type === "error"
+              ? AlertCircle
+              : status.type === "success"
+                ? CheckCircle2
+                : undefined
+          }
+        />
+      </div>
 
-            <Button type="submit" pending={isSaving} pendingText="Saving..." disabled={isDeleting}>
-              {submitLabel}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
+        {mode === "edit" ? (
+          <button
+            type="button"
+            onClick={handleSoftDelete}
+            disabled={isDeleting || isSaving}
+            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 font-bold text-[14px] hover:bg-red-100 transition-colors disabled:opacity-50"
+          >
+            <Trash2 className="w-4 h-4" />
+            {isDeleting ? "Deleting..." : "Soft delete"}
+          </button>
+        ) : (
+          <span className="text-xs text-slate-400">Soft delete is available after creation.</span>
+        )}
+
+        <button
+          type="submit"
+          disabled={isSaving || isDeleting}
+          className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-8 py-4 rounded-xl font-bold text-[15px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2 disabled:opacity-60"
+        >
+          {isSaving ? "Saving..." : submitLabel}
+        </button>
+      </div>
+
+    </form>
   );
 }

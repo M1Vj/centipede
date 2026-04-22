@@ -8,6 +8,7 @@ import {
   History,
   Settings
 } from "lucide-react";
+import { LogoutButton } from "@/components/logout-button";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { AdminMobileNav } from "@/app/admin/mobile-nav";
 
@@ -61,6 +62,13 @@ export default async function AdminLayout({
             <p className="text-[10px] font-bold uppercase tracking-widest text-primary/60">System Mode</p>
             <p className="mt-1 text-xs font-semibold text-primary">Live Monitoring</p>
           </div>
+          <LogoutButton
+            label="Sign out"
+            ariaLabel="Sign out of admin workspace"
+            variant="outline"
+            size="sm"
+            className="mt-3 w-full justify-center"
+          />
         </div>
       </aside>
 

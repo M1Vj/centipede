@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import * as AlertDialog from "@radix-ui/react-alert-dialog";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { cn } from "@/lib/utils";
 import { isProfileComplete, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
@@ -11,19 +10,17 @@ import { getSupabaseClient } from "@/lib/supabaseClient";
 import { useFeedbackRouter } from "@/hooks/use-feedback-router";
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import { useAuth } from "@/components/providers/auth-provider";
+import { AuthDivider, AuthField, GoogleMark } from "@/components/auth/auth-form-primitives";
 import { Button } from "@/components/ui/button";
-import { FormStatusMessage } from "@/components/ui/feedback-states";
-import { Spinner } from "@/components/ui/spinner";
-import { ProgressLink } from "@/components/ui/progress-link";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { FormStatusMessage } from "@/components/ui/feedback-states";
+import { ProgressLink } from "@/components/ui/progress-link";
 import { getErrorMessage } from "@/lib/errors";
 
 export function LoginForm({
@@ -34,6 +31,8 @@ export function LoginForm({
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
   const [pendingAction, setPendingAction] = useState<"email" | "google" | null>(null);
   const [status, setStatus] = useState<{
     message: string | null;
@@ -57,7 +56,8 @@ export function LoginForm({
     const errorParam = searchParams.get("error");
     if (errorParam === "suspended") {
       setStatus({
-        message: "Your account is pending organizer approval or has been suspended. Please contact support if you believe this is an error.",
+        message:
+          "Your account is pending organizer approval or has been suspended. Please contact support if you believe this is an error.",
         type: "error",
       });
     }
@@ -77,10 +77,9 @@ export function LoginForm({
 
     if (profile && profile.is_active === false) {
       await supabase.auth.signOut();
-      
-      // Give a more specific inline error instead of full redirect for better UX
       setStatus({
-        message: "This account is inactive or pending approval. Please check your application status or contact support.",
+        message:
+          "This account is inactive or pending approval. Please check your application status or contact support.",
         type: "error",
       });
       setPendingAction(null);
@@ -92,7 +91,6 @@ export function LoginForm({
       return;
     }
 
-    // Role-based redirection
     if (profile.role === "admin") {
       feedbackRouter.push("/admin");
     } else if (profile.role === "organizer") {
@@ -170,10 +168,10 @@ export function LoginForm({
       }
 
       const {
-        data: { user },
+        data: { user: nextUser },
       } = await supabase.auth.getUser();
 
-      if (!user) {
+      if (!nextUser) {
         throw new Error("Login succeeded but no user session was returned.");
       }
 
@@ -182,126 +180,134 @@ export function LoginForm({
       }
 
       await refreshAcceptedSession(signInData.session);
-      await redirectAfterLogin(user.id);
+      await redirectAfterLogin(nextUser.id);
     } catch (nextError: unknown) {
       const raw = getErrorMessage(nextError, "An error occurred during login.");
-      const message = raw === "Invalid login credentials"
-        ? "Invalid email or password. If you don\u2019t have an account, please sign up first."
-        : raw;
+      const message =
+        raw === "Invalid login credentials"
+          ? "Invalid email or password. If you don't have an account, please sign up first."
+          : raw;
       setStatus({ message, type: "error" });
       setPendingAction(null);
     }
   };
 
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
-          <CardDescription>
-            Sign in with Google or use your email and password.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-6 grid gap-3">
-            <Button
+    <div className={cn("space-y-5", className)} {...props}>
+      <form
+        onSubmit={handleLogin}
+        className="space-y-6"
+        aria-busy={isLoading}
+        aria-describedby={status.message ? statusId : undefined}
+      >
+        <AuthField
+          id="email"
+          type="email"
+          autoComplete="username"
+          placeholder="Email Address"
+          required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          label="Email Address"
+          icon={<Mail className="size-4" />}
+        />
+
+        <AuthField
+          id="password"
+          type={showPassword ? "text" : "password"}
+          autoComplete="current-password"
+          placeholder="Password"
+          required
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          label="Password"
+          icon={<Lock className="size-4" />}
+          trailing={
+            <button
               type="button"
-              variant="outline"
-              className="w-full"
-              onClick={() => void handleGoogle()}
-              pending={pendingAction === "google"}
-              pendingText="Connecting to Google..."
-              disabled={pendingAction === "email"}
+              className="inline-flex items-center justify-center text-slate-400 transition hover:text-[#0f172a]"
+              onClick={() => setShowPassword((value) => !value)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              Continue with Google
-            </Button>
-          </div>
+              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          }
+        />
 
-          <form
-            onSubmit={handleLogin}
-            aria-busy={isLoading}
-            aria-describedby={status.message ? statusId : undefined}
+        <div className="flex flex-wrap items-center justify-between gap-3 py-1">
+          <label className="inline-flex items-center gap-2 text-sm text-slate-500" htmlFor="remember-me">
+            <Checkbox
+              id="remember-me"
+              checked={rememberMe}
+              onCheckedChange={(checked) => setRememberMe(checked === true)}
+              className="border-slate-300 data-[state=checked]:border-[#f49700] data-[state=checked]:bg-[#f49700]"
+            />
+            Remember me
+          </label>
+          <ProgressLink
+            href="/auth/forgot-password"
+            className="text-sm font-semibold text-[#0f172a] underline-offset-4 hover:text-[#f49700] hover:underline"
           >
-            <div className="flex flex-col gap-6">
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="username"
-                  placeholder="m@example.com"
-                  required
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
-                  <ProgressLink
-                    href="/auth/forgot-password"
-                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
-                  >
-                    Forgot your password?
-                  </ProgressLink>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-              </div>
-              <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
-                <FormStatusMessage
-                  status={status.type}
-                  message={status.message}
-                  icon={status.type === "error" ? CircleAlert : undefined}
-                />
-              </div>
-              <Button
-                type="submit"
-                className="w-full"
-                pending={pendingAction === "email"}
-                pendingText="Logging in..."
-                disabled={pendingAction === "google"}
-              >
-                Login with email
-              </Button>
-            </div>
-            <div className="mt-4 text-center text-sm">
-              Don&apos;t have an account?{" "}
-              <ProgressLink
-                href="/auth/sign-up"
-                className="underline underline-offset-4"
-              >
-                Sign up
-              </ProgressLink>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+            Forgot Password?
+          </ProgressLink>
+        </div>
 
-      <AlertDialog.Root open={pendingAction === "email"}>
-        <AlertDialog.Portal>
-          <AlertDialog.Overlay className="fixed inset-0 z-[90] bg-background/80 backdrop-blur-sm transition-all duration-300 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:animate-in data-[state=open]:fade-in" />
-          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-[100] w-full max-w-sm -translate-x-1/2 -translate-y-1/2 outline-none transition-all duration-300 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95">
-            <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-border/70 bg-background/95 p-8 shadow-[0_30px_90px_-32px_hsl(var(--shadow)/0.5)]">
-              <div className="flex size-14 items-center justify-center rounded-full bg-muted">
-                <Spinner className="size-6 text-primary" />
-              </div>
-              <AlertDialog.Title className="text-xl font-semibold tracking-tight text-foreground">
-                Signing in
-              </AlertDialog.Title>
-              <AlertDialog.Description className="text-center text-sm text-muted-foreground">
-                Please wait while we verify your credentials and sign you in.
-              </AlertDialog.Description>
+        <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
+          <FormStatusMessage
+            status={status.type}
+            message={status.message}
+            icon={status.type === "error" ? CircleAlert : undefined}
+          />
+        </div>
+
+        <Button
+          type="submit"
+          className="h-12 w-full rounded-xl bg-[#f49701] text-base font-bold text-white hover:bg-[#df8e00]"
+          pending={pendingAction === "email"}
+          pendingText="Signing in..."
+          disabled={pendingAction === "google"}
+        >
+          Sign In
+        </Button>
+      </form>
+
+      <AuthDivider />
+
+      <Button
+        type="button"
+        variant="outline"
+        className="h-12 w-full rounded-xl border-slate-200 bg-white text-base font-bold text-slate-700 shadow-none hover:bg-slate-50"
+        onClick={() => void handleGoogle()}
+        pending={pendingAction === "google"}
+        pendingText="Connecting to Google..."
+        disabled={pendingAction === "email"}
+      >
+        <GoogleMark />
+        Continue with Google
+      </Button>
+
+      <Dialog open={pendingAction === "email"}>
+        <DialogContent
+          showCloseButton={false}
+          className="w-full max-w-sm overflow-hidden rounded-2xl border border-white/[0.08] bg-[#1A1E2E] p-0 shadow-[0_40px_100px_-40px_rgba(0,0,0,0.6)]"
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <div className="flex flex-col items-center justify-center gap-5 px-8 py-10 text-center">
+            <div className="relative flex size-16 items-center justify-center">
+              <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-transparent border-t-[#F49700]" />
+              <img src="/mathwiz-logo.svg" alt="" className="h-9 w-9 object-contain" aria-hidden="true" />
             </div>
-          </AlertDialog.Content>
-        </AlertDialog.Portal>
-      </AlertDialog.Root>
+            <div>
+              <DialogTitle className="text-lg font-bold text-white">Signing in</DialogTitle>
+              <DialogDescription className="mt-2 text-sm text-slate-400">
+                Please wait while we verify your credentials and sign you in.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

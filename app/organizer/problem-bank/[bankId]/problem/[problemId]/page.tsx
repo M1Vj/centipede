@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
+import { ChevronRight } from "lucide-react";
+import { OrganizerWorkspaceShell } from "@/components/organizer/workspace-patterns";
 import { ProblemForm } from "@/components/problem-bank/problem-form";
+import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import {
   canViewBank,
@@ -113,14 +116,47 @@ export default async function OrganizerProblemEditorPage({ params }: PageProps) 
     };
   }
 
+  const isCreateMode = problemId === "new";
+
   return (
-    <section className="shell py-12">
-      <ProblemForm
-        bankId={bank.id}
-        backHref={`/organizer/problem-bank/${bank.id}`}
-        initialValue={initialValue}
-        editable
-      />
-    </section>
+    <OrganizerWorkspaceShell className="px-4 pt-4 pb-24 font-['Poppins',sans-serif]">
+      <div className="w-full max-w-[1024px] mx-auto flex flex-col">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-slate-500 font-medium text-[13px] mb-8">
+          <ProgressLink href="/organizer/problem-bank" className="hover:text-[#10182b] transition-colors">
+            Problem Banks
+          </ProgressLink>
+          <ChevronRight className="w-3.5 h-3.5" />
+          <ProgressLink href={`/organizer/problem-bank/${bank.id}`} className="hover:text-[#10182b] transition-colors">
+            {bank.name}
+          </ProgressLink>
+          <ChevronRight className="w-3.5 h-3.5" />
+          <span className="hover:text-[#10182b] transition-colors cursor-pointer">
+            {isCreateMode ? "Add" : "Edit"}
+          </span>
+          <ChevronRight className="w-3.5 h-3.5" />
+          <span className="text-[#10182b] font-bold">Problem</span>
+        </div>
+
+        {/* Page Header */}
+        <div className="flex flex-col items-center justify-center text-center mb-10">
+          <h1 className="text-[32px] md:text-[36px] font-black text-[#10182b] tracking-tight leading-tight mb-2">
+            {isCreateMode ? "Add Problem" : "Edit Problem"}
+          </h1>
+          <p className="text-slate-500 text-[15px] font-medium">
+            {isCreateMode
+              ? "Create a new problem for this problem bank using MathLive."
+              : "Update problem content, options, answer keys, and metadata."}
+          </p>
+        </div>
+
+        <ProblemForm
+          bankId={bank.id}
+          backHref={`/organizer/problem-bank/${bank.id}`}
+          initialValue={initialValue}
+          editable
+        />
+      </div>
+    </OrganizerWorkspaceShell>
   );
 }

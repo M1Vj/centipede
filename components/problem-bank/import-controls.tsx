@@ -3,12 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Download, RefreshCcw, Upload } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
+
 
 type ImportSummary = {
   totalRows: number;
@@ -184,98 +181,108 @@ export function ImportControls({ bankId }: ImportControlsProps) {
   };
 
   return (
-    <Card className="border-border/60 bg-background/90 shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-xl">Bulk import</CardTitle>
-        <CardDescription>
-          Download the CSV template, populate rows, and import with deterministic summaries.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-4" onSubmit={handleSubmit} aria-busy={isSubmitting}>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="button" variant="outline" asChild>
-              <a href="/api/organizer/problem-banks/import" download>
-                <Download className="size-4" />
-                Download CSV template
-              </a>
-            </Button>
-          </div>
+    <div className="flex flex-col gap-6">
 
-          <div className="grid gap-2">
-            <Label htmlFor="import-token">Idempotency token</Label>
-            <div className="flex flex-wrap items-center gap-2">
-              <Input
-                id="import-token"
-                value={idempotencyToken}
-                onChange={(event) => setIdempotencyToken(event.target.value)}
-              />
-              <Button type="button" variant="outline" onClick={() => setIdempotencyToken(nextToken())}>
-                <RefreshCcw className="size-4" />
-                New token
-              </Button>
-            </div>
-          </div>
+      <form className="flex flex-col gap-5" onSubmit={handleSubmit} aria-busy={isSubmitting}>
 
-          <div className="grid gap-2">
-            <Label htmlFor="import-csv">Import CSV file</Label>
-            <Input
-              id="import-csv"
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
+        <div className="flex flex-wrap items-center gap-3">
+          <a
+            href="/api/organizer/problem-banks/import"
+            download
+            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-50 border border-slate-200 text-[#10182b] font-bold text-[14px] hover:bg-slate-100 transition-colors"
+          >
+            <Download className="w-4 h-4 text-slate-500" />
+            Download CSV Template
+          </a>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label htmlFor="import-token" className="text-[#10182b] font-bold text-[14px]">
+            Idempotency Token
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              id="import-token"
+              value={idempotencyToken}
+              onChange={(event) => setIdempotencyToken(event.target.value)}
+              className="flex-1 min-w-0 bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-5 py-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-[#f49700] focus:border-transparent transition-all font-medium"
             />
+            <button
+              type="button"
+              onClick={() => setIdempotencyToken(nextToken())}
+              className="flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-[#10182b] font-bold text-[14px] hover:bg-slate-100 transition-colors shrink-0"
+            >
+              <RefreshCcw className="w-4 h-4" />
+              New Token
+            </button>
           </div>
+        </div>
 
-          <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
-            <FormStatusMessage
-              status={status.type}
-              message={status.message}
-              icon={
-                status.type === "error"
-                  ? AlertCircle
-                  : status.type === "success"
-                    ? CheckCircle2
-                    : undefined
-              }
-            />
+        <div className="flex flex-col gap-2">
+          <label htmlFor="import-csv" className="text-[#10182b] font-bold text-[14px]">
+            Import CSV File
+          </label>
+          <input
+            id="import-csv"
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
+            className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-5 py-3 text-[14px] file:mr-4 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:bg-[#f49700] file:text-[#10182b] file:font-bold file:text-[13px] hover:file:bg-[#e08900] transition-colors"
+          />
+        </div>
+
+        <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
+          <FormStatusMessage
+            status={status.type}
+            message={status.message}
+            icon={
+              status.type === "error"
+                ? AlertCircle
+                : status.type === "success"
+                  ? CheckCircle2
+                  : undefined
+            }
+          />
+        </div>
+
+        {summary ? (
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5 text-sm space-y-1">
+            <p className="font-bold text-[#10182b] mb-2">Import Summary</p>
+            <p className="text-slate-500">Total rows: <span className="font-semibold text-[#10182b]">{summary.totalRows}</span></p>
+            <p className="text-slate-500">Inserted: <span className="font-semibold text-[#10182b]">{summary.insertedRows}</span></p>
+            <p className="text-slate-500">Failed: <span className="font-semibold text-red-500">{summary.failedRows}</span></p>
+            {summary.groupedRowErrors.length > 0 ? (
+              <div className="mt-3 space-y-1">
+                <p className="font-bold text-[#10182b] text-[13px]">Grouped Row Errors</p>
+                <ul className="space-y-1 text-xs text-slate-500 list-disc pl-4">
+                  {summary.groupedRowErrors.map((rowErrorGroup) => (
+                    <li key={rowErrorGroup.signature}>
+                      {rowErrorGroup.reason} ({rowErrorGroup.count})
+                      {rowErrorGroup.sampleRows.length > 0
+                        ? ` - rows ${rowErrorGroup.sampleRows.join(", ")}${
+                            rowErrorGroup.count > rowErrorGroup.sampleRows.length ? ", ..." : ""
+                          }`
+                        : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
+        ) : null}
 
-          {summary ? (
-            <div className="rounded-lg border border-border/60 bg-muted/20 p-4 text-sm">
-              <p className="font-semibold text-foreground">Summary</p>
-              <p className="mt-1 text-muted-foreground">Total rows: {summary.totalRows}</p>
-              <p className="text-muted-foreground">Inserted rows: {summary.insertedRows}</p>
-              <p className="text-muted-foreground">Failed rows: {summary.failedRows}</p>
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="flex items-center gap-2 bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-8 py-4 rounded-xl font-bold text-[15px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 disabled:opacity-60"
+          >
+            <Upload className="w-4 h-4" />
+            {isSubmitting ? "Importing..." : "Import CSV"}
+          </button>
+        </div>
 
-              {summary.groupedRowErrors.length > 0 ? (
-                <div className="mt-3 space-y-1">
-                  <p className="font-semibold text-foreground">Grouped row errors</p>
-                  <ul className="space-y-1 text-xs text-muted-foreground">
-                    {summary.groupedRowErrors.map((rowErrorGroup) => (
-                      <li key={rowErrorGroup.signature}>
-                        {rowErrorGroup.reason} ({rowErrorGroup.count})
-                        {rowErrorGroup.sampleRows.length > 0
-                          ? ` - rows ${rowErrorGroup.sampleRows.join(", ")}${
-                              rowErrorGroup.count > rowErrorGroup.sampleRows.length ? ", ..." : ""
-                            }`
-                          : ""}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="flex justify-end">
-            <Button type="submit" pending={isSubmitting} pendingText="Importing...">
-              <Upload className="size-4" />
-              Import CSV
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      </form>
+    </div>
   );
 }

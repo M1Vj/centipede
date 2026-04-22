@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, CircleAlert } from "lucide-react";
+import { CheckCircle2, CircleAlert, Clock3, MailPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, ErrorState, FormStatusMessage, LoadingState } from "@/components/ui/feedback-states";
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import { createIdempotencyToken, formatDate, getPayloadMessage, requestJson } from "@/components/teams/utils";
 import type { TeamPendingInvite, TeamPendingInvitesResponse } from "@/components/teams/types";
+import { cn } from "@/lib/utils";
 
 const defaultErrorMessage = "Unable to load pending invites.";
 
@@ -18,9 +18,17 @@ type InviteRevokeResponse = {
 
 type TeamPendingInvitesProps = {
   teamId: string;
+  rosterLocked?: boolean;
+  refreshToken?: number;
+  className?: string;
 };
 
-export function TeamPendingInvites({ teamId }: TeamPendingInvitesProps) {
+export function TeamPendingInvites({
+  teamId,
+  rosterLocked = false,
+  refreshToken = 0,
+  className,
+}: TeamPendingInvitesProps) {
   const [invites, setInvites] = useState<TeamPendingInvite[]>([]);
   const [status, setStatus] = useState<"loading" | "error" | "ready">("loading");
   const [errorMessage, setErrorMessage] = useState(defaultErrorMessage);
@@ -62,10 +70,10 @@ export function TeamPendingInvites({ teamId }: TeamPendingInvitesProps) {
     return () => {
       isActive = false;
     };
-  }, [teamId]);
+  }, [teamId, refreshToken]);
 
   const handleRevoke = async (inviteId: string) => {
-    if (pendingAction) {
+    if (pendingAction || rosterLocked) {
       return;
     }
 
@@ -132,20 +140,35 @@ export function TeamPendingInvites({ teamId }: TeamPendingInvitesProps) {
 
   if (invites.length === 0) {
     return (
-      <EmptyState
-        title="No pending invites"
-        description="Invitations you send will appear here until they are accepted or declined."
-      />
+      <div className={cn("rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_22px_48px_-40px_rgba(15,23,42,0.35)]", className)}>
+        <EmptyState
+          title="No pending invites"
+          description={rosterLocked
+            ? "Roster changes are currently locked, so pending invites cannot be updated."
+            : "Invitations you send will appear here until they are accepted or declined."}
+        />
+      </div>
     );
   }
 
   return (
-    <Card className="border-border/60 bg-background/90 shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-xl">Pending invites</CardTitle>
-        <CardDescription>Track outgoing invitations and revoke if needed.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className={cn("rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_22px_48px_-40px_rgba(15,23,42,0.35)]", className)}>
+      <div className="space-y-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#1a1e2e] text-[#f49700] shadow-[0_18px_30px_-24px_rgba(26,30,46,0.85)]">
+          <MailPlus className="size-4" />
+        </div>
+        <div className="space-y-2">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Pending Invites</p>
+          <h2 className="font-display text-2xl font-black tracking-[-0.03em] text-[#1a1e2e]">Track who is still waiting on your roster.</h2>
+        </div>
+        <p className="text-sm leading-7 text-slate-500">
+          {rosterLocked
+            ? "Pending invites stay visible, but revoking is disabled while the roster is locked."
+            : "Track outgoing invitations and revoke them if plans change before the roster closes."}
+        </p>
+      </div>
+
+      <div className="mt-5 space-y-4">
         <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
           <FormStatusMessage
             status={actionStatus.type}
@@ -165,11 +188,12 @@ export function TeamPendingInvites({ teamId }: TeamPendingInvitesProps) {
             return (
               <div
                 key={invite.id}
-                className="flex flex-col gap-3 rounded-xl border border-border/60 bg-background/80 p-4 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-4 rounded-[1.35rem] border border-slate-200/80 bg-[#fafafb] p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-foreground">{name}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm font-bold text-[#1a1e2e]">{name}</p>
+                  <p className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                    <Clock3 className="size-3.5" />
                     Invited {formatDate(invite.createdAt)}
                     {details ? ` | ${details}` : ""}
                   </p>
@@ -178,18 +202,19 @@ export function TeamPendingInvites({ teamId }: TeamPendingInvitesProps) {
                   type="button"
                   variant="outline"
                   size="sm"
+                  className="rounded-full border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-800"
                   onClick={() => void handleRevoke(invite.id)}
                   pending={isPending}
                   pendingText="Revoking..."
-                  disabled={Boolean(pendingAction)}
+                  disabled={Boolean(pendingAction) || rosterLocked}
                 >
-                  Revoke
+                  {rosterLocked ? "Locked" : "Revoke"}
                 </Button>
               </div>
             );
           })}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
