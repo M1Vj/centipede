@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { BookOpen, ChevronLeft, ChevronRight, FileUp, Pencil, PlusCircle, TrendingUp } from "lucide-react";
-import { BankForm } from "@/components/problem-bank/bank-form";
-import { ImportControls } from "@/components/problem-bank/import-controls";
+import { BookOpen, ChevronRight, Plus, TrendingUp } from "lucide-react";
+import { EditBankModal } from "@/components/problem-bank/edit-bank-modal";
+import { ImportCsvModal } from "@/components/problem-bank/import-csv-modal";
 import { ProblemList } from "@/components/problem-bank/problem-list";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
@@ -67,6 +67,16 @@ export default async function OrganizerProblemBankDetailPage({ params }: PagePro
         .filter((row): row is NonNullable<typeof row> => row !== null)
     : [];
 
+  // Derive avg difficulty label
+  const difficultyScore = problems.reduce((acc, p) => {
+    if (p.difficulty === "easy") return acc + 1;
+    if (p.difficulty === "average") return acc + 2;
+    return acc + 3;
+  }, 0);
+  const avgScore = problems.length > 0 ? difficultyScore / problems.length : 0;
+  const avgDifficultyLabel =
+    avgScore === 0 ? "—" : avgScore <= 1.5 ? "Easy" : avgScore <= 2.5 ? "Average" : "Difficult";
+
   return (
     <div className="w-full flex flex-col items-center pb-12 px-4 font-['Poppins']">
       <div className="w-full max-w-[1024px] mt-12 flex flex-col">
@@ -94,105 +104,31 @@ export default async function OrganizerProblemBankDetailPage({ params }: PagePro
           </div>
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <ProgressLink
-              href="/organizer/problem-bank"
-              className="bg-white border border-slate-200 hover:border-slate-300 text-[#10182b] px-4 py-2.5 rounded-xl font-bold text-[14px] transition-all flex items-center gap-2 shadow-sm"
-            >
-              <ChevronLeft className="w-4 h-4 text-slate-500" /> Back
-            </ProgressLink>
             {canEdit && (
               <>
+                <EditBankModal
+                  bank={{
+                    id: bank.id,
+                    name: bank.name,
+                    description: bank.description,
+                    updatedAt: bank.updatedAt,
+                  }}
+                />
+                <ImportCsvModal bankId={bank.id} />
                 <ProgressLink
                   href={`/organizer/problem-bank/${bank.id}/problem/new`}
                   className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-5 py-2.5 rounded-xl font-bold text-[14px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2 shadow-sm"
                 >
-                  <PlusCircle className="w-5 h-5" /> Add New Problem
+                  <Plus className="w-5 h-5" /> Add New Problem
                 </ProgressLink>
               </>
             )}
           </div>
         </div>
 
-        {/* Stats Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 flex items-center gap-6 shadow-sm">
-            <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-[#10182b] shrink-0">
-              <BookOpen className="w-7 h-7" />
-            </div>
-            <div>
-              <div className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-1">
-                Total Problems
-              </div>
-              <div className="text-[32px] font-black text-[#10182b] leading-none">
-                {problems.length}
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 flex items-center gap-6 shadow-sm">
-            <div className="w-16 h-16 rounded-2xl bg-[#f49700]/10 border border-[#f49700]/20 flex items-center justify-center text-[#e08900] shrink-0">
-              <TrendingUp className="w-7 h-7" />
-            </div>
-            <div>
-              <div className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-1">
-                Bank Status
-              </div>
-              <div className="text-[20px] font-black text-[#10182b] leading-none">
-                {canEdit ? "Authored" : "Read-only"}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Bank Details / Edit Form */}
-        {canEdit ? (
-          <div className="bg-white rounded-3xl border border-slate-200 p-8 md:p-10 shadow-sm w-full mb-8">
-            <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-[#10182b]">Bank Details</h2>
-                <p className="text-slate-500 text-[14px]">Edit bank name and description</p>
-              </div>
-              <div className="flex items-center gap-1.5 text-slate-400 text-[13px] font-medium">
-                <Pencil className="w-4 h-4" /> Editing
-              </div>
-            </div>
-            <BankForm
-              mode="edit"
-              initialValue={{
-                id: bank.id,
-                name: bank.name,
-                description: bank.description,
-                updatedAt: bank.updatedAt,
-              }}
-              successRedirectHref="/organizer/problem-bank"
-            />
-          </div>
-        ) : (
-          <div className="bg-white rounded-3xl border border-slate-200 p-8 md:p-10 shadow-sm w-full mb-8">
-            <h2 className="text-xl font-bold text-[#10182b] mb-3">About this Bank</h2>
-            <p className="text-slate-600 text-[15px] leading-relaxed">
-              {bank.description || "No description provided."}
-            </p>
-          </div>
-        )}
-
-        {/* Import Controls */}
-        {canEdit && (
-          <div className="bg-white rounded-3xl border border-slate-200 p-8 md:p-10 shadow-sm w-full mb-8">
-            <div className="mb-6 flex items-center gap-3">
-              <FileUp className="w-5 h-5 text-slate-400" />
-              <div>
-                <h2 className="text-xl font-bold text-[#10182b]">Import & Bulk Actions</h2>
-                <p className="text-slate-500 text-[14px]">Download the CSV template, populate rows, and import.</p>
-              </div>
-            </div>
-            <ImportControls bankId={bank.id} />
-          </div>
-        )}
-
-        {/* Problem List */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-sm w-full">
+        {/* Problem List Table Card */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-sm w-full mb-6">
           <ProblemList
-            title="Problems"
             problems={problems.map((problem) => ({
               id: problem.id,
               type: problem.type,
@@ -207,9 +143,40 @@ export default async function OrganizerProblemBankDetailPage({ params }: PagePro
           />
         </div>
 
+        {/* Bottom Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 flex items-center gap-6 shadow-sm">
+            <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-[#10182b] shrink-0">
+              <BookOpen className="w-7 h-7" />
+            </div>
+            <div>
+              <div className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-1">
+                Total Problems
+              </div>
+              <div className="text-[32px] font-black text-[#10182b] leading-none">
+                {problems.length}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 flex items-center gap-6 shadow-sm">
+            <div className="w-16 h-16 rounded-2xl bg-[#f49700]/10 border border-[#f49700]/20 flex items-center justify-center text-[#e08900] shrink-0">
+              <TrendingUp className="w-7 h-7" />
+            </div>
+            <div>
+              <div className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-1">
+                Avg. Difficulty
+              </div>
+              <div className="text-[32px] font-black text-[#10182b] leading-none">
+                {avgDifficultyLabel}
+              </div>
+            </div>
+          </div>
+
+        </div>
+
       </div>
     </div>
   );
 }
-
-
