@@ -14,7 +14,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/mathlete" },
-  { label: "Competitions", href: "/mathlete#competitions" },
+  { label: "Competitions", href: "/mathlete/competition" },
   { label: "Teams", href: "/mathlete/teams" },
   { label: "History", href: "/mathlete#history" },
 ];
