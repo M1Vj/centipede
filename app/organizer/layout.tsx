@@ -1,5 +1,5 @@
 import { ProgressLink } from "@/components/ui/progress-link";
-import { WorkspaceMobileNav } from "@/components/navigation/workspace-mobile-nav";
+import { OrganizerNav } from "@/components/organizer/organizer-nav";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function OrganizerLayout({
@@ -20,46 +20,20 @@ export default async function OrganizerLayout({
     isOrganizer = profile?.role === "organizer";
   }
   
-  // Decide which navigation items to show based on login status
-  const navItems = user 
-    ? [
-        { href: "/organizer", label: "Dashboard" },
-        ...(isOrganizer
-          ? [
-              { href: "/organizer/problem-bank", label: "Problem Banks" },
-              { href: "/organizer/competition", label: "Competitions" },
-            ]
-          : []),
-        { href: "/organizer/profile", label: "Profile" },
-        { href: "/organizer/settings", label: "Settings" },
-      ]
-    : [
-        { href: "/organizer/apply", label: "Apply" },
-        { href: "/organizer/status", label: "Status" },
-      ];
-
   return (
-    <div className="min-h-screen bg-muted/20">
-      <header className="border-b bg-background/95 backdrop-blur">
-        <div className="shell py-3">
-          <div className="hidden min-h-16 items-center justify-between gap-4 md:flex">
-            <ProgressLink href="/organizer" className="text-sm font-bold uppercase tracking-widest text-foreground">
+    <div className="organizer-shell min-h-screen">
+      <header className="sticky top-0 z-40 border-b border-border/50 bg-background/70 px-4 py-4 backdrop-blur-xl">
+        <div className="shell relative flex items-center justify-between gap-4 rounded-[1.75rem] border border-border/70 bg-[#111827]/95 px-4 py-3 text-white shadow-[0_24px_80px_-44px_rgba(15,23,42,0.8)]">
+          <ProgressLink
+            href="/organizer"
+            className="flex items-center gap-3 rounded-full px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827]"
+          >
+            <span className="text-lg font-black tracking-tight text-white">MathWiz</span>
+            <span className="organizer-kicker border-white/10 bg-white/5 text-[#f9c96a]">
               Organizer
-            </ProgressLink>
-            <nav className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-              {navItems.map((item) => (
-                <ProgressLink key={item.href} href={item.href} className="rounded-md px-2 py-1 font-medium hover:bg-muted hover:text-foreground">
-                  {item.label}
-                </ProgressLink>
-              ))}
-            </nav>
-          </div>
-
-          <WorkspaceMobileNav
-            title="Organizer"
-            homeHref="/organizer"
-            items={navItems}
-          />
+            </span>
+          </ProgressLink>
+          <OrganizerNav isOrganizer={isOrganizer} isAuthenticated={Boolean(user)} />
         </div>
       </header>
       {children}

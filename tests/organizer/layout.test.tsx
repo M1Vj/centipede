@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { render, screen, within } from "@testing-library/react";
-import { type ReactNode } from "react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { type AnchorHTMLAttributes, type ReactNode } from "react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import OrganizerLayout from "@/app/organizer/layout";
 import { createClient } from "@/lib/supabase/server";
@@ -15,14 +15,29 @@ vi.mock("@/components/ui/progress-link", () => ({
     children,
     className,
     href,
+    ...props
   }: {
     children: ReactNode;
     className?: string;
     href: string;
-  }) => (
-    <a href={href} className={className}>
+  } & AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a href={href} className={className} {...props}>
       {children}
     </a>
+  ),
+}));
+
+vi.mock("@/components/logout-button", () => ({
+  LogoutButton: ({
+    className,
+    label = "Logout",
+  }: {
+    className?: string;
+    label?: string;
+  }) => (
+    <button type="button" className={className}>
+      {label}
+    </button>
   ),
 }));
 
@@ -68,20 +83,22 @@ describe("organizer layout navigation", () => {
       }),
     );
 
-    const nav = screen.getByRole("navigation");
-    expect(nav).toHaveClass("gap-x-3");
-    expect(nav).toHaveClass("gap-y-1");
+    const nav = screen.getByRole("navigation", { name: "Organizer navigation" });
+    expect(nav).toHaveClass("md:flex");
+    expect(nav).toHaveClass("gap-2");
     expect(screen.getByRole("button", { name: "Open organizer navigation" })).toBeInTheDocument();
 
-    for (const label of ["Dashboard", "Problem Banks", "Competitions", "Profile", "Settings"]) {
+    for (const label of ["Dashboard", "Problem Banks", "Competitions", "Scoring"]) {
       expect(within(nav).getByRole("link", { name: label })).toBeInTheDocument();
     }
 
     for (const link of within(nav).getAllByRole("link")) {
-      expect(link).toHaveClass("px-2");
-      expect(link).toHaveClass("py-1");
+      expect(link).toHaveClass("organizer-nav-chip");
     }
 
+    fireEvent.click(screen.getByRole("button", { name: "Open organizer profile menu" }));
+    expect(screen.getByRole("menuitem", { name: "Profile" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Settings" })).toBeInTheDocument();
     expect(client.mocks.from).toHaveBeenCalledWith("profiles");
   });
 
@@ -95,7 +112,7 @@ describe("organizer layout navigation", () => {
       }),
     );
 
-    const nav = screen.getByRole("navigation");
+    const nav = screen.getByRole("navigation", { name: "Organizer navigation" });
     expect(within(nav).getByRole("link", { name: "Apply" })).toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Status" })).toBeInTheDocument();
     expect(within(nav).queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();

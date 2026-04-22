@@ -1,11 +1,15 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { useFeedbackRouter } from "@/hooks/use-feedback-router";
 import { useState } from "react";
 
-export function LogoutButton() {
+type LogoutButtonProps = Omit<ButtonProps, "children" | "onClick" | "pending" | "pendingText"> & {
+  label?: string;
+};
+
+export function LogoutButton({ label = "Logout", ...props }: LogoutButtonProps) {
   const feedbackRouter = useFeedbackRouter();
   const [isPending, setIsPending] = useState(false);
 
@@ -22,8 +26,8 @@ export function LogoutButton() {
   };
 
   return (
-    <Button onClick={() => void logout()} pending={isPending} pendingText="Logging out...">
-      Logout
+    <Button onClick={() => void logout()} pending={isPending} pendingText="Logging out..." {...props}>
+      {label}
     </Button>
   );
 }
