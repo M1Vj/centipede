@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getTeamRosterLock } from "@/lib/teams/guards";
 import {
   normalizeTeamMemberProfile,
   normalizeTeamMembershipRow,
@@ -21,6 +22,12 @@ type ProfileRow = {
   full_name: string | null;
   school: string | null;
   grade_level: string | null;
+};
+
+type CompetitionRow = {
+  id: string;
+  name: string | null;
+  start_time: string | null;
 };
 
 type MemberRecord = NonNullable<ReturnType<typeof normalizeTeamMembershipRow>>;
@@ -72,8 +79,41 @@ export async function GET(_: Request, context: RouteContext) {
 
   const admin = createAdminClient();
   let members: Array<MemberRecord & { profile: MemberProfile | null }> = [];
+  let rosterLock = {
+    locked: false,
+    competitionId: null as string | null,
+    competitionName: null as string | null,
+    competitionStartTime: null as string | null,
+  };
 
   if (admin) {
+    const lock = await getTeamRosterLock(admin, teamId);
+    rosterLock = {
+      locked: lock.locked,
+      competitionId: lock.competitionId,
+      competitionName: null,
+      competitionStartTime: null,
+    };
+
+    if (lock.competitionId) {
+      const { data: competitionRow, error: competitionError } = await admin
+        .from("competitions")
+        .select("id, name, start_time")
+        .eq("id", lock.competitionId)
+        .maybeSingle()
+        .returns<CompetitionRow | null>();
+
+      if (competitionError) {
+        return jsonDatabaseError(competitionError);
+      }
+
+      rosterLock = {
+        ...rosterLock,
+        competitionName: competitionRow?.name ?? null,
+        competitionStartTime: competitionRow?.start_time ?? null,
+      };
+    }
+
     const { data: memberRows, error: memberError } = await admin
       .from("team_memberships")
       .select("id, team_id, profile_id, role, joined_at, left_at, is_active")
@@ -135,5 +175,6 @@ export async function GET(_: Request, context: RouteContext) {
     team,
     membership,
     members,
+    rosterLock,
   });
 }
