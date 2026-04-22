@@ -1,7 +1,6 @@
 import { CalendarClock, CirclePlus, Trophy } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ProgressLink } from "@/components/ui/progress-link";
+import { CompetitionCardGrid } from "@/components/organizer/competition-card-grid";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -10,19 +9,6 @@ import {
   isLegacyCompetitionSelectError,
   normalizeCompetitionRecord,
 } from "@/lib/competition/api";
-import type { CompetitionRecord } from "@/lib/competition/types";
-
-function statusBadgeVariant(status: CompetitionRecord["status"]) {
-  if (status === "draft") {
-    return "secondary" as const;
-  }
-
-  if (status === "archived") {
-    return "outline" as const;
-  }
-
-  return "default" as const;
-}
 
 export default async function OrganizerCompetitionPage() {
   const { profile } = await getWorkspaceContext({ requireRole: "organizer" });
@@ -49,7 +35,7 @@ export default async function OrganizerCompetitionPage() {
   const competitions = !error
     ? (data ?? [])
         .map((row) => normalizeCompetitionRecord(row))
-        .filter((row): row is CompetitionRecord => row !== null)
+        .filter((row): row is NonNullable<ReturnType<typeof normalizeCompetitionRecord>> => row !== null)
     : [];
 
   const counts = competitions.reduce(
@@ -68,136 +54,63 @@ export default async function OrganizerCompetitionPage() {
   );
 
   return (
-    <section className="shell py-12 space-y-8">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-        <Card className="surface-card overflow-hidden border-border/60">
-          <CardHeader>
-            <div className="eyebrow">Organizer Competitions</div>
-            <CardTitle className="mt-6 text-4xl">Competition workspace</CardTitle>
-            <CardDescription className="max-w-2xl text-base leading-7">
-              Create drafts, shape schedule and format, then publish with frozen snapshots and guarded lifecycle controls.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Drafts</p>
-                <p className="mt-2 text-3xl font-semibold text-foreground">{counts.draft}</p>
-              </div>
-              <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Live</p>
-                <p className="mt-2 text-3xl font-semibold text-foreground">{counts.live + counts.published + counts.paused}</p>
-              </div>
-              <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Archived</p>
-                <p className="mt-2 text-3xl font-semibold text-foreground">{counts.archived}</p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 rounded-[1.5rem] border border-primary/15 bg-primary/5 p-5">
-              <CalendarClock className="size-5 text-primary" />
-              <p className="text-sm leading-6 text-foreground">
-                Drafts save incrementally. Publish freezes scoring and selected problem snapshots.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60 bg-background/70 shadow-sm">
-          <CardContent className="flex h-full flex-col justify-between gap-4 p-5">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">New draft</p>
-              <p className="mt-3 text-lg font-semibold text-foreground">Start a competition wizard</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Create a new draft, define schedule and format, then continue into problems and scoring.
-              </p>
-            </div>
-
-            <ProgressLink
-              href="/organizer/competition/create"
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90"
-            >
-              <CirclePlus className="size-4" />
-              Create competition
-            </ProgressLink>
-          </CardContent>
-        </Card>
-      </div>
-
-      {error ? (
-        <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="p-5 text-sm text-destructive">
-            Unable to load competitions.
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-2xl font-semibold tracking-tight">Your competitions</h2>
-          <Badge variant="outline">{competitions.length} total</Badge>
+    <section className="organizer-shell flex w-full justify-center px-4">
+      <div className="shell flex w-full max-w-[1024px] flex-col pb-12 pt-8 md:pt-10 font-['Poppins'] space-y-8">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <span className="organizer-kicker mb-3">Organizer / competitions</span>
+            <h1 className="mb-2 text-3xl font-black leading-tight tracking-tight text-foreground md:text-[34px]">
+              Competition Dashboard
+            </h1>
+            <p className="text-[15px] font-medium text-foreground/60">
+              Overview of your active and upcoming mathematical events.
+            </p>
+          </div>
+          <ProgressLink href="/organizer/competition/create" className="organizer-action self-start no-underline md:self-auto">
+            <CirclePlus className="size-5" />
+            Create New Competition
+          </ProgressLink>
         </div>
 
-        {competitions.length === 0 ? (
-          <Card className="border-dashed border-border/70 bg-muted/20">
-            <CardContent className="flex flex-col items-start gap-4 p-6">
-              <Trophy className="size-5 text-muted-foreground" />
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-foreground">No competitions yet</p>
-                <p className="text-sm text-muted-foreground">
-                  Create the first draft and start building schedule, problem selection, and scoring.
+        {error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
+            Unable to load competitions. Please try again later.
+          </div>
+        ) : null}
+
+        {!error && competitions.length === 0 ? (
+          <div className="organizer-panel organizer-panel-soft flex flex-col items-center justify-center py-20 text-center">
+            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-secondary text-foreground/35">
+              <Trophy className="size-9" />
+            </div>
+            <h2 className="mb-2 text-xl font-bold text-foreground">No competitions yet</h2>
+            <p className="mb-6 max-w-md text-[14px] text-foreground/55">
+              Create your first competition to begin schedule setup, problem selection, and scoring configuration.
+            </p>
+            <ProgressLink href="/organizer/competition/create" className="organizer-action no-underline">
+              <CirclePlus className="size-5" />
+              Create Draft
+            </ProgressLink>
+          </div>
+        ) : null}
+
+        {!error && competitions.length > 0 ? (
+          <div className="space-y-4">
+            <div className="organizer-panel flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground/45">Competition overview</p>
+                <p className="mt-1 text-sm text-foreground/60">
+                  {counts.draft} drafts, {counts.live + counts.published + counts.paused} active, {counts.archived} archived.
                 </p>
               </div>
-              <ProgressLink
-                href="/organizer/competition/create"
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90"
-              >
-                <CirclePlus className="size-4" />
-                Create draft
-              </ProgressLink>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
-            {competitions.map((competition) => (
-              <Card key={competition.id} className="border-border/60 bg-background/90 shadow-sm transition-shadow hover:shadow-md">
-                <CardHeader>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={statusBadgeVariant(competition.status)}>{competition.status}</Badge>
-                    <Badge variant="outline">{competition.type}</Badge>
-                    <Badge variant="outline">{competition.format}</Badge>
-                  </div>
-                  <CardTitle className="line-clamp-1 text-xl">{competition.name || "Untitled competition"}</CardTitle>
-                  <CardDescription className="line-clamp-2 min-h-10">
-                    {competition.description || "No description provided."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-xl border border-border/60 bg-muted/15 p-3 text-sm">
-                      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Revision</p>
-                      <p className="mt-2 font-medium text-foreground">{competition.draftRevision}</p>
-                    </div>
-                    <div className="rounded-xl border border-border/60 bg-muted/15 p-3 text-sm">
-                      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Updated</p>
-                      <p className="mt-2 font-medium text-foreground">{new Date(competition.updatedAt).toLocaleString()}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs text-muted-foreground">Answer key: {competition.answerKeyVisibility}</p>
-                    <ProgressLink
-                      href={`/organizer/competition/${competition.id}`}
-                      className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
-                    >
-                      Open wizard
-                    </ProgressLink>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+              <div className="flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-2 text-sm text-foreground/65">
+                <CalendarClock className="size-4 text-primary" />
+                Drafts save incrementally
+              </div>
+            </div>
+            <CompetitionCardGrid competitions={competitions} />
           </div>
-        )}
+        ) : null}
       </div>
     </section>
   );
