@@ -1415,7 +1415,9 @@ export function CompetitionWizard({
                     {groupedVisibleProblems.map((group) => {
                       const bankProblemIds = group.problems.map((problem) => problem.id);
                       const selectedInBank = group.problems.filter((problem) => selectedProblemSet.has(problem.id)).length;
-                      const expanded = expandedBankIds[group.bankId] ?? (selectedInBank < group.problems.length);
+                      const expanded =
+                        expandedBankIds[group.bankId] ??
+                        group.bankId === groupedVisibleProblems[0]?.bankId;
 
                       return (
                         <div key={group.bankId} className="rounded-xl border border-border/60 bg-background/60 p-3">
@@ -1424,7 +1426,18 @@ export function CompetitionWizard({
                               type="button"
                               variant="ghost"
                               className="h-auto flex-1 justify-start px-0 py-0 text-left"
-                              onClick={() => setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: !expanded }))}
+                              onClick={() =>
+                                setExpandedBankIds((prev) => {
+                                  const next: Record<string, boolean> = {};
+
+                                  for (const visibleGroup of groupedVisibleProblems) {
+                                    next[visibleGroup.bankId] = false;
+                                  }
+
+                                  next[group.bankId] = !expanded;
+                                  return { ...prev, ...next };
+                                })
+                              }
                             >
                               <div className="space-y-1">
                                 <p className="text-sm font-semibold text-foreground">{group.bankName}</p>
@@ -1453,7 +1466,12 @@ export function CompetitionWizard({
                                 size="sm"
                                 onClick={() => {
                                   removeProblemIds(bankProblemIds);
-                                  setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: true }));
+                                  const next: Record<string, boolean> = {};
+                                  for (const visibleGroup of groupedVisibleProblems) {
+                                    next[visibleGroup.bankId] = false;
+                                  }
+                                  next[group.bankId] = true;
+                                  setExpandedBankIds((prev) => ({ ...prev, ...next }));
                                 }}
                                 disabled={!isEditable || bankProblemIds.length === 0}
                               >
@@ -1463,7 +1481,18 @@ export function CompetitionWizard({
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: !expanded }))}
+                                onClick={() =>
+                                  setExpandedBankIds((prev) => {
+                                    const next: Record<string, boolean> = {};
+
+                                    for (const visibleGroup of groupedVisibleProblems) {
+                                      next[visibleGroup.bankId] = false;
+                                    }
+
+                                    next[group.bankId] = !expanded;
+                                    return { ...prev, ...next };
+                                  })
+                                }
                                 aria-label={expanded ? "Collapse bank" : "Expand bank"}
                               >
                                 {expanded ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
