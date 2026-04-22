@@ -211,16 +211,6 @@ export function SignUpForm({
         <GoogleMark />
         Continue with Google
       </Button>
-
-      <p className="text-center text-sm text-slate-500">
-        Already have an account?{" "}
-        <ProgressLink
-          href="/auth/login"
-          className="font-bold text-[#0f172a] underline-offset-4 hover:text-[#f49700] hover:underline"
-        >
-          Log in
-        </ProgressLink>
-      </p>
     </div>
   );
 }

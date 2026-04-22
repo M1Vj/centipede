@@ -26,12 +26,12 @@ export function AuthField({
       <Label htmlFor={id} className="sr-only">
         {label}
       </Label>
-      <div className="flex min-h-[3.75rem] items-center border border-slate-200 border-b-[2px] bg-white px-3 text-slate-400 transition focus-within:border-[#f49700] focus-within:text-[#f49700]">
+      <div className="flex min-h-[3rem] items-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-slate-400 transition-all duration-200 focus-within:border-[#F49700] focus-within:text-[#F49700] focus-within:shadow-[0_0_0_3px_rgba(244,151,0,0.1)] hover:border-slate-300">
         <span className="mr-3 shrink-0">{icon}</span>
         <Input
           id={id}
           type={type}
-          className="h-auto border-0 bg-transparent px-0 py-0 text-base text-[#0f172a] shadow-none placeholder:text-slate-400 focus-visible:ring-0"
+          className="h-auto border-0 bg-transparent px-0 py-0 text-base text-[#1A1E2E] shadow-none selection:bg-[#F49700]/20 selection:text-[#1A1E2E] placeholder:text-slate-400 autofill:shadow-[inset_0_0_0px_1000px_white] autofill:[-webkit-text-fill-color:#1A1E2E] focus-visible:ring-0"
           {...props}
         />
         {trailing ? <span className="ml-3 shrink-0 text-slate-400">{trailing}</span> : null}
@@ -44,7 +44,7 @@ export function AuthDivider() {
   return (
     <div className="relative flex items-center justify-center text-sm text-slate-400">
       <span className="absolute inset-x-0 h-px bg-slate-200" aria-hidden="true" />
-      <span className="relative bg-white px-4">Or continue with</span>
+      <span className="relative bg-[#FAFAFB] px-4 text-xs font-medium uppercase tracking-wider">Or continue with</span>
     </div>
   );
 }

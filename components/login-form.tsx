@@ -20,7 +20,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
-import { Spinner } from "@/components/ui/spinner";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getErrorMessage } from "@/lib/errors";
 
@@ -287,32 +286,25 @@ export function LoginForm({
         Continue with Google
       </Button>
 
-      <p className="text-center text-sm text-slate-500">
-        Don&apos;t have an account?{" "}
-        <ProgressLink
-          href="/auth/sign-up"
-          className="font-bold text-[#0f172a] underline-offset-4 hover:text-[#f49700] hover:underline"
-        >
-          Start free trial
-        </ProgressLink>
-      </p>
-
       <Dialog open={pendingAction === "email"}>
         <DialogContent
           showCloseButton={false}
-          className="w-full max-w-sm border-border/70 bg-background/95 p-8"
+          className="w-full max-w-sm overflow-hidden rounded-2xl border border-white/[0.08] bg-[#1A1E2E] p-0 shadow-[0_40px_100px_-40px_rgba(0,0,0,0.6)]"
           onEscapeKeyDown={(event) => event.preventDefault()}
           onPointerDownOutside={(event) => event.preventDefault()}
           onInteractOutside={(event) => event.preventDefault()}
         >
-          <div className="flex flex-col items-center justify-center gap-4 text-center">
-            <div className="flex size-14 items-center justify-center rounded-full bg-muted">
-              <Spinner className="size-6 text-primary" />
+          <div className="flex flex-col items-center justify-center gap-5 px-8 py-10 text-center">
+            <div className="relative flex size-16 items-center justify-center">
+              <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-transparent border-t-[#F49700]" />
+              <img src="/mathwiz-logo.svg" alt="" className="h-9 w-9 object-contain" aria-hidden="true" />
             </div>
-            <DialogTitle>Signing in</DialogTitle>
-            <DialogDescription>
-              Please wait while we verify your credentials and sign you in.
-            </DialogDescription>
+            <div>
+              <DialogTitle className="text-lg font-bold text-white">Signing in</DialogTitle>
+              <DialogDescription className="mt-2 text-sm text-slate-400">
+                Please wait while we verify your credentials and sign you in.
+              </DialogDescription>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
