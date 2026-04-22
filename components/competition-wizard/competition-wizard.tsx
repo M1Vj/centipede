@@ -4,6 +4,8 @@ import { useDeferredValue, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   ArrowUp,
   CheckCircle2,
   Clock3,
@@ -42,6 +44,26 @@ const WIZARD_STEPS: Array<{ id: CompetitionWizardStep; title: string; descriptio
   { id: "scoring", title: "Scoring", description: "Attempts, penalties, and anti-cheat." },
   { id: "review", title: "Review", description: "Check state before create or publish." },
 ];
+
+const STEP_PROGRESS_CONFIG: Record<CompetitionWizardStep, { visualStep: number; totalSteps: number; percentage: number; title: string; description: string }> = {
+  overview: { visualStep: 1, totalSteps: 5, percentage: 20, title: "Competition Overview", description: "Define the name, rules, and instructions for your competition." },
+  schedule: { visualStep: 2, totalSteps: 5, percentage: 40, title: "Format & Schedule", description: "Configure competition type, timing, and participant format." },
+  format: { visualStep: 2, totalSteps: 5, percentage: 40, title: "Format & Schedule", description: "Configure competition type, timing, and participant format." },
+  problems: { visualStep: 3, totalSteps: 5, percentage: 60, title: "Competition Problems", description: "Select, search, and order problems before publish." },
+  scoring: { visualStep: 4, totalSteps: 5, percentage: 80, title: "Competition Scoring", description: "Define scoring rules, penalties, and anti-cheat policies." },
+  review: { visualStep: 5, totalSteps: 5, percentage: 99, title: "Competition Review", description: "Review all settings and publish your competition." },
+};
+
+const STEP_ORDER: CompetitionWizardStep[] = ["overview", "schedule", "format", "problems", "scoring", "review"];
+
+function getStepNavigation(currentStep: CompetitionWizardStep) {
+  const currentIndex = STEP_ORDER.indexOf(currentStep);
+  const prevStep = currentIndex > 0 ? STEP_ORDER[currentIndex - 1] : null;
+  const nextStep = currentIndex < STEP_ORDER.length - 1 ? STEP_ORDER[currentIndex + 1] : null;
+  const nextLabel = nextStep ? WIZARD_STEPS.find(s => s.id === nextStep)?.title ?? "Next" : null;
+  const prevLabel = prevStep ? WIZARD_STEPS.find(s => s.id === prevStep)?.title ?? "Back" : null;
+  return { prevStep, nextStep, nextLabel, prevLabel };
+}
 
 function createFormErrorLookup(errors: { field: string; reason: string }[]) {
   return new Map(errors.map((error) => [error.field, error.reason]));
@@ -808,149 +830,162 @@ export function CompetitionWizard({
     ["Answer key visibility", draftState.answerKeyVisibility],
   ] as const;
 
+  const stepProgress = STEP_PROGRESS_CONFIG[activeStep];
+  const stepNav = getStepNavigation(activeStep);
+
   return (
     <div className="grid gap-8 2xl:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.88fr)]">
       <div className="min-w-0 space-y-6">
-        <Card className="surface-card border-border/60">
-          <CardHeader className="space-y-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-2">
-                <div className="eyebrow">Competition Wizard</div>
-                <CardTitle className="text-4xl">
-                  {mode === "create" ? "Create competition draft" : draftState.name || "Edit competition draft"}
-                </CardTitle>
-                <CardDescription className="max-w-2xl text-base leading-7">
-                  Build draft, select problems, tune scoring, and lock publish-safe snapshots without mutating live records.
-                </CardDescription>
+        {/* Step Progress Card */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm w-full">
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <div className="text-[#f49700] text-[13px] font-black uppercase tracking-wider mb-2">
+                Step {stepProgress.visualStep} of {stepProgress.totalSteps}
               </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={competitionStatus === "draft" ? "secondary" : "outline"}>
-                  {competitionStatusLabel(competitionStatus)}
-                </Badge>
-                <Badge variant="outline">Revision {draftRevision}</Badge>
-                {draftState.type === "scheduled" ? (
-                  <Badge variant="outline">Scheduled</Badge>
-                ) : (
-                  <Badge variant="outline">Open</Badge>
-                )}
+              <h1 className="text-[28px] md:text-[32px] font-black text-[#10182b] leading-tight">
+                {stepProgress.title}
+              </h1>
+            </div>
+            <div className="text-right">
+              <div className="text-[28px] font-black text-[#10182b] leading-none mb-1">
+                {stepProgress.percentage}%
+              </div>
+              <div className="text-slate-400 text-[12px] font-bold uppercase tracking-wider">
+                Completed
               </div>
             </div>
+          </div>
+          <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden mb-6">
+            <div
+              className="bg-[#f49700] h-full rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(244,151,0,0.4)]"
+              style={{ width: `${stepProgress.percentage}%` }}
+            />
+          </div>
+          <p className="text-slate-500 font-medium text-[15px]">
+            {stepProgress.description}
+          </p>
 
-            <div className="flex flex-wrap gap-2">
-              {WIZARD_STEPS.map((step) => (
-                <Button
-                  key={step.id}
+          {/* Step Navigation Dots */}
+          <div className="flex items-center gap-2 mt-6">
+            {STEP_ORDER.map((stepId) => {
+              const isActive = stepId === activeStep || (activeStep === "format" && stepId === "schedule") || (activeStep === "schedule" && stepId === "format");
+              const step = WIZARD_STEPS.find(s => s.id === stepId);
+              // Skip duplicate visual step (format is combined with schedule)
+              if (stepId === "format") return null;
+              return (
+                <button
+                  key={stepId}
                   type="button"
-                  variant={activeStep === step.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setActiveStep(step.id)}
+                  onClick={() => setActiveStep(stepId)}
+                  className={cn(
+                    "px-4 py-2 rounded-full text-[13px] font-bold transition-all",
+                    isActive
+                      ? "bg-[#10182b] text-white shadow-md"
+                      : "bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-[#10182b]"
+                  )}
                 >
-                  {step.title}
-                </Button>
-              ))}
-            </div>
-          </CardHeader>
-        </Card>
+                  {step?.title ?? stepId}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {mode === "edit" && !isEditable ? (
-          <Card className="border-amber-300/60 bg-amber-50/80 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
-            <CardContent className="flex gap-3 p-4 text-sm text-amber-950 dark:text-amber-100">
-              <Info className="mt-0.5 size-4 shrink-0" />
-              <div className="space-y-1">
-                <p className="font-semibold">This competition is read-only now.</p>
-                <p>
-                  Drafts can still be edited. Published, live, ended, and archived competitions keep frozen problem
-                  and scoring snapshots.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="bg-[#f49700]/10 rounded-2xl border border-[#f49700]/20 p-5 flex items-start gap-3">
+            <Info className="mt-0.5 w-5 h-5 shrink-0 text-[#f49700]" />
+            <div className="flex flex-col gap-1">
+              <span className="text-[#10182b] font-bold text-[14px]">This competition is read-only now.</span>
+              <span className="text-slate-600 text-[13px] font-medium leading-relaxed">
+                Drafts can still be edited. Published, live, ended, and archived competitions keep frozen problem
+                and scoring snapshots.
+              </span>
+            </div>
+          </div>
         ) : null}
 
-        <section id="overview" className="scroll-mt-24 space-y-4">
-          <Card className="border-border/60 bg-background/90 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl">Overview</CardTitle>
-              <CardDescription>Competition identity and rules instructions.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2 md:col-span-2">
-                  <Label htmlFor="competition-name">Competition name</Label>
+        {activeStep === "overview" && (
+        <section id="overview" className="scroll-mt-24 space-y-6">
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
+            <h2 className="text-[#10182b] font-black text-[18px] mb-1">Competition Overview</h2>
+            <p className="text-slate-500 text-[13px] font-medium mb-6">Define the name, rules, and instructions for your competition.</p>
+            <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="competition-name" className="text-[#10182b] font-bold text-[14px]">Competition name</label>
                   <Input
                     id="competition-name"
                     value={draftState.name}
                     onChange={(event) => updateDraft("name", event.target.value)}
                     aria-invalid={Boolean(formErrorLookup.get("name"))}
                     disabled={!isEditable && mode === "edit"}
+                    className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
                   />
                   {formErrorLookup.get("name") ? (
-                    <p className="text-xs text-destructive">{formErrorLookup.get("name")}</p>
+                    <p className="text-red-500 text-[12px] font-bold">{formErrorLookup.get("name")}</p>
                   ) : null}
                 </div>
 
-                <div className="grid gap-2 md:col-span-2">
-                  <Label htmlFor="competition-description">Description</Label>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="competition-description" className="text-[#10182b] font-bold text-[14px]">Description</label>
                   <textarea
                     id="competition-description"
                     value={draftState.description}
                     onChange={(event) => updateDraft("description", event.target.value)}
-                    className="min-h-28 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="w-full min-h-28 bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all resize-y"
                     aria-invalid={Boolean(formErrorLookup.get("description"))}
                     disabled={!isEditable && mode === "edit"}
                   />
                   {formErrorLookup.get("description") ? (
-                    <p className="text-xs text-destructive">{formErrorLookup.get("description")}</p>
+                    <p className="text-red-500 text-[12px] font-bold">{formErrorLookup.get("description")}</p>
                   ) : null}
                 </div>
 
-                <div className="grid gap-2 md:col-span-2">
-                  <Label htmlFor="competition-instructions">Rules and instructions</Label>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="competition-instructions" className="text-[#10182b] font-bold text-[14px]">Rules and instructions</label>
                   <textarea
                     id="competition-instructions"
                     value={draftState.instructions}
                     onChange={(event) => updateDraft("instructions", event.target.value)}
-                    className="min-h-36 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="w-full min-h-36 bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all resize-y"
                     aria-invalid={Boolean(formErrorLookup.get("instructions"))}
                     disabled={!isEditable && mode === "edit"}
                   />
                   {formErrorLookup.get("instructions") ? (
-                    <p className="text-xs text-destructive">{formErrorLookup.get("instructions")}</p>
+                    <p className="text-red-500 text-[12px] font-bold">{formErrorLookup.get("instructions")}</p>
                   ) : null}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </div>
         </section>
+        )}
 
-        <section id="schedule" className="scroll-mt-24 space-y-4">
-          <Card className="border-border/60 bg-background/90 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl">Schedule</CardTitle>
-              <CardDescription>Choose competition type, timing, and registration windows.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="competition-type">Competition type</Label>
+        {(activeStep === "schedule" || activeStep === "format") && (
+        <>
+        <section id="schedule" className="scroll-mt-24 space-y-6">
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
+            <h2 className="text-[#10182b] font-black text-[18px] mb-1">Schedule & Timing</h2>
+            <p className="text-slate-500 text-[13px] font-medium mb-6">Choose competition type, timing, and registration windows.</p>
+            <div className="grid gap-6 md:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="competition-type" className="text-[#10182b] font-bold text-[14px]">Competition type</label>
                   <select
                     id="competition-type"
                     value={draftState.type}
                     onChange={(event) => setCompetitionType(event.target.value === "open" ? "open" : "scheduled")}
-                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    className="appearance-none w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all"
                     disabled={!isEditable && mode === "edit"}
                   >
                     <option value="scheduled">Scheduled</option>
                     <option value="open">Open</option>
                   </select>
                   {formErrorLookup.get("type") ? (
-                    <p className="text-xs text-destructive">{formErrorLookup.get("type")}</p>
+                    <p className="text-red-500 text-[12px] font-bold">{formErrorLookup.get("type")}</p>
                   ) : null}
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="competition-duration">Duration minutes</Label>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="competition-duration" className="text-[#10182b] font-bold text-[14px]">Duration (Min)</label>
                   <Input
                     id="competition-duration"
                     type="number"
@@ -958,19 +993,20 @@ export function CompetitionWizard({
                     value={draftState.durationMinutes}
                     onChange={(event) => updateDraft("durationMinutes", Number.parseInt(event.target.value, 10) || 1)}
                     disabled={!isEditable && mode === "edit"}
+                    className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
                   />
                 </div>
 
                 {draftState.type === "scheduled" ? (
-                  <div className="grid gap-2 md:col-span-2">
-                    <Label htmlFor="registration-timing-mode">Registration timing</Label>
+                  <div className="flex flex-col gap-2 md:col-span-2">
+                    <label htmlFor="registration-timing-mode" className="text-[#10182b] font-bold text-[14px]">Registration timing</label>
                     <select
                       id="registration-timing-mode"
                       value={draftState.registrationTimingMode}
                       onChange={(event) =>
                         setRegistrationTimingMode(event.target.value === "manual" ? "manual" : "default")
                       }
-                      className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                      className="appearance-none w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all"
                       disabled={!isEditable && mode === "edit"}
                     >
                       <option value="default">Default: open until competition start</option>
@@ -979,8 +1015,8 @@ export function CompetitionWizard({
                   </div>
                 ) : null}
 
-                <div className="grid gap-2">
-                  <Label htmlFor="registration-start">Registration start</Label>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="registration-start" className="text-[#10182b] font-bold text-[14px]">Registration start</label>
                   <Input
                     id="registration-start"
                     type="datetime-local"
@@ -991,11 +1027,12 @@ export function CompetitionWizard({
                       draftState.registrationTimingMode !== "manual" ||
                       (!isEditable && mode === "edit")
                     }
+                    className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
                   />
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="registration-end">Registration end</Label>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="registration-end" className="text-[#10182b] font-bold text-[14px]">Registration end</label>
                   <Input
                     id="registration-end"
                     type="datetime-local"
@@ -1006,27 +1043,29 @@ export function CompetitionWizard({
                       draftState.registrationTimingMode !== "manual" ||
                       (!isEditable && mode === "edit")
                     }
+                    className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
                   />
                   {draftState.type === "scheduled" && draftState.registrationTimingMode === "default" ? (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-slate-400 text-[12px] font-medium">
                       Default mode keeps registration open until competition start.
                     </p>
                   ) : null}
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="competition-start">Competition start</Label>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="competition-start" className="text-[#10182b] font-bold text-[14px]">Competition start</label>
                   <Input
                     id="competition-start"
                     type="datetime-local"
                     value={draftState.startTime}
                     onChange={(event) => updateDraft("startTime", event.target.value)}
                     disabled={draftState.type !== "scheduled" || (!isEditable && mode === "edit")}
+                    className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
                   />
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="competition-end">Competition end</Label>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="competition-end" className="text-[#10182b] font-bold text-[14px]">Competition end</label>
                   <Input
                     id="competition-end"
                     type="datetime-local"
@@ -1034,86 +1073,72 @@ export function CompetitionWizard({
                     readOnly
                     disabled={draftState.type !== "scheduled" || (!isEditable && mode === "edit")}
                     placeholder="Set start and duration to compute end"
+                    className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
                   />
                   {draftState.type === "scheduled" ? (
-                    <p className="text-xs text-muted-foreground">Computed from competition start plus duration.</p>
+                    <p className="text-slate-400 text-[12px] font-medium">Computed from competition start plus duration.</p>
                   ) : null}
                 </div>
               </div>
 
               {scheduleErrors.length > 0 ? (
-                <Card className="border-amber-300/60 bg-amber-50/80 shadow-none dark:border-amber-900/60 dark:bg-amber-950/20">
-                  <CardContent className="p-4">
-                    <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
-                      Schedule needs attention before save or publish.
-                    </p>
-                    <ul className="mt-2 space-y-1 text-sm text-amber-900 dark:text-amber-200">
-                      {scheduleErrors.map((error) => (
-                        <li key={`${error.field}:${error.reason}`}>{error.reason}</li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
+                <div className="mt-6 bg-amber-50 rounded-2xl border border-amber-200 p-5">
+                  <p className="text-[#10182b] font-bold text-[14px]">Schedule needs attention before save or publish.</p>
+                  <ul className="mt-2 space-y-1 text-amber-900 text-[13px] font-medium list-disc pl-4">
+                    {scheduleErrors.map((error) => (
+                      <li key={`${error.field}:${error.reason}`}>{error.reason}</li>
+                    ))}
+                  </ul>
+                </div>
               ) : null}
 
-              <div className="rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
-                {draftState.type === "scheduled"
-                  ? draftState.registrationTimingMode === "manual"
-                    ? "Manual mode requires explicit registration start and end. Registration must close at or before competition start."
-                    : "Default mode keeps registration open until competition start."
-                  : "Open competitions clear registration windows and scheduled start times. They use manual lifecycle controls instead."}
+              <div className="mt-6 bg-[#f49700]/10 rounded-2xl p-5 flex items-start gap-3 border border-[#f49700]/20">
+                <Info className="w-5 h-5 text-[#f49700] shrink-0 mt-0.5" />
+                <div className="flex flex-col gap-1">
+                  <span className="text-[#10182b] font-bold text-[14px]">Schedule Info</span>
+                  <span className="text-slate-600 text-[13px] font-medium leading-relaxed">
+                    {draftState.type === "scheduled"
+                      ? draftState.registrationTimingMode === "manual"
+                        ? "Manual mode requires explicit registration start and end. Registration must close at or before competition start."
+                        : "Default mode keeps registration open until competition start."
+                      : "Open competitions clear registration windows and scheduled start times. They use manual lifecycle controls instead."}
+                  </span>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+          </div>
         </section>
 
-        <section id="format" className="scroll-mt-24 space-y-4">
-          <Card className="border-border/60 bg-background/90 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl">Format</CardTitle>
-              <CardDescription>Participant capacity, attempts, and answer-key visibility.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="competition-format">Format</Label>
+        <section id="format" className="scroll-mt-24 space-y-6">
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
+            <h2 className="text-[#10182b] font-black text-[18px] mb-1">Competition Format</h2>
+            <p className="text-slate-500 text-[13px] font-medium mb-6">Participant capacity, attempts, and answer-key visibility.</p>
+            <div className="grid gap-6 md:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="competition-format" className="text-[#10182b] font-bold text-[14px]">Format</label>
                   <select
                     id="competition-format"
                     value={draftState.format}
                     onChange={(event) =>
                       setDraftState((current) => {
                         const nextFormat = event.target.value === "team" ? "team" : "individual";
-
                         return nextFormat === "team"
-                          ? {
-                              ...current,
-                              format: nextFormat,
-                              maxParticipants: null,
-                              participantsPerTeam: current.participantsPerTeam ?? 2,
-                              maxTeams: current.maxTeams ?? 3,
-                            }
-                          : {
-                              ...current,
-                              format: nextFormat,
-                              maxParticipants: current.maxParticipants ?? 3,
-                              participantsPerTeam: null,
-                              maxTeams: null,
-                            };
+                          ? { ...current, format: nextFormat, maxParticipants: null, participantsPerTeam: current.participantsPerTeam ?? 2, maxTeams: current.maxTeams ?? 3 }
+                          : { ...current, format: nextFormat, maxParticipants: current.maxParticipants ?? 3, participantsPerTeam: null, maxTeams: null };
                       })
                     }
-                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    className="appearance-none w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all"
                     disabled={!isEditable && mode === "edit"}
                   >
                     <option value="individual">Individual</option>
                     <option value="team">Team</option>
                   </select>
                   {formErrorLookup.get("format") ? (
-                    <p className="text-xs text-destructive">{formErrorLookup.get("format")}</p>
+                    <p className="text-red-500 text-[12px] font-bold">{formErrorLookup.get("format")}</p>
                   ) : null}
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="attempts-allowed">Attempts allowed</Label>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="attempts-allowed" className="text-[#10182b] font-bold text-[14px]">Attempts allowed</label>
                   <Input
                     id="attempts-allowed"
                     type="number"
@@ -1122,93 +1147,77 @@ export function CompetitionWizard({
                     value={draftState.attemptsAllowed}
                     onChange={(event) => updateDraft("attemptsAllowed", Number.parseInt(event.target.value, 10) || 1)}
                     disabled={!isEditable && mode === "edit"}
+                    className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
                   />
                   {formErrorLookup.get("attemptsAllowed") ? (
-                    <p className="text-xs text-destructive">{formErrorLookup.get("attemptsAllowed")}</p>
+                    <p className="text-red-500 text-[12px] font-bold">{formErrorLookup.get("attemptsAllowed")}</p>
                   ) : null}
                 </div>
 
                 {draftState.format === "individual" ? (
-                  <div className="grid gap-2 md:col-span-2">
-                    <Label htmlFor="max-participants">Max participants</Label>
+                  <div className="flex flex-col gap-2 md:col-span-2">
+                    <label htmlFor="max-participants" className="text-[#10182b] font-bold text-[14px]">Max participants</label>
                     <Input
                       id="max-participants"
                       type="number"
                       min={3}
                       max={100}
                       value={maxParticipantsInput}
-                      onChange={(event) => {
-                        setMaxParticipantsInput(event.target.value);
-                        setStatus("idle");
-                        setStatusMessage(null);
-                      }}
+                      onChange={(event) => { setMaxParticipantsInput(event.target.value); setStatus("idle"); setStatusMessage(null); }}
                       onBlur={() => commitMaxParticipantsInput(maxParticipantsInput)}
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") {
-                          return;
-                        }
-
-                        event.preventDefault();
-                        commitMaxParticipantsInput(maxParticipantsInput);
-                        event.currentTarget.blur();
-                      }}
+                      onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); commitMaxParticipantsInput(maxParticipantsInput); event.currentTarget.blur(); }}
                       disabled={!isEditable && mode === "edit"}
+                      className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
                     />
+                    <p className="text-slate-400 text-[12px] font-medium">Validation: Min 3, Max 100</p>
                     {formErrorLookup.get("maxParticipants") ? (
-                      <p className="text-xs text-destructive">{formErrorLookup.get("maxParticipants")}</p>
+                      <p className="text-red-500 text-[12px] font-bold">{formErrorLookup.get("maxParticipants")}</p>
                     ) : null}
                   </div>
                 ) : (
                   <>
-                    <div className="grid gap-2">
-                      <Label htmlFor="participants-per-team">Participants per team</Label>
+                    <div className="flex flex-col gap-2">
+                      <label htmlFor="participants-per-team" className="text-[#10182b] font-bold text-[14px]">Participants per team</label>
                       <Input
                         id="participants-per-team"
                         type="number"
                         min={2}
                         max={5}
                         value={draftState.participantsPerTeam ?? 2}
-                        onChange={(event) =>
-                          updateDraft("participantsPerTeam", Number.parseInt(event.target.value, 10) || 2)
-                        }
+                        onChange={(event) => updateDraft("participantsPerTeam", Number.parseInt(event.target.value, 10) || 2)}
                         disabled={!isEditable && mode === "edit"}
+                        className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
                       />
                       {formErrorLookup.get("participantsPerTeam") ? (
-                        <p className="text-xs text-destructive">{formErrorLookup.get("participantsPerTeam")}</p>
+                        <p className="text-red-500 text-[12px] font-bold">{formErrorLookup.get("participantsPerTeam")}</p>
                       ) : null}
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="max-teams">Max teams</Label>
+                    <div className="flex flex-col gap-2">
+                      <label htmlFor="max-teams" className="text-[#10182b] font-bold text-[14px]">Max teams</label>
                       <Input
                         id="max-teams"
                         type="number"
                         min={3}
                         max={50}
                         value={draftState.maxTeams ?? 3}
-                        onChange={(event) =>
-                          updateDraft("maxTeams", Number.parseInt(event.target.value, 10) || 3)
-                        }
+                        onChange={(event) => updateDraft("maxTeams", Number.parseInt(event.target.value, 10) || 3)}
                         disabled={!isEditable && mode === "edit"}
+                        className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
                       />
                       {formErrorLookup.get("maxTeams") ? (
-                        <p className="text-xs text-destructive">{formErrorLookup.get("maxTeams")}</p>
+                        <p className="text-red-500 text-[12px] font-bold">{formErrorLookup.get("maxTeams")}</p>
                       ) : null}
                     </div>
                   </>
                 )}
 
-                <div className="grid gap-2 md:col-span-2">
-                  <Label htmlFor="answer-key-visibility">Answer-key visibility</Label>
+                <div className="flex flex-col gap-2 md:col-span-2">
+                  <label htmlFor="answer-key-visibility" className="text-[#10182b] font-bold text-[14px]">Answer-key visibility</label>
                   <select
                     id="answer-key-visibility"
                     value={draftState.answerKeyVisibility}
-                    onChange={(event) =>
-                      updateDraft(
-                        "answerKeyVisibility",
-                        event.target.value === "hidden" ? "hidden" : "after_end",
-                      )
-                    }
-                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    onChange={(event) => updateDraft("answerKeyVisibility", event.target.value === "hidden" ? "hidden" : "after_end")}
+                    className="appearance-none w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all"
                     disabled={!isEditable && mode === "edit"}
                   >
                     <option value="after_end">After end</option>
@@ -1216,35 +1225,35 @@ export function CompetitionWizard({
                   </select>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </div>
         </section>
+        </>
+        )}
 
-        <section id="problems" className="scroll-mt-24 space-y-4">
-          <Card className="border-border/60 bg-background/90 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl">Problems</CardTitle>
-              <CardDescription>Select, search, and order problems before publish.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px] items-end">
+        {activeStep === "problems" && (
+        <section id="problems" className="scroll-mt-24 space-y-6">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8">
+            <h2 className="text-[#10182b] font-black text-[18px] mb-1">Competition Problems</h2>
+            <p className="text-slate-500 text-[13px] font-medium mb-6">Select, search, and order problems before publish.</p>
+            <div className="space-y-6">
+            <div className="space-y-4">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={problemSearch}
                     onChange={(event) => setProblemSearch(event.target.value)}
-                    placeholder="Search problems, banks, tags, or difficulty"
-                    className="h-10 pl-9"
+                    placeholder="Search problems, tags, or difficulty..."
+                    className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-xl pl-10 pr-4 py-2.5 text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto placeholder:text-slate-400"
                   />
                 </div>
 
                 <div className="grid gap-2 min-w-0">
-                  <Label htmlFor="problem-bank-filter" className="truncate">Bank filter</Label>
+                  <label htmlFor="problem-bank-filter" className="text-[#10182b] font-bold text-[14px] truncate">Bank filter</label>
                   <select
                     id="problem-bank-filter"
                     value={bankFilter}
                     onChange={(event) => setBankFilter(event.target.value)}
-                    className="h-10 w-full truncate rounded-md border border-input bg-background px-3 text-sm"
+                    className="appearance-none w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-xl pl-4 pr-10 py-2.5 text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all truncate"
                   >
                     <option value="all">All banks</option>
                     {bankOptions.map(([bankId, bankName]) => (
@@ -1526,19 +1535,20 @@ export function CompetitionWizard({
               </div>
 
               {publishErrorLookup.get("selectedProblemIds") ? (
-                <p className="text-xs text-destructive">{publishErrorLookup.get("selectedProblemIds")}</p>
+                <p className="text-red-500 text-[12px] font-bold">{publishErrorLookup.get("selectedProblemIds")}</p>
               ) : null}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </section>
+        )}
 
-        <section id="scoring" className="scroll-mt-24 space-y-4">
-          <Card className="border-border/60 bg-background/90 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl">Scoring</CardTitle>
-              <CardDescription>Set scoring contract, penalties, and anti-cheat behavior.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
+        {activeStep === "scoring" && (
+        <section id="scoring" className="scroll-mt-24 space-y-6">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="p-8">
+              <h2 className="text-[#10182b] font-black text-[18px] mb-1">Competition Scoring</h2>
+              <p className="text-slate-500 text-[13px] font-medium mb-6">Set scoring contract, penalties, and anti-cheat behavior.</p>
+            <div className="space-y-6">
               <OrganizerScoringRuleControls
                 value={scoringConfig}
                 competitionType={draftState.type}
@@ -1574,38 +1584,40 @@ export function CompetitionWizard({
                   selectedProblemCount,
                 }}
               />
-            </CardContent>
-          </Card>
+            </div>
+            </div>
+          </div>
         </section>
+        )}
 
-        <section id="review" className="scroll-mt-24 space-y-4">
-          <Card className="border-border/60 bg-background/90 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl">Review</CardTitle>
-              <CardDescription>Confirm final draft state before create, save, or publish.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
+        {activeStep === "review" && (
+        <section id="review" className="scroll-mt-24 space-y-6">
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
+            <h2 className="text-[#10182b] font-black text-[18px] mb-1">Competition Review</h2>
+            <p className="text-slate-500 text-[13px] font-medium mb-6">Confirm final draft state before create, save, or publish.</p>
+            <div className="space-y-6">
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {summaryLines.map(([label, value]) => (
-                  <div key={label} className="rounded-xl border border-border/60 bg-muted/10 p-4">
-                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{label}</p>
-                    <p className="mt-2 text-sm font-semibold text-foreground">{value}</p>
+                  <div key={label} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                    <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">{label}</p>
+                    <p className="mt-2 text-[#10182b] text-[15px] font-semibold">{value}</p>
                   </div>
                 ))}
               </div>
 
               {draftValidation.ok && draftValidation.value ? (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/35 dark:text-emerald-100">
+                <div className="bg-green-50 rounded-2xl border border-green-200 p-5 text-green-800 text-[14px] font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
                   Draft validation passed. Ready to {mode === "create" ? "create" : "save"}.
                 </div>
               ) : (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100">
+                <div className="bg-amber-50 rounded-2xl border border-amber-200 p-5 text-amber-900 text-[14px] font-bold">
                   Resolve validation issues before saving or publishing.
                 </div>
               )}
 
               {mode === "edit" ? (
-                <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/10 p-4">
+                <div className="space-y-4 bg-slate-50 rounded-2xl border border-slate-200 p-6">
                   <div className="flex w-full flex-wrap items-center gap-3">
                     <Button
                       type="button"
@@ -1693,20 +1705,45 @@ export function CompetitionWizard({
               {statusMessage ? (
                 <div
                   className={cn(
-                    "rounded-xl border p-4 text-sm",
+                    "rounded-2xl border p-5 text-[14px] font-bold",
                     status === "error"
-                      ? "border-destructive/30 bg-destructive/5 text-destructive"
+                      ? "border-red-200 bg-red-50 text-red-600"
                       : status === "saving"
-                        ? "border-border/60 bg-muted/20 text-muted-foreground"
-                        : "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/35 dark:text-emerald-100",
+                        ? "border-slate-200 bg-slate-50 text-slate-500"
+                        : "border-green-200 bg-green-50 text-green-800",
                   )}
                 >
                   {statusMessage}
                 </div>
               ) : null}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </section>
+        )}
+
+        {/* Step Navigation Footer */}
+        <div className="mt-4 flex items-center justify-between w-full mb-8">
+          {stepNav.prevStep ? (
+            <button
+              type="button"
+              onClick={() => setActiveStep(stepNav.prevStep!)}
+              className="bg-white border border-slate-200 hover:border-slate-300 text-[#10182b] px-6 py-3.5 rounded-xl font-bold text-[14px] transition-all flex items-center gap-2 shadow-sm"
+            >
+              <ArrowLeft className="w-4 h-4" /> {stepNav.prevLabel ?? "Back"}
+            </button>
+          ) : (
+            <div />
+          )}
+          {stepNav.nextStep ? (
+            <button
+              type="button"
+              onClick={() => setActiveStep(stepNav.nextStep!)}
+              className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-8 py-3.5 rounded-xl font-bold text-[15px] transition-all shadow-sm hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2"
+            >
+              Continue to {stepNav.nextLabel ?? "Next"} <ArrowRight className="w-4 h-4" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <aside className="space-y-6 2xl:sticky 2xl:top-24 2xl:self-start">
