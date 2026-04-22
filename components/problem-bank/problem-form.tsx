@@ -853,13 +853,13 @@ export function ProblemForm({
   return (
     <div className="flex flex-col gap-6 w-full max-w-[850px] mx-auto font-['Poppins',sans-serif]">
       {draftBannerVisible ? (
-        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-6 py-4 text-[14px] text-blue-800 shadow-sm font-medium">
-          <Info className="w-5 h-5 shrink-0 text-blue-600" />
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-[#f49700]/20 bg-[#f49700]/10 px-6 py-4 text-[14px] text-[#1a1e2e] shadow-sm font-medium">
+          <Info className="w-5 h-5 shrink-0 text-[#f49700]" />
           <span className="flex-1">A previously saved draft has been restored.</span>
           <button
             type="button"
             onClick={handleDiscardDraft}
-            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[13px] font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[13px] font-bold text-[#1a1e2e] hover:bg-white/70 transition-colors"
           >
             <X className="w-4 h-4" />
             Discard draft

@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowDownUp, ChevronLeft, ChevronRight, Eye, Filter, Pencil, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowDownUp, Check, ChevronLeft, ChevronRight, Eye, Filter, Pencil, Trash2, X } from "lucide-react";
+import { KatexPreview } from "@/components/math-editor/katex-preview";
 import { ProgressLink } from "@/components/ui/progress-link";
 import {
   PROBLEM_DIFFICULTIES,
@@ -59,6 +60,7 @@ export function ProblemList({
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [previewProblem, setPreviewProblem] = useState<ProblemListItem | null>(null);
 
   const filteredProblems = useMemo(() => {
     let result = problems.filter((p) => {
@@ -102,6 +104,7 @@ export function ProblemList({
   const handleFilterChange = () => setCurrentPage(1);
 
   const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
+  const allVisibleSelected = pagedProblems.length > 0 && selectedIds.length === pagedProblems.length;
 
   return (
     <div className="space-y-0">
@@ -166,12 +169,14 @@ export function ProblemList({
             <tr className="border-b-2 border-slate-100 text-slate-400 text-[11px] font-black uppercase tracking-wider">
               {editable && (
                 <th className="py-4 pl-2 pr-4 w-12">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 rounded border-slate-300 accent-[#f49700] cursor-pointer"
-                    checked={pagedProblems.length > 0 && selectedIds.length === pagedProblems.length}
-                    onChange={toggleSelectAll}
-                  />
+                  <button
+                    type="button"
+                    onClick={toggleSelectAll}
+                    aria-label={allVisibleSelected ? "Deselect all visible problems" : "Select all visible problems"}
+                    className="flex h-5 w-5 items-center justify-center rounded-md border-[1.5px] border-[#10182b] bg-white text-[#10182b] transition-all hover:border-[#10182b] hover:bg-slate-50"
+                  >
+                    {allVisibleSelected ? <Check className="h-3.5 w-3.5" /> : null}
+                  </button>
                 </th>
               )}
               <th className="py-4 px-4">Question Snippet</th>
@@ -211,12 +216,18 @@ export function ProblemList({
                   >
                     {editable && (
                       <td className="py-5 pl-2 pr-4">
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4 rounded border-slate-300 accent-[#f49700] cursor-pointer"
-                          checked={selectedIds.includes(problem.id)}
-                          onChange={() => toggleSelect(problem.id)}
-                        />
+                        <button
+                          type="button"
+                          onClick={() => toggleSelect(problem.id)}
+                          aria-label={
+                            selectedIds.includes(problem.id)
+                              ? "Deselect problem"
+                              : "Select problem"
+                          }
+                          className="flex h-5 w-5 items-center justify-center rounded-md border-[1.5px] border-[#10182b] bg-white text-[#10182b] transition-all hover:border-[#10182b] hover:bg-slate-50"
+                        >
+                          {selectedIds.includes(problem.id) ? <Check className="h-3.5 w-3.5 text-[#10182b]" /> : null}
+                        </button>
                       </td>
                     )}
 
@@ -257,24 +268,28 @@ export function ProblemList({
                     </td>
 
                     <td className="py-5 pl-4 pr-2 text-right">
-                      <div className="flex items-center justify-end gap-3 text-slate-300">
+                      <div className="flex items-center justify-end gap-2 text-slate-300">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewProblem(problem)}
+                          className="rounded-lg p-1.5 transition-colors hover:bg-slate-100 hover:text-[#10182b]"
+                          title="Preview"
+                          aria-label="Preview problem"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
                         {detailHref && (
                           <ProgressLink
                             href={detailHref}
-                            className="hover:text-[#f49700] transition-colors p-1"
+                            className="rounded-lg p-1.5 transition-colors hover:bg-slate-100 hover:text-[#f49700]"
                             title="View / Edit"
                           >
                             {editable ? <Pencil className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </ProgressLink>
                         )}
-                        {!editable && !detailHref && (
-                          <span className="text-slate-200 p-1">
-                            <Eye className="w-4 h-4" />
-                          </span>
-                        )}
                         {editable && (
                           <button
-                            className="hover:text-red-500 transition-colors p-1"
+                            className="rounded-lg p-1.5 transition-colors hover:bg-red-50 hover:text-red-500"
                             title="Delete"
                             aria-label="Delete problem"
                           >
@@ -328,6 +343,58 @@ export function ProblemList({
           </div>
         </div>
       )}
+
+      {previewProblem ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#10182b]/55 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-3xl rounded-[28px] border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
+              <div>
+                <p className="text-[12px] font-black uppercase tracking-[0.18em] text-[#f49700]">
+                  Problem Preview
+                </p>
+                <h3 className="mt-2 text-[22px] font-black text-[#10182b]">
+                  {TYPE_LABELS[previewProblem.type] ?? previewProblem.type} • {DIFFICULTY_LABELS[previewProblem.difficulty] ?? previewProblem.difficulty}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewProblem(null)}
+                className="rounded-full bg-slate-100 p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-[#10182b]"
+                aria-label="Close preview"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-5 p-6">
+              <KatexPreview
+                latex={previewProblem.contentLatex || ""}
+                label="Problem statement"
+                displayMode={false}
+                className="[&>p:first-child]:text-[11px] [&>p:first-child]:font-black [&>p:first-child]:tracking-[0.18em] [&>p:first-child]:text-slate-400 [&_.katex]:text-[#10182b] [&_.katex-display]:text-[#10182b] [&_div.min-w-0.rounded-md]:rounded-2xl [&_div.min-w-0.rounded-md]:border-slate-200 [&_div.min-w-0.rounded-md]:bg-slate-50 [&_div.min-w-0.rounded-md]:p-5 [&_div.w-max]:text-[#10182b]"
+                fallbackText="No LaTeX preview available."
+              />
+
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-600">
+                  {TYPE_LABELS[previewProblem.type] ?? previewProblem.type}
+                </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-600">
+                  {DIFFICULTY_LABELS[previewProblem.difficulty] ?? previewProblem.difficulty}
+                </span>
+                {previewProblem.tags.map((tag, index) => (
+                  <span
+                    key={`${previewProblem.id}-${tag}-${index}`}
+                    className="rounded-full bg-[#f49700]/10 px-3 py-1 text-[11px] font-bold text-[#f49700]"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

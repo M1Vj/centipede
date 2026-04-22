@@ -114,6 +114,11 @@
     @apply mx-auto w-full max-w-7xl px-6 lg:px-10;
   }
 
+  math-field.mathwiz-math-field::part(menu-toggle),
+  math-field.mathwiz-math-field::part(virtual-keyboard-toggle) {
+    display: none;
+  }
+
   .surface-card {
     @apply rounded-[calc(var(--radius)+0.3rem)] border border-border/70 bg-card/80 backdrop-blur;
     box-shadow: 0 24px 80px -36px hsl(var(--shadow) / 0.38);
