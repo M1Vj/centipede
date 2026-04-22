@@ -14,12 +14,13 @@ import { createClient } from "@/lib/supabase/server";
 export default async function CompetitionDiscoveryPage({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await getWorkspaceContext({ requireRole: "mathlete" });
   const supabase = await createClient();
+  const resolvedSearchParams = await searchParams;
 
-  const { filters, page, pageSize } = parseCompetitionSearchParams(searchParams ?? {});
+  const { filters, page, pageSize } = parseCompetitionSearchParams(resolvedSearchParams ?? {});
   const result = await fetchDiscoverableCompetitions(supabase, filters, page, pageSize);
   const registrationSummaries = await listMyRegistrations({
     competitionId: undefined,

@@ -165,12 +165,13 @@ async function resolveCompetitionPageMode(input: {
 export default async function CompetitionDetailPage({
   params,
 }: {
-  params: { competitionId: string };
+  params: Promise<{ competitionId: string }>;
 }) {
   const { profile } = await getWorkspaceContext({ requireRole: "mathlete" });
   const supabase = await createClient();
+  const resolvedParams = await params;
 
-  const rawCompetition = await fetchCompetitionById(supabase, params.competitionId);
+  const rawCompetition = await fetchCompetitionById(supabase, resolvedParams.competitionId);
   const normalized = rawCompetition ? normalizeCompetitionRecord(rawCompetition) : null;
 
   if (!normalized || normalized.isDeleted || !DISCOVERABLE_STATUSES.has(normalized.status)) {
@@ -245,7 +246,6 @@ export default async function CompetitionDetailPage({
       teamRegistrations = (teamRegResult.data ?? []) as RegistrationSummary[];
     }
   }
-      {eventNotices.length > 0 ? <CompetitionEventNotices notices={eventNotices} /> : null}
 
   const modeRegistration =
     individualRegistration?.status === "registered"
@@ -297,6 +297,7 @@ export default async function CompetitionDetailPage({
         </ProgressLink>
       }
     >
+        {eventNotices.length > 0 ? <CompetitionEventNotices notices={eventNotices} /> : null}
       <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         <CompetitionDetailPanel competition={competition} />
         <CompetitionRegistrationPanel
