@@ -1,5 +1,4 @@
-import { Library, PlusCircle } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, Calendar, Edit3, FileText, Library, PlusCircle } from "lucide-react";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import { normalizeProblemBankRow } from "@/lib/problem-bank/api-helpers";
@@ -22,6 +21,28 @@ export default async function OrganizerProblemBankPage() {
         .map((row) => normalizeProblemBankRow(row))
         .filter((row): row is NonNullable<typeof row> => row !== null)
     : [];
+  const problemCounts = new Map<string, number>();
+
+  if (!error && banks.length > 0) {
+    const { data: problemRows, error: problemCountsError } = await supabase
+      .from("problems")
+      .select("bank_id")
+      .in(
+        "bank_id",
+        banks.map((bank) => bank.id),
+      )
+      .eq("is_deleted", false);
+
+    if (!problemCountsError) {
+      (problemRows ?? []).forEach((row) => {
+        if (typeof row.bank_id !== "string") {
+          return;
+        }
+
+        problemCounts.set(row.bank_id, (problemCounts.get(row.bank_id) ?? 0) + 1);
+      });
+    }
+  }
 
   const ownBanks = banks.filter(
     (bank) => bank.organizerId === profile?.id && !bank.isDefaultBank,
@@ -29,105 +50,126 @@ export default async function OrganizerProblemBankPage() {
   const defaultBanks = banks.filter((bank) => bank.isDefaultBank && bank.isVisibleToOrganizers);
 
   return (
-    <section className="shell py-12 space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <p className="eyebrow">Problem Bank</p>
-          <h1 className="text-4xl font-semibold tracking-tight">Problem banks</h1>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Manage your authored problem banks and browse visible default banks curated by admins.
-          </p>
+    <section className="organizer-shell flex w-full justify-center px-4">
+      <div className="shell flex w-full max-w-[1024px] flex-col pb-12 pt-8 md:pt-10 font-['Poppins'] space-y-8">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <span className="organizer-kicker mb-3">Organizer / problem banks</span>
+            <h1 className="mb-2 text-3xl font-black leading-tight tracking-tight text-foreground md:text-[34px]">
+              Problem banks
+            </h1>
+            <p className="max-w-2xl text-[15px] font-medium text-foreground/60">
+              Manage authored banks and browse visible default banks curated by admins.
+            </p>
+          </div>
+
+          <ProgressLink href="/organizer/problem-bank/create" className="organizer-action self-start no-underline md:self-auto">
+            <PlusCircle className="size-5" />
+            Create bank
+          </ProgressLink>
         </div>
 
-        <ProgressLink
-          href="/organizer/problem-bank/create"
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90"
-        >
-          <PlusCircle className="size-4" />
-          Create bank
-        </ProgressLink>
-      </div>
-
-      {error ? (
-        <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="p-5 text-sm text-destructive">
+        {error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
             Unable to load problem banks.
-          </CardContent>
-        </Card>
-      ) : null}
+          </div>
+        ) : null}
 
-      <div className="space-y-4">
-        <h2 className="text-2xl font-semibold tracking-tight">My banks</h2>
-        {ownBanks.length === 0 ? (
-          <Card className="border-dashed border-border/70 bg-muted/20">
-            <CardContent className="p-6 text-sm text-muted-foreground">
+        <div className="space-y-4">
+          <div className="organizer-panel flex items-center justify-between gap-3 px-5 py-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground/45">My banks</p>
+              <p className="mt-1 text-sm text-foreground/60">Your authored bank library and editable workspaces.</p>
+            </div>
+            <span className="organizer-muted-kicker">{ownBanks.length} banks</span>
+          </div>
+          {ownBanks.length === 0 ? (
+            <div className="organizer-panel organizer-panel-soft p-8 text-center text-sm text-foreground/50">
               You have not created any banks yet.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {ownBanks.map((bank) => (
-              <Card key={bank.id} className="border-border/60 bg-background/90 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="line-clamp-1 text-xl">{bank.name}</CardTitle>
-                  <CardDescription className="line-clamp-2 min-h-10">
-                    {bank.description || "No description provided."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-xs text-muted-foreground">
-                    Updated {new Date(bank.updatedAt).toLocaleString()}
-                  </p>
-                  <ProgressLink
-                    href={`/organizer/problem-bank/${bank.id}`}
-                    className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
-                  >
-                    Open bank
-                  </ProgressLink>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-4">
-        <h2 className="text-2xl font-semibold tracking-tight">Visible default banks</h2>
-        {defaultBanks.length === 0 ? (
-          <Card className="border-dashed border-border/70 bg-muted/20">
-            <CardContent className="p-6 text-sm text-muted-foreground">
-              No default banks are currently visible to organizers.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {defaultBanks.map((bank) => (
-              <Card key={bank.id} className="border-border/60 bg-background/90 shadow-sm">
-                <CardHeader>
-                  <div className="mb-2 inline-flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
-                    <Library className="size-3" />
-                    Default bank
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {ownBanks.map((bank) => (
+                <div key={bank.id} className="organizer-panel organizer-panel-hover flex h-full flex-col p-6">
+                  <div className="mb-4">
+                    <span className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-black tracking-widest text-primary">
+                      AUTHORED
+                    </span>
+                    <h3 className="mb-3 line-clamp-2 text-[20px] font-bold leading-snug text-foreground">{bank.name}</h3>
+                    <p className="line-clamp-3 text-[14px] leading-relaxed text-foreground/55">
+                      {bank.description || "No description provided."}
+                    </p>
                   </div>
-                  <CardTitle className="line-clamp-1 text-xl">{bank.name}</CardTitle>
-                  <CardDescription className="line-clamp-2 min-h-10">
-                    {bank.description || "No description provided."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-xs text-muted-foreground">
-                    Read-only access for organizers.
-                  </p>
-                  <ProgressLink
-                    href={`/organizer/problem-bank/${bank.id}`}
-                    className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
-                  >
-                    Browse problems
-                  </ProgressLink>
-                </CardContent>
-              </Card>
-            ))}
+
+                  <div className="mt-auto">
+                    <div className="mb-5 flex flex-wrap items-center gap-4 text-[12px] font-semibold text-foreground/45">
+                      <div className="flex items-center gap-1.5">
+                        <FileText className="w-4 h-4" /> {problemCounts.get(bank.id) ?? 0} Problems
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="w-4 h-4" /> Updated {new Date(bank.updatedAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <ProgressLink
+                      href={`/organizer/problem-bank/${bank.id}`}
+                      className="organizer-action w-full justify-center no-underline"
+                    >
+                      Manage Bank <Edit3 className="w-4 h-4" />
+                    </ProgressLink>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <div className="organizer-panel flex items-center justify-between gap-3 px-5 py-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground/45">Visible default banks</p>
+              <p className="mt-1 text-sm text-foreground/60">Read-only defaults available to organizers.</p>
+            </div>
+            <span className="organizer-muted-kicker">{defaultBanks.length} shared</span>
           </div>
-        )}
+          {defaultBanks.length === 0 ? (
+            <div className="organizer-panel organizer-panel-soft p-8 text-center text-sm text-foreground/50">
+              No default banks are currently visible to organizers.
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {defaultBanks.map((bank) => (
+                <div key={bank.id} className="organizer-panel organizer-panel-soft flex h-full flex-col p-6 opacity-95 transition-all hover:-translate-y-0.5 hover:opacity-100">
+                  <div className="mb-4">
+                    <span className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-[#111827]/10 px-2.5 py-1 text-[10px] font-black tracking-widest text-[#111827]">
+                      <Library className="w-3 h-3" /> DEFAULT
+                    </span>
+                    <h3 className="mb-3 line-clamp-2 text-[20px] font-bold leading-snug text-foreground">{bank.name}</h3>
+                    <p className="line-clamp-3 text-[14px] leading-relaxed text-foreground/55">
+                      {bank.description || "No description provided."}
+                    </p>
+                  </div>
+
+                  <div className="mt-auto">
+                    <div className="mb-5 flex flex-wrap items-center gap-4 text-[12px] font-semibold text-foreground/45">
+                      <div className="flex items-center gap-1.5">
+                        <FileText className="w-4 h-4" /> {problemCounts.get(bank.id) ?? 0} Problems
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="w-4 h-4" /> Updated {new Date(bank.updatedAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <ProgressLink
+                      href={`/organizer/problem-bank/${bank.id}`}
+                      className="organizer-action-secondary w-full justify-center no-underline"
+                    >
+                      Browse <ArrowRight className="w-4 h-4" />
+                    </ProgressLink>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );
