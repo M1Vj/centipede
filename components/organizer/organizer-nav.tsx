@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, Settings, UserCircle2 } from "lucide-react";
+import { Bell, Menu, Settings, UserCircle2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
 import { ProgressLink } from "@/components/ui/progress-link";
@@ -15,7 +15,7 @@ interface OrganizerNavProps {
 const organizerItems = [
   { href: "/organizer", label: "Dashboard" },
   { href: "/organizer/competition", label: "Competitions" },
-  { href: "/organizer/problem-bank", label: "Problem Banks" },
+  { href: "/organizer/problem-bank", label: "Problembanks" },
   { href: "/organizer/history", label: "History" },
 ];
 
@@ -31,7 +31,8 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
 
   return (
     <>
-      <nav className="hidden items-center gap-x-3 gap-y-1 md:flex" aria-label="Organizer navigation">
+      {/* Desktop Nav Links — centered absolutely */}
+      <nav className="hidden items-center gap-10 absolute left-1/2 -translate-x-1/2 md:flex" aria-label="Organizer navigation">
         {navItems.map((item) => {
           const active =
             item.href === "/organizer"
@@ -43,10 +44,10 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
               key={item.href}
               href={item.href}
               className={cn(
-                "rounded-full px-2 py-1 text-base font-semibold transition md:px-4 md:py-2",
+                "font-semibold text-[15px] transition-colors",
                 active
-                  ? "text-[#f59f0a]"
-                  : "text-white/92 hover:text-[#f8c164]",
+                  ? "text-[#f49700]"
+                  : "text-white hover:text-[#f49700]",
               )}
             >
               {item.label}
@@ -65,19 +66,27 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
         ) : null}
       </nav>
 
+      {/* Desktop Right Actions */}
       {isAuthenticated ? (
         <div className="relative hidden md:block">
-          <button
-            type="button"
-            onClick={() => setMenuOpen((current) => !current)}
-            className="inline-flex items-center gap-2 rounded-full bg-[#0d1424] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#141d32]"
-            aria-expanded={menuOpen}
-            aria-haspopup="menu"
-          >
-            <span className="rounded-full bg-[#f59f0a] px-5 py-2 text-white shadow-[0_10px_25px_-16px_rgba(245,159,10,0.9)]">
-              Organizer
-            </span>
-          </button>
+          <div className="flex items-center gap-4 pr-2 bg-[#0f121a] rounded-full pl-6 py-1">
+            <button
+              className="text-[#f49700] hover:text-white transition-colors relative mr-2"
+              aria-label="Notifications"
+            >
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((current) => !current)}
+              className="w-8 h-8 rounded-full bg-[#f49700] shadow-md cursor-pointer hover:bg-[#e08900] transition-colors flex items-center justify-center text-white font-bold text-[13px]"
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+            >
+              O
+            </button>
+          </div>
 
           {menuOpen ? (
             <div
@@ -116,19 +125,21 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
         </div>
       ) : null}
 
+      {/* Mobile Menu Toggle */}
       <button
         type="button"
         onClick={() => setMenuOpen((current) => !current)}
-        className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#0d1424] text-white md:hidden"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#0f121a] text-white md:hidden"
         aria-label="Open organizer navigation"
       >
         <Menu className="size-5" />
       </button>
 
+      {/* Mobile Menu Dropdown */}
       {menuOpen ? (
         <div className="absolute left-4 right-4 top-[calc(100%+12px)] rounded-[28px] border border-slate-200 bg-white p-3 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.45)] md:hidden">
           <div className="space-y-1">
-            {navItems.map((item) => (
+            {navItems.map((item) =>
               "disabled" in item && item.disabled ? (
                 <div
                   key={item.label}
@@ -147,7 +158,7 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
                   {item.label}
                 </ProgressLink>
               )
-            ))}
+            )}
             {isAuthenticated ? (
               <>
                 <ProgressLink

@@ -1,15 +1,15 @@
-import { Bell, BookCopy, CheckCircle2, Trophy } from "lucide-react";
+import { BellRing, CheckCircle2, Trophy, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrganizerActivityItem } from "@/components/dashboard/types";
 
 const toneIconMap = {
-  success: CheckCircle2,
+  success: UserPlus,
   info: Trophy,
-  default: BookCopy,
+  default: CheckCircle2,
 } as const;
 
 const toneClassMap = {
-  success: "bg-[#ecfdf3] text-[#15803d]",
+  success: "bg-[#ecfdf5] text-[#10b981]",
   info: "bg-[#eff6ff] text-[#1d4ed8]",
   default: "bg-slate-100 text-slate-600",
 } as const;
@@ -20,49 +20,58 @@ interface RecentActivityPanelProps {
 
 export function RecentActivityPanel({ items }: RecentActivityPanelProps) {
   return (
-    <section className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_18px_42px_-30px_rgba(15,23,42,0.42)]">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-slate-900">Recent Activity</h2>
-        <Bell className="size-4 text-slate-400" />
+    <section className="bg-white rounded-2xl border border-[#f1f5f9] p-5 shadow-[0px_4px_12px_rgba(0,0,0,0.03)] flex flex-col relative">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-bold text-[#1a1e2e] text-[14px]">Recent Activity</h3>
+        <BellRing className="w-4 h-4 text-[#94a3b8]" />
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div className="space-y-4 mb-6">
         {items.length > 0 ? (
           items.map((item) => {
             const Icon = toneIconMap[item.tone];
 
             return (
-              <div
-                key={item.id}
-                className="flex gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3 py-3.5"
-              >
+              <div key={item.id} className="flex gap-3">
                 <div
                   className={cn(
-                    "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+                    "w-10 h-10 shrink-0 rounded-full flex items-center justify-center",
                     toneClassMap[item.tone],
                   )}
                 >
-                  <Icon className="size-4" />
+                  <Icon className="w-4 h-4" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold leading-5 text-slate-900">
+                <div className="flex flex-col pt-0.5">
+                  <p className="text-[13px] font-bold text-[#1a1e2e] leading-snug mb-0.5">
                     {item.message}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">{item.timestampLabel}</p>
+                  <p className="text-[11px] text-[#94a3b8] font-medium">
+                    {item.timestampLabel}
+                  </p>
                 </div>
               </div>
             );
           })
         ) : (
-          <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
-            No recent organizer activity yet.
+          <div className="flex gap-3">
+            <div className="w-10 h-10 shrink-0 bg-[#ecfdf5] rounded-full flex items-center justify-center text-[#10b981]">
+              <UserPlus className="w-4 h-4" />
+            </div>
+            <div className="flex flex-col pt-0.5">
+              <p className="text-[13px] font-bold text-[#1a1e2e] leading-snug mb-0.5">
+                No recent organizer activity yet.
+              </p>
+              <p className="text-[11px] text-[#94a3b8] font-medium">
+                Activity will appear here.
+              </p>
+            </div>
           </div>
         )}
       </div>
 
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-slate-500">
+      <button className="w-full py-2.5 rounded-xl border border-[#f1f5f9] text-[#64748b] font-bold text-[13px] hover:bg-slate-50 transition-colors">
         Clear All Alerts
-      </div>
+      </button>
     </section>
   );
 }

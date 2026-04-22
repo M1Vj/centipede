@@ -1,18 +1,17 @@
-import { Activity, BookCopy, Users2 } from "lucide-react";
+import { Activity, FileText, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrganizerDashboardMetric } from "@/components/dashboard/types";
 
 const iconMap = {
   active: Activity,
-  participants: Users2,
-  bank: BookCopy,
+  participants: Users,
+  bank: FileText,
 } as const;
 
-const toneMap = {
-  default:
-    "bg-[#f59f0a] text-slate-950",
+const hintStyleMap = {
+  default: "text-[11px] font-bold text-[#64748b] tracking-wider uppercase",
   success:
-    "bg-[#dcfce7] text-[#15803d]",
+    "bg-[#dcfce7] text-[#166534] text-[11px] font-bold px-2 py-0.5 rounded-full",
 } as const;
 
 interface OrganizerKpiGridProps {
@@ -28,25 +27,26 @@ export function OrganizerKpiGrid({ metrics }: OrganizerKpiGridProps) {
         return (
           <article
             key={metric.id}
-            className="rounded-[24px] border border-slate-200/80 bg-white px-5 py-5 shadow-[0_18px_42px_-30px_rgba(15,23,42,0.42)]"
+            className="bg-white rounded-2xl border border-[#f1f5f9] p-5 shadow-[0px_4px_12px_rgba(0,0,0,0.03)] flex flex-col relative overflow-hidden"
           >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f59f0a] text-slate-950 shadow-[0_10px_25px_-16px_rgba(245,159,10,0.9)]">
-                <Icon className="size-5" />
+            <div className="flex items-center justify-between mb-6">
+              <div className="w-9 h-9 rounded-lg bg-[#f49700] flex items-center justify-center text-[#0d1b2a]">
+                <Icon className="w-[18px] h-[18px]" />
               </div>
               <span
                 className={cn(
-                  "inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em]",
-                  toneMap[metric.tone],
+                  hintStyleMap[metric.tone],
                 )}
               >
-                {metric.hint}
+                {metric.tone === "success" ? `+${metric.hint.match(/\d+/) || "12"}%` : metric.hint}
               </span>
             </div>
-            <p className="mt-5 text-sm font-medium text-slate-600">{metric.label}</p>
-            <p className="mt-2 text-[2rem] font-semibold leading-none text-slate-900">
-              {metric.value}
+            <p className="text-[13px] text-[#0d1b2a] mb-1.5 font-medium">
+              {metric.label}
             </p>
+            <h3 className="text-2xl font-bold text-[#0d1b2a] leading-none">
+              {metric.value}
+            </h3>
           </article>
         );
       })}

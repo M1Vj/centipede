@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrganizerCalendarEvent } from "@/components/dashboard/types";
 
-const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
 function buildWeeks(monthDate: Date) {
   const year = monthDate.getFullYear();
@@ -10,16 +10,29 @@ function buildWeeks(monthDate: Date) {
   const firstDay = new Date(year, month, 1).getDay();
   const lastDate = new Date(year, month + 1, 0).getDate();
 
-  const cells = Array.from({ length: firstDay }, () => null) as Array<number | null>;
-  for (let day = 1; day <= lastDate; day += 1) {
-    cells.push(day);
-  }
-  while (cells.length % 7 !== 0) {
-    cells.push(null);
+  // Previous month trailing days
+  const prevMonthLastDate = new Date(year, month, 0).getDate();
+  const leadingDays = Array.from(
+    { length: firstDay },
+    (_, i) => ({ day: prevMonthLastDate - firstDay + 1 + i, isCurrentMonth: false })
+  );
+
+  // Current month days
+  const currentDays = Array.from(
+    { length: lastDate },
+    (_, i) => ({ day: i + 1, isCurrentMonth: true })
+  );
+
+  const allCells = [...leadingDays, ...currentDays];
+
+  // Trailing days to fill last week
+  const remaining = allCells.length % 7 === 0 ? 0 : 7 - (allCells.length % 7);
+  for (let i = 1; i <= remaining; i++) {
+    allCells.push({ day: i, isCurrentMonth: false });
   }
 
-  return Array.from({ length: cells.length / 7 }, (_, index) =>
-    cells.slice(index * 7, index * 7 + 7),
+  return Array.from({ length: allCells.length / 7 }, (_, index) =>
+    allCells.slice(index * 7, index * 7 + 7),
   );
 }
 
@@ -53,77 +66,89 @@ export function CalendarWidget({
   return (
     <section
       className={cn(
-        "rounded-[28px] bg-[#10182b] p-6 text-white shadow-[0_28px_60px_-34px_rgba(15,23,42,0.88)]",
+        "bg-white rounded-2xl border border-[#f1f5f9] p-5 shadow-[0px_4px_12px_rgba(0,0,0,0.03)] flex flex-col",
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white">
-          {monthLabel}
-        </h2>
-        <div className="flex items-center gap-2 text-white/70">
-          <ChevronLeft className="size-4" />
-          <ChevronRight className="size-4" />
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-bold text-[#1a1e2e] text-[14px]">{monthLabel}</h3>
+        <div className="flex items-center gap-1 text-[#94a3b8]">
+          <button className="p-1 hover:text-[#0d1b2a] transition-colors" aria-label="Previous month">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button className="p-1 hover:text-[#0d1b2a] transition-colors" aria-label="Next month">
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
-      <div className="mt-7 grid grid-cols-7 gap-y-4 text-center">
-        {DAYS.map((day) => (
-          <span key={day} className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+      <div className="grid grid-cols-7 mb-1 gap-y-1">
+        {DAYS.map((day, i) => (
+          <div key={i} className="text-center text-[10px] font-bold text-[#94a3b8] mb-2">
             {day}
-          </span>
+          </div>
         ))}
-        {weeks.flat().map((day, index) => {
-          if (!day) {
-            return <span key={`empty-${index}`} className="h-8" aria-hidden="true" />;
+
+        {weeks.flat().map((cell, index) => {
+          if (!cell.isCurrentMonth) {
+            return (
+              <div key={`inactive-${index}`} className="text-center py-1.5 text-[12px] font-medium text-[#cbd5e1]">
+                {cell.day}
+              </div>
+            );
           }
 
-          const isSelected = selectedDay === day;
-          const hasEvent = highlightedDays.has(day) && !isSelected;
+          const isSelected = selectedDay === cell.day;
+          const hasEvent = highlightedDays.has(cell.day) && !isSelected;
+
+          if (isSelected) {
+            return (
+              <div key={`day-${index}`} className="text-center py-1 flex justify-center items-center">
+                <div className="w-7 h-7 bg-[#f49700] rounded-lg shadow-sm flex items-center justify-center">
+                  <span className="text-[12px] font-bold text-white">{cell.day}</span>
+                </div>
+              </div>
+            );
+          }
+
+          if (hasEvent) {
+            return (
+              <div key={`day-${index}`} className="text-center py-1.5 relative flex justify-center">
+                <span className="text-[12px] font-medium text-[#1a1e2e] relative z-10">{cell.day}</span>
+                <span className="absolute bottom-0.5 w-1 h-1 bg-[#f49700] rounded-full"></span>
+              </div>
+            );
+          }
 
           return (
-            <div key={`${day}-${index}`} className="relative flex justify-center">
-              <span
-                className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-xl text-sm font-bold",
-                  isSelected ? "bg-[#f97316] text-white" : "text-white",
-                )}
-              >
-                {day}
-              </span>
-              {hasEvent ? (
-                <span className="absolute bottom-0 h-1 w-1 rounded-full bg-[#f97316]" />
-              ) : null}
+            <div key={`day-${index}`} className="text-center py-1.5 text-[12px] font-medium text-[#1a1e2e]">
+              {cell.day}
             </div>
           );
         })}
       </div>
 
-      <div className="mt-8 border-t border-white/10 pt-8">
-        <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400">
-          Next Event
-        </p>
-        <div className="mt-4 rounded-2xl bg-white/6 p-4">
-          {events[0] ? (
-            <>
-              <p className="text-sm font-bold text-white">{events[0].title}</p>
-              <p className="mt-1 text-xs text-slate-400">
-                {new Date(events[0].date).toLocaleString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-sm font-bold text-white">No scheduled competition</p>
-              <p className="mt-1 text-xs text-slate-400">Create or publish a competition to surface it here.</p>
-            </>
-          )}
-        </div>
+      <div className="h-px bg-[#f1f5f9] w-full my-3"></div>
+
+      <div className="text-[12px] font-bold text-[#1a1e2e]">
+        Upcoming Competitions
       </div>
+
+      {events[0] ? (
+        <div className="mt-2">
+          <p className="text-[12px] font-medium text-[#64748b]">
+            {events[0].title} —{" "}
+            {new Date(events[0].date).toLocaleString(undefined, {
+              month: "short",
+              day: "numeric",
+            })}
+          </p>
+        </div>
+      ) : (
+        <p className="mt-2 text-[11px] text-[#94a3b8]">
+          No upcoming competitions scheduled.
+        </p>
+      )}
     </section>
   );
 }

@@ -21,25 +21,28 @@ export default async function OrganizerLayout({
   }
   
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8f6f6_0%,#f8f6f6_100%)]">
-      <header className="sticky top-0 z-40 px-2 py-4 sm:px-4">
-        <div className="shell">
-          <div className="relative flex min-h-16 items-center justify-between gap-3 rounded-full border border-slate-200/80 bg-[#10182b] px-4 py-2 text-slate-100 shadow-[0_26px_58px_-34px_rgba(2,6,23,0.9)] sm:px-5">
-            <ProgressLink
-              href="/organizer"
-              className="flex items-center gap-3 rounded-full px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#10182b]"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#11192c] text-xs font-black uppercase tracking-[0.16em] text-[#f59f0a]">
-                MW
-              </div>
-              <div className="hidden leading-tight sm:block">
-                <p className="text-xs font-bold text-[#f59f0a]">Organizer</p>
-                <p className="text-[11px] text-white/70">MathWiz</p>
-              </div>
-            </ProgressLink>
-            <OrganizerNav isOrganizer={isOrganizer} isAuthenticated={Boolean(user)} />
-          </div>
-        </div>
+    <div className="min-h-screen bg-[#f8f6f6]">
+      <header className="sticky top-0 z-40 flex justify-center px-4 pt-4">
+        <nav className="backdrop-blur-md bg-[#1a1e2e] w-full max-w-[1024px] rounded-full px-5 py-3 flex items-center justify-between shadow-2xl border border-white/5 relative">
+          
+          {/* Logo Area */}
+          <ProgressLink
+            href="/organizer"
+            className="flex items-center gap-2 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1e2e]"
+          >
+            <img
+              src="/mathwiz-logo.svg"
+              alt="MathWiz"
+              className="h-7 w-auto object-contain"
+            />
+            <span className="text-[#f49700] font-bold text-[14px] tracking-wide">
+              Organizer
+            </span>
+          </ProgressLink>
+
+          {/* Nav + Actions */}
+          <OrganizerNav isOrganizer={isOrganizer} isAuthenticated={Boolean(user)} />
+        </nav>
       </header>
       {children}
     </div>

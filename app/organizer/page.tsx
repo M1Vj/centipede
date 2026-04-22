@@ -1,10 +1,7 @@
 import { Suspense } from "react";
 import { getWorkspaceContext as getProtectedWorkspaceContext } from "@/lib/auth/workspace";
-import {
-  CardSkeletonList,
-  DetailSectionSkeleton,
-} from "@/components/ui/feedback-skeletons";
 import { createClient } from "@/lib/supabase/server";
+
 
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { OrganizerKpiGrid } from "@/components/dashboard/organizer-kpi-grid";
@@ -288,15 +285,15 @@ async function OrganizerPageContent() {
   ];
 
   return (
-    <section className="shell py-10 md:py-14">
-      <DashboardHeader name={profile?.full_name || userEmail?.split("@")[0]} className="mb-8" />
+    <section className="flex flex-col items-center px-4 pb-12">
+      <DashboardHeader name={profile?.full_name || userEmail?.split("@")[0]} className="mt-12 mb-6" />
 
-      <div className="space-y-5">
+      <div className="w-full max-w-[1024px] flex flex-col gap-5">
         <OrganizerKpiGrid metrics={metrics} />
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <ActiveCompetitionsTable competitions={competitionRows} />
-          <div className="space-y-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <ActiveCompetitionsTable competitions={competitionRows} className="lg:col-span-2" />
+          <div className="flex flex-col gap-5">
             <CalendarWidget events={calendarEvents} />
             <RecentActivityPanel items={recentActivity} />
           </div>
@@ -308,14 +305,23 @@ async function OrganizerPageContent() {
 
 function OrganizerPageFallback() {
   return (
-    <section className="shell py-10 md:py-14">
-      <div className="mb-10 space-y-2">
-        <div className="h-10 w-64 rounded-lg bg-muted/60 animate-pulse" />
-        <div className="h-5 w-96 rounded-md bg-muted/40 animate-pulse" />
+    <section className="flex flex-col items-center px-4 pb-12">
+      <div className="mt-12 mb-6 text-center">
+        <div className="h-10 w-64 rounded-lg bg-slate-200/60 animate-pulse mx-auto" />
       </div>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <DetailSectionSkeleton lines={4} />
-        <CardSkeletonList count={2} />
+      <div className="w-full max-w-[1024px] flex flex-col gap-5">
+        <div className="grid gap-5 md:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-2xl border border-[#f1f5f9] p-5 h-32 animate-pulse" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-[#f1f5f9] h-64 animate-pulse" />
+          <div className="flex flex-col gap-5">
+            <div className="bg-white rounded-2xl border border-[#f1f5f9] h-48 animate-pulse" />
+            <div className="bg-white rounded-2xl border border-[#f1f5f9] h-40 animate-pulse" />
+          </div>
+        </div>
       </div>
     </section>
   );
