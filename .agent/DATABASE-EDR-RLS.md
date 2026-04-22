@@ -326,6 +326,7 @@ Purpose: immutable problem snapshots attached to a competition.
 | `problem_id` | uuid fk -> problems.id |
 | `order_index` | integer |
 | `points` | integer |
+| `problem_type_snapshot` | enum `problem_type` |
 | `content_snapshot_latex` | text |
 | `options_snapshot_json` | jsonb |
 | `answer_key_snapshot_json` | jsonb |
@@ -356,15 +357,15 @@ Constraint: exactly one of `profile_id` or `team_id` must be populated. `entry_s
 
 ### Registration RPC Contract (Canonical)
 
-`register_for_competition(competition_id uuid, team_id uuid default null)` is the only trusted write path for creating new `competition_registrations` rows.
+`register_for_competition(competition_id uuid, actor_user_id uuid, team_id uuid default null)` is the only trusted write path for creating new `competition_registrations` rows.
 
 - Individual registration path (`team_id is null`):
-	- writes `profile_id = auth.uid()` and `team_id = null`
+	- writes `profile_id = actor_user_id` and `team_id = null`
 	- allowed only when `competitions.format = 'individual'`
 - Team registration path (`team_id is not null`):
 	- writes `team_id = team_id` and `profile_id = null`
 	- allowed only when `competitions.format = 'team'` and `competitions.type = 'scheduled'`
-	- caller must be an active leader of the selected team
+	- trusted server route must pass authenticated `actor_user_id`, and that actor must be an active leader of the selected team
 - Shared checks for both paths:
 	- participant is active and profile-complete
 	- competition is visible, not deleted, and inside allowed registration window (for scheduled)
@@ -460,6 +461,9 @@ Purpose: one attempt row per `attempt_no` for a participant or team registration
 | `offense_count` | integer |
 | `is_latest_visible_result` | boolean |
 | `grade_summary_json` | jsonb |
+| `attempt_base_deadline_at` | timestamptz | fixed at start |
+| `scheduled_competition_end_cap_at` | timestamptz | fixed scheduled cap snapshot |
+| `effective_attempt_deadline_at` | timestamptz | immutable trusted runtime deadline |
 
 Indexes: `(competition_id, status)`, `(registration_id, attempt_no)`.
 
@@ -468,7 +472,7 @@ Unique key: `(registration_id, attempt_no)`.
 ### Team Attempt Authority and Concurrency Contract (Canonical)
 
 - Individual registration attempts: only the owning `competition_registrations.profile_id` actor may start, resume, save, or submit the attempt lifecycle.
-- Team registration attempts: only an active team leader for the registration team may start, resume, save, or submit attempt lifecycle mutations; non-leader team members are read-only in arena state views.
+- Team registration attempts: only an active team leader for the registration team may start, resume, save, submit, or close active attempt intervals; non-leader team members are read-only in arena state views.
 - Trusted `start`, `resume`, and `submit` attempt mutations must serialize writes by registration or attempt lock (`select ... for update` or equivalent) and enforce at most one active `in_progress` attempt per registration at any moment.
 - Concurrent lifecycle races must return deterministic machine code `attempt_lifecycle_conflict`; idempotent retries with the same request token must return existing state and must not duplicate lifecycle side effects.
 
@@ -507,10 +511,13 @@ Purpose: autosaved and submitted answers for each problem in an attempt.
 | `is_correct` | boolean nullable |
 | `points_awarded` | numeric nullable |
 | `last_saved_at` | timestamptz |
+| `client_updated_at` | timestamptz | monotonic client freshness marker for deterministic stale-write rejection |
 
 Unique key: `(attempt_id, competition_problem_id)`.
 
 Canonical untouched-question contract: `start_competition_attempt` pre-seeds one `attempt_answers` row per `competition_problem` with `status_flag = 'blank'` and empty answer payload fields. Review, submission, grading, and navigator counts must derive from persisted `status_flag` rows only. If an older compatibility attempt misses pre-seeded rows, trusted query helpers must deterministically infer missing rows as `blank` through left-join projection before counting.
+
+Answer write-order contract: `save_attempt_answer(...)` must reject stale or replayed writes using `client_updated_at` monotonic ordering and return deterministic machine code `answer_write_conflict` without mutating the stored row.
 
 ### `tab_switch_logs`
 
@@ -792,14 +799,14 @@ Required trusted functions:
 - `competition_active_name_guard()` trigger helper that blocks organizer duplicate active competition names in statuses `draft`, `published`, `live`, `paused`, and `ended` when `is_deleted = false`
 - `competition_problem_snapshot_guard()` trigger helper that freezes publish-time snapshot columns in `competition_problems` once competition status is `published` or later
 - `moderate_delete_competition(competition_id, reason, request_idempotency_token)` trusted admin-only abuse or fraud deletion path for non-draft competitions with mandatory audit trace
-- `register_for_competition(competition_id, team_id default null)`
+- `register_for_competition(competition_id, actor_user_id, team_id default null)`
 - `withdraw_registration(registration_id)`
 - `validate_team_registration(team_id, competition_id)`
-- `start_competition_attempt(registration_id, request_idempotency_token)` pre-seeds `attempt_answers` blank rows for all `competition_problems` and replays deterministically by token
-- `resume_competition_attempt(attempt_id, request_idempotency_token)` replays deterministically by token
-- `close_active_attempt_interval(attempt_id)`
-- `save_attempt_answer(attempt_id, competition_problem_id, answer_payload, status_flag)` where `answer_payload` is canonical LaTeX or normalized text derived from MathLive input
-- `submit_competition_attempt(attempt_id, request_idempotency_token)` canonical final-submit mutation with deterministic authority and concurrency guards for individual and team registrations
+- `start_competition_attempt(registration_id, actor_user_id, request_idempotency_token)` pre-seeds `attempt_answers` blank rows for all `competition_problems`, fixes immutable deadline snapshots on `competition_attempts`, and replays deterministically by token
+- `resume_competition_attempt(attempt_id, actor_user_id, request_idempotency_token)` replays deterministically by token
+- `close_active_attempt_interval(attempt_id, actor_user_id)` leader-authorized for team attempts so interval closure cannot skew trusted timing
+- `save_attempt_answer(attempt_id, actor_user_id, competition_problem_id, answer_payload, status_flag, client_updated_at)` where `answer_payload` is canonical LaTeX or normalized text derived from MathLive input
+- `submit_competition_attempt(attempt_id, actor_user_id, request_idempotency_token, submission_kind)` canonical final-submit mutation with deterministic authority and concurrency guards for individual and team registrations; `submission_kind = 'auto'` is the timer-expiry path
 - `create_problem_dispute(competition_problem_id, attempt_id, reason)` enforces post-end timing and ownership scope (branch `13-review-submission` ownership contract)
 - `can_view_answer_key(competition_id, viewer_profile_id)` enforces `answer_key_visibility` (`after_end` requires ended competition plus owned registration/attempt context; `hidden` always denies participant access)
 - `log_tab_switch_offense(attempt_id, metadata_json)` validates required anti-cheat metadata keys and mirrors parseable `metadata_json.client_timestamp` into `tab_switch_logs.client_timestamp`
