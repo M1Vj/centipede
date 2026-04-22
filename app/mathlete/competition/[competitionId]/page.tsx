@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { MathletePageFrame } from "@/components/mathlete/page-frame";
 import { CompetitionDetailPanel } from "@/components/competitions/competition-detail-panel";
+import { CompetitionEventNotices } from "@/components/competitions/competition-event-notices";
 import { CompetitionRegistrationPanel } from "@/components/competitions/registration-panel";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
@@ -10,6 +11,7 @@ import {
   isLegacyCompetitionSelectError,
   normalizeCompetitionRecord,
 } from "@/lib/competition/api";
+import { fetchCompetitionEventNotices } from "@/lib/competition/events";
 import type { CompetitionRecord } from "@/lib/competition/types";
 import type { DiscoverableCompetition } from "@/lib/competition/discovery";
 import type { RegistrationStatus, RegistrationSummary } from "@/lib/registrations/types";
@@ -176,6 +178,7 @@ export default async function CompetitionDetailPage({
   }
 
   const competition = toDiscoverableCompetition(normalized);
+  const eventNotices = await fetchCompetitionEventNotices(competition.id);
 
   const individualRegistrationQuery = supabase
     .from("competition_registrations")
@@ -242,6 +245,7 @@ export default async function CompetitionDetailPage({
       teamRegistrations = (teamRegResult.data ?? []) as RegistrationSummary[];
     }
   }
+      {eventNotices.length > 0 ? <CompetitionEventNotices notices={eventNotices} /> : null}
 
   const modeRegistration =
     individualRegistration?.status === "registered"
