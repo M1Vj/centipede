@@ -1,8 +1,6 @@
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import {
-  OrganizerWorkspaceHeader,
-  OrganizerWorkspacePanel,
   OrganizerWorkspaceShell,
   organizerSecondaryActionClass,
 } from "@/components/organizer/workspace-patterns";
@@ -124,36 +122,44 @@ export default async function OrganizerProblemEditorPage({ params }: PageProps) 
   const isCreateMode = problemId === "new";
 
   return (
-    <OrganizerWorkspaceShell className="space-y-6">
-      <OrganizerWorkspaceHeader
-        breadcrumbs={[
-          { label: "Problem Banks", href: "/organizer/problem-bank" },
-          { label: bank.name, href: `/organizer/problem-bank/${bank.id}` },
-          { label: isCreateMode ? "Add Problem" : "Edit Problem" },
-        ]}
-        eyebrow="Problem Authoring"
-        title={isCreateMode ? "Add Problem" : "Edit Problem"}
-        description={
-          isCreateMode
-            ? "Create a new problem for this bank using validated math-authoring inputs."
-            : "Update problem content, options, answer keys, and metadata."
-        }
-        actions={
-          <ProgressLink href={`/organizer/problem-bank/${bank.id}`} className={organizerSecondaryActionClass}>
-            <ArrowLeft className="size-4" />
-            Back to bank
+    <OrganizerWorkspaceShell className="px-4 pt-4 pb-24 font-['Poppins',sans-serif]">
+      <div className="w-full max-w-[1024px] mx-auto flex flex-col">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-slate-500 font-medium text-[13px] mb-8">
+          <ProgressLink href="/organizer/problem-bank" className="hover:text-[#10182b] transition-colors">
+            Problem Banks
           </ProgressLink>
-        }
-      />
+          <ChevronRight className="w-3.5 h-3.5" />
+          <ProgressLink href={`/organizer/problem-bank/${bank.id}`} className="hover:text-[#10182b] transition-colors">
+            {bank.name}
+          </ProgressLink>
+          <ChevronRight className="w-3.5 h-3.5" />
+          <span className="hover:text-[#10182b] transition-colors cursor-pointer">
+            {isCreateMode ? "Add" : "Edit"}
+          </span>
+          <ChevronRight className="w-3.5 h-3.5" />
+          <span className="text-[#10182b] font-bold">Problem</span>
+        </div>
 
-      <OrganizerWorkspacePanel className="border-amber-200/60 p-3 md:p-4 dark:border-amber-700/50">
+        {/* Page Header */}
+        <div className="flex flex-col items-center justify-center text-center mb-10">
+          <h1 className="text-[32px] md:text-[36px] font-black text-[#10182b] tracking-tight leading-tight mb-2">
+            {isCreateMode ? "Add Problem" : "Edit Problem"}
+          </h1>
+          <p className="text-slate-500 text-[15px] font-medium">
+            {isCreateMode
+              ? "Create a new problem for this problem bank using MathLive."
+              : "Update problem content, options, answer keys, and metadata."}
+          </p>
+        </div>
+
         <ProblemForm
           bankId={bank.id}
           backHref={`/organizer/problem-bank/${bank.id}`}
           initialValue={initialValue}
           editable
         />
-      </OrganizerWorkspacePanel>
+      </div>
     </OrganizerWorkspaceShell>
   );
 }
