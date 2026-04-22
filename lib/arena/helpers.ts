@@ -153,7 +153,7 @@ export function resolvePersistedAnswerStatusFlag(
   }
 
   if (explicitStatusFlag === "blank") {
-    return "blank" satisfies AnswerStatusFlag;
+    return rawValue.trim() ? getDefaultAnswerStatusFlag(problemType, rawValue) : "blank";
   }
 
   return getDefaultAnswerStatusFlag(problemType, rawValue);

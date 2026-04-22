@@ -58,6 +58,8 @@ describe("arena helpers", () => {
     expect(resolvePersistedAnswerStatusFlag("numeric", "", "reset")).toBe("reset");
     expect(resolvePersistedAnswerStatusFlag("numeric", "", "solved")).toBe("blank");
     expect(resolvePersistedAnswerStatusFlag("numeric", "x+1", "solved")).toBe("solved");
+    expect(resolvePersistedAnswerStatusFlag("mcq", "b", "blank")).toBe("filled");
+    expect(resolvePersistedAnswerStatusFlag("numeric", "42", undefined)).toBe("filled");
     expect(resolvePersistedAnswerStatusFlag("tf", "true", "filled")).toBe("filled");
   });
 

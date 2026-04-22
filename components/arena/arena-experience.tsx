@@ -212,7 +212,8 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
       preservePending: false,
       resetRequest: true,
     });
-  }, [applyPageData, initialData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent callback intentionally excluded; adding it replays stale initialData.
+  }, [initialData]);
 
   const refreshState = useEffectEvent(async (options?: ApplyPageDataOptions) => {
     setConnectionState("syncing");
@@ -267,8 +268,11 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
     await closeInterval();
   });
 
+  const activeAttemptId = pageData.activeAttempt?.id ?? null;
+  const useFinalMinutePolling = remainingSeconds <= 60;
+
   useEffect(() => {
-    if (!pageData.activeAttempt) {
+    if (!activeAttemptId) {
       return;
     }
 
@@ -279,14 +283,14 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [pageData.activeAttempt]);
+  }, [activeAttemptId]);
 
   useEffect(() => {
     setTimerAnnouncement(getTimerAnnouncementText(remainingSeconds));
   }, [remainingSeconds]);
 
   useEffect(() => {
-    if (!pageData.activeAttempt) {
+    if (!activeAttemptId) {
       expiryHandledAttemptRef.current = null;
       return;
     }
@@ -295,21 +299,22 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
       return;
     }
 
-    if (expiryHandledAttemptRef.current === pageData.activeAttempt.id) {
+    if (expiryHandledAttemptRef.current === activeAttemptId) {
       return;
     }
 
-    expiryHandledAttemptRef.current = pageData.activeAttempt.id;
+    expiryHandledAttemptRef.current = activeAttemptId;
     void (async () => {
       await flushAllSaves();
       await refreshState({
         preservePending: false,
       });
     })();
-  }, [flushAllSaves, pageData.activeAttempt, refreshState, remainingSeconds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent callbacks read latest state without deps.
+  }, [activeAttemptId, remainingSeconds]);
 
   useEffect(() => {
-    if (!pageData.activeAttempt) {
+    if (!activeAttemptId) {
       return;
     }
 
@@ -334,7 +339,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
 
     const pollIntervalId = window.setInterval(() => {
       void refreshState();
-    }, remainingSeconds <= 60 ? 5000 : 10000);
+    }, useFinalMinutePolling ? 5000 : 10000);
     const pagehideHandler = () => {
       void flushAndCloseInterval();
     };
@@ -353,23 +358,24 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
       window.removeEventListener("pagehide", pagehideHandler);
       document.removeEventListener("visibilitychange", visibilityHandler);
     };
-  }, [flushAndCloseInterval, pageData.activeAttempt, refreshState, remainingSeconds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent callbacks excluded so interval does not reset every render.
+  }, [activeAttemptId, useFinalMinutePolling]);
 
   useEffect(() => {
-    if (!pageData.activeAttempt || pageData.competition.format !== "team") {
+    if (!activeAttemptId || pageData.competition.format !== "team") {
       return;
     }
 
     const client = createBrowserClient();
     const answerChannel = client
-      .channel(`arena-answer-sync-${pageData.activeAttempt.id}`)
+      .channel(`arena-answer-sync-${activeAttemptId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "attempt_answers",
-          filter: `attempt_id=eq.${pageData.activeAttempt.id}`,
+          filter: `attempt_id=eq.${activeAttemptId}`,
         },
         (payload) => {
           const next = payload.new as Record<string, unknown>;
@@ -418,14 +424,14 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
       .subscribe();
 
     const attemptChannel = client
-      .channel(`arena-attempt-sync-${pageData.activeAttempt.id}`)
+      .channel(`arena-attempt-sync-${activeAttemptId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "competition_attempts",
-          filter: `id=eq.${pageData.activeAttempt.id}`,
+          filter: `id=eq.${activeAttemptId}`,
         },
         (payload) => {
           const next = payload.new as Record<string, unknown>;
@@ -440,7 +446,8 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
       void client.removeChannel(answerChannel);
       void client.removeChannel(attemptChannel);
     };
-  }, [pageData.activeAttempt, pageData.competition.format, refreshState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent callback excluded; channel lifetime follows attempt id only.
+  }, [activeAttemptId, pageData.competition.format]);
 
   async function startOrResumeAttempt() {
     if (!pageData.registration) {
@@ -555,8 +562,18 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
     if (existing) {
       nextAnswers.set(problemId, {
         ...existing,
+        answerLatex:
+          problem.type === "numeric" || problem.type === "identification"
+            ? pending.value
+            : existing.answerLatex,
+        answerTextNormalized:
+          problem.type === "numeric" || problem.type === "identification"
+            ? existing.answerTextNormalized
+            : pending.value,
+        statusFlag: pending.statusFlag,
         lastSavedAt: payload.data?.lastSavedAt ?? existing.lastSavedAt,
         clientUpdatedAt: pending.clientUpdatedAt,
+        localValue: pending.value,
       });
       answersRef.current = nextAnswers;
       setAnswersState(new Map(nextAnswers));
@@ -587,7 +604,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
     const nextStatusFlag = resolvePersistedAnswerStatusFlag(
       problem.type,
       value,
-      explicitStatusFlag ?? existing?.statusFlag ?? "blank",
+      explicitStatusFlag,
     );
     const nextAnswers = new Map(answersRef.current);
     nextAnswers.set(problem.competitionProblemId, {
@@ -969,6 +986,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                     <button
                       key={problem.competitionProblemId}
                       type="button"
+                      aria-label={`Q${problem.orderIndex} ${formatStatusLabel(statusFlag)}`}
                       onClick={() => {
                         void flushAllSaves();
                         setSelectedProblemId(problem.competitionProblemId);

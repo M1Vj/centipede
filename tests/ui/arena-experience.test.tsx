@@ -245,4 +245,136 @@ describe("ArenaExperience", () => {
       );
     });
   });
+
+  test("marks non-empty answers filled even when previous persisted status was blank", () => {
+    const runtimeData = buildPageData("arena_runtime");
+    runtimeData.activeAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "in_progress",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: null,
+      totalTimeSeconds: 0,
+      remainingSeconds: 1800,
+      effectiveAttemptDeadlineAt: "2026-04-22T12:30:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T12:30:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [
+        {
+          id: "answer-1",
+          attemptId: "attempt-1",
+          competitionProblemId: "cp-1",
+          answerLatex: "",
+          answerTextNormalized: "",
+          statusFlag: "blank",
+          lastSavedAt: "",
+          clientUpdatedAt: "",
+        },
+      ],
+    };
+    runtimeData.latestAttempt = runtimeData.activeAttempt;
+
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          machineCode: "ok",
+          data: { lastSavedAt: "2026-04-22T12:05:00.000Z" },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    render(<ArenaExperience initialData={runtimeData} />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), {
+      target: { value: "42" },
+    });
+
+    expect(screen.getByText("Filled status")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Q1 Filled" })).toBeInTheDocument();
+  });
+
+  test("pre-entry start transitions into runtime when route returns active attempt data", async () => {
+    const preEntryData = buildPageData("pre_entry");
+    const runtimeData = buildPageData("arena_runtime");
+    runtimeData.competition.type = "open";
+    runtimeData.competition.status = "live";
+    runtimeData.activeAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "in_progress",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: null,
+      totalTimeSeconds: 0,
+      remainingSeconds: 1800,
+      effectiveAttemptDeadlineAt: "2026-04-22T12:30:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T12:30:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [
+        {
+          id: "answer-1",
+          attemptId: "attempt-1",
+          competitionProblemId: "cp-1",
+          answerLatex: "",
+          answerTextNormalized: "",
+          statusFlag: "blank",
+          lastSavedAt: "2026-04-22T12:00:00.000Z",
+          clientUpdatedAt: "2026-04-22T12:00:00.000Z",
+        },
+      ],
+    };
+    runtimeData.latestAttempt = runtimeData.activeAttempt;
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/start")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data: runtimeData,
+              machineCode: "ok",
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+
+      if (url.endsWith("/state")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data: runtimeData,
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: runtimeData,
+          }),
+          { status: 200 },
+        ),
+      );
+    });
+
+    render(<ArenaExperience initialData={preEntryData} />);
+
+    for (const checkbox of screen.getAllByRole("checkbox")) {
+      fireEvent.click(checkbox);
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "Start competition" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Navigator")).toBeInTheDocument();
+      expect(screen.getByText("Attempt #1")).toBeInTheDocument();
+    });
+  });
 });

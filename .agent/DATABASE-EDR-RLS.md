@@ -367,9 +367,10 @@ Constraint: exactly one of `profile_id` or `team_id` must be populated. `entry_s
 	- allowed only when `competitions.format = 'team'` and `competitions.type = 'scheduled'`
 	- trusted server route must pass authenticated `actor_user_id`, and that actor must be an active leader of the selected team
 - Shared checks for both paths:
+	- function must fail closed when `auth.role() <> 'service_role'`; authenticated clients must enter through trusted server routes so callers cannot spoof `actor_user_id`
 	- participant is active and profile-complete
 	- competition is visible, not deleted, and inside allowed registration window (for scheduled)
-	- persist immutable `entry_snapshot_json` from the accepted registration context before returning success; later profile, school, grade-level, or roster edits must not mutate the stored snapshot for that registration row
+	- persist immutable `entry_snapshot_json` from the accepted registration context before returning success; individual snapshots store a `display_name` JSON key sourced from canonical `profiles.full_name`, and later profile, school, grade-level, or roster edits must not mutate the stored snapshot for that registration row
 	- capacity and duplicate-registration guards pass, except trusted re-entry for the same `(competition_id, team_id)` when the prior status is `ineligible` OR `withdrawn` and registration timing still allows entry. When repairing an `ineligible` or `withdrawn` registration back to `registered` via re-entry, `entry_snapshot_json` MUST be regenerated and overwritten to capture the new context.
 	- responses return deterministic machine-readable error codes for UI mapping
 
@@ -991,6 +992,7 @@ Risky migrations and backfills:
 
 - 2026-04-14: Added team-management schema alignment, leadership transfer helpers, and team idempotency ledger support for invite and roster retries.
 - 2026-04-15: Added branch-08 lifecycle core migration introducing canonical `competition_status` and `answer_key_visibility`, deterministic status backfill from legacy booleans, draft revision/version support, immutable scoring snapshot guard after publish, competition-problem frozen snapshot columns with guard trigger, hardened `competition_events` payload/metadata/idempotency fields, and trusted lifecycle RPCs (`snapshot_competition_problems`, `publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `delete_draft_competition`) with deterministic replay semantics.
+- 2026-04-22: Added branch-11 forward fixes for deployed arena/lifecycle drift: `register_for_competition` now sources the stored `display_name` snapshot from canonical `profiles.full_name` while retaining its service-role fail-closed guard, and `start_competition` qualifies event lookup/status return columns to avoid PL/pgSQL output-parameter ambiguity.
 - 2026-04-09: Added branch-07 contract-first scoring RPC signature migration for `grade_attempt(uuid)`, `recalculate_competition_scores(uuid, text)`, and `refresh_leaderboard_entries(uuid)` as trusted service-role-only placeholders with deterministic deferred owner-schema machine codes until branches `11`, `13`, and `14` activate executable wiring.
 - 2026-04-08: Added canonical trigger contract `touch_problem_bank_updated_at_from_problem()` so parent `problem_banks.updated_at` refreshes on `problems` insert, update, and delete writes, including bank reassignment updates.
 - 2026-04-06: Synced branch `06-problem-bank` migration artifacts into canonical contracts: schema alignment constraints and triggers for `problem_banks` and `problems`, private `problem-assets` storage key and policy model, and `problem_import_jobs` idempotency-ledger schema with RLS scope.
