@@ -1,3 +1,9 @@
+import { ArrowLeft } from "lucide-react";
+import {
+  OrganizerWorkspaceHeader,
+  OrganizerWorkspaceShell,
+  organizerSecondaryActionClass,
+} from "@/components/organizer/workspace-patterns";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import { createDefaultCompetitionDraftState } from "@/lib/competition/validation";
@@ -10,22 +16,24 @@ export default async function OrganizerCompetitionCreatePage() {
   const workspaceData = await loadCompetitionCreateWorkspaceData();
 
   return (
-    <section className="shell py-12 space-y-6">
-      <div className="space-y-2">
-        <ProgressLink href="/organizer/competition" className="text-sm font-semibold text-primary underline-offset-4 hover:underline">
-          Back to competitions
-        </ProgressLink>
-        <h1 className="text-3xl font-semibold tracking-tight">Create competition draft</h1>
-        <p className="text-sm text-muted-foreground">
-          Build competition draft in one pass, then continue editing from the detail wizard.
-        </p>
-      </div>
+    <div className="w-full flex justify-center px-4">
+      <div className="w-full max-w-[1100px] mt-12 flex flex-col pb-12 font-['Poppins']">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 mb-6">
+          <ProgressLink
+            href="/organizer/competition"
+            className="text-slate-400 hover:text-[#f49700] text-[14px] font-bold transition-colors flex items-center gap-1.5 no-underline"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to Competitions
+          </ProgressLink>
+        </div>
 
-      <CompetitionWizard
-        mode="create"
-        initialState={createDefaultCompetitionDraftState()}
-        availableProblems={workspaceData.problems}
-      />
-    </section>
+        <CompetitionWizard
+          mode="create"
+          initialState={createDefaultCompetitionDraftState()}
+          availableProblems={workspaceData.problems}
+        />
+      </div>
+    </div>
   );
 }

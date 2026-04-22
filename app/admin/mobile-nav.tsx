@@ -13,6 +13,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { LogoutButton } from "@/components/logout-button";
 import { Button } from "@/components/ui/button";
 import { ProgressLink } from "@/components/ui/progress-link";
 
@@ -56,7 +57,7 @@ export function AdminMobileNav() {
       </div>
 
       {isOpen ? (
-        <nav className="grid gap-1 border-t px-4 py-3">
+        <nav className="grid gap-1 border-t px-4 py-3" aria-label="Admin mobile navigation">
           {navItems.map((item) => (
             <ProgressLink
               key={item.href}
@@ -67,6 +68,15 @@ export function AdminMobileNav() {
               {item.label}
             </ProgressLink>
           ))}
+          <div className="border-t pt-2">
+            <LogoutButton
+              label="Sign out"
+              ariaLabel="Sign out of admin workspace"
+              variant="outline"
+              size="sm"
+              className="w-full"
+            />
+          </div>
         </nav>
       ) : null}
     </div>

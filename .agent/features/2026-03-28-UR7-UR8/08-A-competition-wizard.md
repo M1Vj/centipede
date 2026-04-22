@@ -172,6 +172,18 @@ Mutation guards by status:
 - Hardened organizer mutation compatibility beyond create flow: shared competition reads now retry with legacy competition select columns, draft save fallback now reads legacy rows after compatibility updates, and draft delete now has a legacy soft-delete fallback when `delete_draft_competition` RPC is unavailable.
 - Added regression coverage in `tests/competition/edit-route.test.ts` and extended `tests/competition/publish-route.test.ts` so save, delete, and publish paths no longer regress into generic operation-failed responses on under-migrated schemas.
 
+### UI Fidelity Update (2026-04-18)
+
+- Organizer competition UI now traces directly to Figma source `https://www.figma.com/design/cBQPJi1UVMFzrHlfsNPbsx/Mathwiz?node-id=1-125&t=wi7iD40k8rPMSyLH-1`.
+- Inspected organizer competition reference nodes:
+  - `83:2772` for format/schedule wizard framing
+  - `93:701` for review layout framing
+- Organizer-facing route wrappers aligned to the Figma shell while preserving existing wizard behavior:
+  - `app/organizer/competition/page.tsx`
+  - `app/organizer/competition/create/page.tsx`
+  - `app/organizer/competition/[competitionId]/page.tsx`
+- Scope boundary: wrapper/layout parity was refreshed in branch-local UI only; `components/competition-wizard/competition-wizard.tsx` behavior contract stayed intact.
+
 ## Git Branching
 
 - Branch from: `develop`

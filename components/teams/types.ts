@@ -44,11 +44,19 @@ export type TeamRosterMember = TeamMembershipRecord & {
   profile: TeamMemberProfile | null;
 };
 
+export type TeamRosterLock = {
+  locked: boolean;
+  competitionId: string | null;
+  competitionName: string | null;
+  competitionStartTime: string | null;
+};
+
 export type TeamDetailResponse = {
   code: string;
   team: TeamRecord;
   membership: TeamMembershipRecord;
   members: TeamRosterMember[];
+  rosterLock: TeamRosterLock;
 };
 
 export type TeamInvite = {
