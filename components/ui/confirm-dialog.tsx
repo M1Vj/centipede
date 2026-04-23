@@ -6,13 +6,17 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type ConfirmDialogProps = {
+  actionsClassName?: string;
   cancelLabel?: string;
+  cancelClassName?: string;
   children?: ReactNode;
   confirmLabel: string;
   confirmDisabled?: boolean;
+  confirmClassName?: string;
   confirmVariant?: "default" | "destructive";
   contentClassName?: string;
   description: string;
+  descriptionClassName?: string;
   onConfirm: () => void | Promise<void>;
   onOpenChange: (open: boolean) => void;
   overlayClassName?: string;
@@ -20,16 +24,21 @@ type ConfirmDialogProps = {
   pending?: boolean;
   pendingLabel?: string;
   title: string;
+  titleClassName?: string;
 };
 
 export function ConfirmDialog({
+  actionsClassName,
   cancelLabel = "Cancel",
+  cancelClassName,
   children,
   confirmLabel,
   confirmDisabled = false,
+  confirmClassName,
   confirmVariant = "destructive",
   contentClassName,
   description,
+  descriptionClassName,
   onConfirm,
   onOpenChange,
   overlayClassName,
@@ -37,6 +46,7 @@ export function ConfirmDialog({
   pending = false,
   pendingLabel,
   title,
+  titleClassName,
 }: ConfirmDialogProps) {
   return (
     <AlertDialog.Root
@@ -63,26 +73,43 @@ export function ConfirmDialog({
           )}
         >
           <div className="space-y-3">
-            <AlertDialog.Title className="text-[1.45rem] font-semibold leading-tight tracking-tight text-foreground">
+            <AlertDialog.Title
+              className={cn(
+                "text-[1.45rem] font-semibold leading-tight tracking-tight text-foreground",
+                titleClassName,
+              )}
+            >
               {title}
             </AlertDialog.Title>
-            <AlertDialog.Description className="text-sm leading-6 text-muted-foreground">
+            <AlertDialog.Description
+              className={cn("text-sm leading-6 text-muted-foreground", descriptionClassName)}
+            >
               {description}
             </AlertDialog.Description>
           </div>
 
           {children ? <div className="mt-4">{children}</div> : null}
 
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <div
+            className={cn(
+              "mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end",
+              actionsClassName,
+            )}
+          >
             <AlertDialog.Cancel asChild>
-              <Button type="button" variant="outline" className="rounded-lg" disabled={pending}>
+              <Button
+                type="button"
+                variant="outline"
+                className={cn("rounded-lg", cancelClassName)}
+                disabled={pending}
+              >
                 {cancelLabel}
               </Button>
             </AlertDialog.Cancel>
             <Button
               type="button"
               variant={confirmVariant}
-              className="rounded-lg"
+              className={cn("rounded-lg", confirmClassName)}
               onClick={() => void onConfirm()}
               disabled={confirmDisabled}
               pending={pending}
