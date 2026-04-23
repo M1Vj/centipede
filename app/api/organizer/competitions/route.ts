@@ -7,6 +7,7 @@ import {
 } from "@/lib/competition/api";
 import type { CompetitionDraftFormState, CompetitionDraftInput, CompetitionRecord } from "@/lib/competition/types";
 import {
+  buildCompetitionDraftRpcPayload,
   buildLegacyCompetitionMutationPayload,
   competitionLifecycleErrorMessage,
   competitionLifecycleErrorStatus,
@@ -146,32 +147,10 @@ export async function POST(request: Request) {
 
   const insertPayload = {
     organizer_id: actor.userId,
-    name: validation.value.name,
-    description: validation.value.description,
-    instructions: validation.value.instructions,
-    type: validation.value.type,
-    format: validation.value.format,
-    registration_start: validation.value.registrationStart,
-    registration_end: validation.value.registrationEnd,
-    start_time: validation.value.startTime,
+    ...buildLegacyCompetitionMutationPayload(validation.value),
     end_time: validation.value.endTime,
-    duration_minutes: validation.value.durationMinutes,
-    attempts_allowed: validation.value.attemptsAllowed,
     multi_attempt_grading_mode: validation.value.multiAttemptGradingMode,
-    max_participants: validation.value.maxParticipants,
-    participants_per_team: validation.value.participantsPerTeam,
-    max_teams: validation.value.maxTeams,
-    scoring_mode: validation.value.scoringMode,
-    custom_points: validation.value.customPointsByProblemId,
-    penalty_mode: validation.value.penaltyMode,
-    deduction_value: validation.value.deductionValue,
-    tie_breaker: validation.value.tieBreaker,
-    shuffle_questions: validation.value.shuffleQuestions,
-    shuffle_options: validation.value.shuffleOptions,
-    log_tab_switch: validation.value.logTabSwitch,
-    offense_penalties: validation.value.offensePenalties,
-    published: false,
-    is_paused: false,
+    answer_key_visibility: validation.value.answerKeyVisibility,
   };
 
   const legacyInsertPayload = {
@@ -216,10 +195,11 @@ export async function POST(request: Request) {
   }
 
   if (selectionCheck.selectedProblemIds.length > 0) {
+    const rpcPayload = buildCompetitionDraftRpcPayload(validation.value);
     const { data: savedResult, error: saveError } = await adminClient.rpc("save_competition_draft", {
       p_competition_id: competition.id,
       p_expected_draft_revision: competition.draftRevision,
-      p_payload_json: validation.value,
+      p_payload_json: rpcPayload,
     });
 
     if (saveError && isLegacyCompetitionSchemaError(saveError)) {
@@ -267,11 +247,15 @@ export async function POST(request: Request) {
 
     const refreshed = await fetchCompetition(supabase, competition.id, actor.userId);
     if ("response" in refreshed) {
-      if (refreshed.response.status === 404) {
-        return jsonError(
-          "service_unavailable",
-          "Competition could not be created while database migrations are incomplete.",
-          503,
+      if (refreshed.response.status === 404 || refreshed.response.status === 503) {
+        return jsonOk(
+          {
+            code: "created",
+            competition,
+            selectedProblemCount: savedLifecycle.selectedProblemCount ?? 0,
+            currentDraftRevision: savedLifecycle.currentDraftRevision ?? competition.draftRevision,
+          },
+          201,
         );
       }
 

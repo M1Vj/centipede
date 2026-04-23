@@ -50,19 +50,28 @@ export function isLegacyCompetitionSelectError(
   );
 }
 
+function toLegacyScoringMode(value: CompetitionDraftMutationPayload["scoringMode"]) {
+  return value === "custom" ? "custom" : "automatic";
+}
+
+function toLegacyPenaltyMode(value: CompetitionDraftMutationPayload["penaltyMode"]) {
+  return value === "fixed_deduction" ? "deduction" : "none";
+}
+
+function toLegacyTieBreaker(value: CompetitionDraftMutationPayload["tieBreaker"]) {
+  return value === "lowest_total_time" ? "average_time" : "earliest_submission";
+}
+
+export function buildCompetitionDraftRpcPayload(input: CompetitionDraftMutationPayload) {
+  return {
+    ...input,
+    scoringMode: toLegacyScoringMode(input.scoringMode),
+    penaltyMode: toLegacyPenaltyMode(input.penaltyMode),
+    tieBreaker: toLegacyTieBreaker(input.tieBreaker),
+  } as const;
+}
+
 export function buildLegacyCompetitionMutationPayload(input: CompetitionDraftMutationPayload) {
-  function toLegacyScoringMode(value: CompetitionDraftMutationPayload["scoringMode"]) {
-    return value === "custom" ? "custom" : "automatic";
-  }
-
-  function toLegacyPenaltyMode(value: CompetitionDraftMutationPayload["penaltyMode"]) {
-    return value === "fixed_deduction" ? "deduction" : "none";
-  }
-
-  function toLegacyTieBreaker(value: CompetitionDraftMutationPayload["tieBreaker"]) {
-    return value === "lowest_total_time" ? "average_time" : "earliest_submission";
-  }
-
   return {
     name: input.name,
     description: input.description,

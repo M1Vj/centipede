@@ -149,6 +149,71 @@ function makeSupabaseClient(competitionRows: Array<Record<string, unknown>>) {
   };
 }
 
+function makeQueuedSelectClient(options: {
+  competitionSelectResults: Partial<
+    Record<
+      typeof COMPETITION_SELECT_COLUMNS | typeof LEGACY_COMPETITION_SELECT_COLUMNS,
+      Array<{ data: Record<string, unknown> | null; error: { code?: string; message?: string } | null }>
+    >
+  >;
+}) {
+  const profileQuery = {
+    select: vi.fn(),
+    eq: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue({
+      data: {
+        id: ORGANIZER_ID,
+        role: "organizer",
+        is_active: true,
+      },
+      error: null,
+    }),
+  };
+  profileQuery.select.mockImplementation(() => profileQuery);
+  profileQuery.eq.mockImplementation(() => profileQuery);
+
+  const queues = new Map(
+    Object.entries(options.competitionSelectResults).map(([columns, results]) => [columns, [...results]]),
+  );
+
+  function makeCompetitionMaybeSingle(columns: string) {
+    return {
+      eq: vi.fn().mockImplementation(() => makeCompetitionMaybeSingle(columns)),
+      maybeSingle: vi.fn().mockImplementation(async () => {
+        const queue = queues.get(columns) ?? [];
+        const next = queue.shift() ?? { data: null, error: null };
+        queues.set(columns, queue);
+        return next;
+      }),
+    };
+  }
+
+  return {
+    auth: {
+      getUser: vi.fn().mockResolvedValue({
+        data: {
+          user: {
+            id: ORGANIZER_ID,
+          },
+        },
+      }),
+    },
+    from: vi.fn((table: string) => {
+      if (table === "profiles") {
+        return profileQuery;
+      }
+
+      if (table === "competitions") {
+        return {
+          select: vi.fn((columns: string) => makeCompetitionMaybeSingle(columns)),
+        };
+      }
+
+      throw new Error(`Unexpected table in server client: ${table}`);
+    }),
+  };
+}
+
 function makeLegacySelectFallbackSupabaseClient() {
   const profileQuery = {
     select: vi.fn(),
@@ -446,6 +511,78 @@ describe("publish route compatibility", () => {
 
     vi.mocked(createAdminClient).mockReturnValue({
       rpc,
+      from: vi.fn(),
+    } as never);
+
+    const response = await POST(makePublishRequest(), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.competition.status).toBe("published");
+    expect(body.lifecycle.machineCode).toBe("ok");
+  });
+
+  test("keeps publish successful when lifecycle payload is missing and refresh is unavailable", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeQueuedSelectClient({
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: [
+            { data: makeCompetitionRow("draft"), error: null },
+            {
+              data: null,
+              error: {
+                code: "42703",
+                message: "column competitions.status does not exist",
+              },
+            },
+          ],
+          [LEGACY_COMPETITION_SELECT_COLUMNS]: [
+            { data: makeLegacyCompetitionRow("draft"), error: null },
+            { data: null, error: null },
+          ],
+        },
+      }) as never,
+    );
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc: vi.fn().mockResolvedValue({
+        data: null,
+        error: null,
+      }),
+      from: vi.fn(),
+    } as never);
+
+    const response = await POST(makePublishRequest(), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.competition.status).toBe("published");
+    expect(body.lifecycle.machineCode).toBe("ok");
+  });
+
+  test("keeps publish status published when refresh returns stale row after ok lifecycle", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeQueuedSelectClient({
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: [
+            { data: makeCompetitionRow("draft"), error: null },
+            { data: makeCompetitionRow("draft"), error: null },
+          ],
+        },
+      }) as never,
+    );
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc: vi.fn().mockResolvedValue({
+        data: ["ok"],
+        error: null,
+      }),
       from: vi.fn(),
     } as never);
 

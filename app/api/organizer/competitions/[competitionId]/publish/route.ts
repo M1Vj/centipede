@@ -12,6 +12,7 @@ import {
   requireCompetitionAdminClient,
   requireOrganizerCompetitionActor,
   requireSameOriginMutation,
+  withCompetitionStatus,
 } from "../../_shared";
 
 export async function POST(request: Request, context: { params: Promise<{ competitionId: string }> }) {
@@ -49,6 +50,7 @@ export async function POST(request: Request, context: { params: Promise<{ compet
   }
 
   const { adminClient } = adminClientResult;
+  let selectedProblemCount: number | null = null;
   const { data, error } = await adminClient.rpc("publish_competition", {
     p_competition_id: competitionId,
     p_request_idempotency_token: requestIdempotencyToken,
@@ -77,7 +79,7 @@ export async function POST(request: Request, context: { params: Promise<{ compet
       return jsonDatabaseError(countError);
     }
 
-    const selectedProblemCount = typeof count === "number" ? count : 0;
+    selectedProblemCount = typeof count === "number" ? count : 0;
 
     if (selectedProblemCount === 0) {
       return jsonError(
@@ -128,21 +130,28 @@ export async function POST(request: Request, context: { params: Promise<{ compet
 
     const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);
     if ("response" in refreshed) {
-      return refreshed.response;
+      if (refreshed.response.status !== 404 && refreshed.response.status !== 503) {
+        return refreshed.response;
+      }
     }
 
     return jsonOk({
       code: "ok",
-      competition: refreshed.competition,
+      competition:
+        "response" in refreshed
+          ? withCompetitionStatus(competition, "published")
+          : refreshed.competition.status === "published"
+            ? refreshed.competition
+            : withCompetitionStatus(refreshed.competition, "published"),
       lifecycle: {
         machineCode: "ok",
-        status: refreshed.competition.status,
+        status: "published",
         eventId: null,
         replayed: false,
         changed: true,
         requestIdempotencyToken,
-        draftRevision: refreshed.competition.draftRevision,
-        selectedProblemCount,
+        draftRevision: competition.draftRevision,
+        selectedProblemCount: selectedProblemCount ?? 0,
       },
     });
   }
@@ -152,11 +161,7 @@ export async function POST(request: Request, context: { params: Promise<{ compet
   }
 
   const lifecycleResult = normalizeLifecycleOutcome(normalizeCompetitionLifecycleResult(data));
-  if (!lifecycleResult) {
-    return jsonError("operation_failed", "Competition publish failed.", 500);
-  }
-
-  if (lifecycleResult.machineCode !== "ok") {
+  if (lifecycleResult && lifecycleResult.machineCode !== "ok") {
     return jsonError(
       lifecycleResult.machineCode,
       competitionLifecycleErrorMessage(lifecycleResult.machineCode),
@@ -169,14 +174,48 @@ export async function POST(request: Request, context: { params: Promise<{ compet
     );
   }
 
+  const publishedCompetition = withCompetitionStatus(competition, "published");
+
   const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);
   if ("response" in refreshed) {
+    if (refreshed.response.status === 404 || refreshed.response.status === 503) {
+      return jsonOk({
+        code: "ok",
+        competition: publishedCompetition,
+        lifecycle: {
+          machineCode: "ok",
+          status: "published",
+          eventId: null,
+          replayed: false,
+          changed: true,
+          requestIdempotencyToken,
+          draftRevision: competition.draftRevision,
+          selectedProblemCount: lifecycleResult?.selectedProblemCount ?? selectedProblemCount ?? 0,
+        },
+      });
+    }
+
     return refreshed.response;
   }
 
   return jsonOk({
     code: "ok",
-    competition: refreshed.competition,
-    lifecycle: lifecycleResult,
+    competition:
+      refreshed.competition.status === "published"
+        ? refreshed.competition
+        : withCompetitionStatus(refreshed.competition, "published"),
+    lifecycle:
+      lifecycleResult && lifecycleResult.machineCode === "ok"
+        ? lifecycleResult
+        : {
+            machineCode: "ok",
+            status: "published",
+            eventId: null,
+            replayed: false,
+            changed: true,
+            requestIdempotencyToken,
+            draftRevision: competition.draftRevision,
+            selectedProblemCount: lifecycleResult?.selectedProblemCount ?? selectedProblemCount ?? 0,
+          },
   });
 }

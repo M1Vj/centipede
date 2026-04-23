@@ -8,6 +8,7 @@ import {
 } from "@/lib/competition/api";
 import { validateCompetitionDraftInput } from "@/lib/competition/validation";
 import {
+  buildCompetitionDraftRpcPayload,
   buildLegacyCompetitionMutationPayload,
   fetchCompetition,
   jsonDatabaseError,
@@ -197,10 +198,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ compe
   }
 
   const { adminClient } = adminClientResult;
+  const rpcPayload = buildCompetitionDraftRpcPayload(validation.value);
   const { data: savedResult, error: saveError } = await adminClient.rpc("save_competition_draft", {
     p_competition_id: competitionId,
     p_expected_draft_revision: expectedDraftRevision,
-    p_payload_json: validation.value,
+    p_payload_json: rpcPayload,
   });
 
   if (saveError && isLegacyCompetitionSchemaError(saveError)) {
@@ -365,11 +367,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ comp
   }
 
   const lifecycleResult = normalizeCompetitionLifecycleResult(data);
-  if (!lifecycleResult) {
-    return jsonError("operation_failed", "Competition could not be deleted.", 500);
-  }
-
-  if (lifecycleResult.machineCode !== "ok") {
+  if (lifecycleResult && lifecycleResult.machineCode !== "ok") {
     return jsonError(lifecycleResult.machineCode, "Competition could not be deleted.", 409, {
       currentStatus: lifecycleResult.currentStatus,
     });
@@ -377,8 +375,8 @@ export async function DELETE(request: Request, context: { params: Promise<{ comp
 
   return jsonOk({
     code: "ok",
-    machineCode: lifecycleResult.machineCode,
-    currentStatus: lifecycleResult.currentStatus,
+    machineCode: lifecycleResult?.machineCode ?? "ok",
+    currentStatus: lifecycleResult?.currentStatus ?? competition.status,
     isDeleted: true,
   });
 }

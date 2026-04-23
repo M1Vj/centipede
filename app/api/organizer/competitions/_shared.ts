@@ -6,6 +6,7 @@ import {
   type ProblemBankActorRole,
 } from "@/lib/problem-bank/api-helpers";
 import {
+  buildCompetitionDraftRpcPayload,
   buildLegacyCompetitionMutationPayload,
   COMPETITION_SELECT_COLUMNS,
   LEGACY_COMPETITION_SELECT_COLUMNS,
@@ -14,7 +15,7 @@ import {
 } from "@/lib/competition/api";
 import type { CompetitionLifecycleResult, CompetitionRecord } from "@/lib/competition/types";
 
-export { buildLegacyCompetitionMutationPayload };
+export { buildCompetitionDraftRpcPayload, buildLegacyCompetitionMutationPayload };
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>;
 type AdminSupabaseClient = NonNullable<ReturnType<typeof createAdminClient>>;
@@ -43,6 +44,13 @@ export function jsonError(
 
 export function jsonOk(payload: Record<string, unknown>, status = 200) {
   return NextResponse.json(payload, { status });
+}
+
+export function withCompetitionStatus<T extends { status: string }>(competition: T, status: T["status"]) {
+  return {
+    ...competition,
+    status,
+  };
 }
 
 export function jsonDatabaseError(error: unknown) {
@@ -358,6 +366,19 @@ export async function fetchCompetition(
       .maybeSingle();
 
     if (fallbackResult.error) {
+      if (
+        isLegacyCompetitionSelectError(primaryResult.error) ||
+        isLegacyCompetitionSelectError(fallbackResult.error)
+      ) {
+        return {
+          response: jsonError(
+            "service_unavailable",
+            "Competition data is temporarily unavailable while database migrations are incomplete.",
+            503,
+          ),
+        };
+      }
+
       return {
         response: jsonDatabaseError(fallbackResult.error),
       };
@@ -366,6 +387,19 @@ export async function fetchCompetition(
     const fallbackCompetition = normalizeCompetitionRecord(fallbackResult.data);
     if (fallbackCompetition) {
       return { competition: fallbackCompetition };
+    }
+
+    if (
+      isLegacyCompetitionSelectError(primaryResult.error) ||
+      isLegacyCompetitionSelectError(fallbackResult.error)
+    ) {
+      return {
+        response: jsonError(
+          "service_unavailable",
+          "Competition data is temporarily unavailable while database migrations are incomplete.",
+          503,
+        ),
+      };
     }
   }
 

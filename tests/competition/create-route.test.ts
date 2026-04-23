@@ -439,16 +439,88 @@ describe("POST /api/organizer/competitions", () => {
     expect(select).toHaveBeenNthCalledWith(2, LEGACY_COMPETITION_SELECT_COLUMNS);
   });
 
-  test("falls back to legacy competition select columns when refreshing created draft after save", async () => {
+  test("serializes modern scoring tokens before save and refreshes created draft", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeServerClient(["problem-1"], {
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: {
+            data: buildCompetitionRow(),
+            error: null,
+          },
+        },
+      }) as never,
+    );
+
+    let insertedPayload: Record<string, unknown> | null = null;
+    const insertQuery = {
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: buildCompetitionRow(),
+        error: null,
+      }),
+    };
+    insertQuery.select.mockImplementation(() => insertQuery);
+
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [{ machine_code: "ok", selected_problem_count: 1, current_draft_revision: 2 }],
+      error: null,
+    });
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return {
+            insert: vi.fn((payload: Record<string, unknown>) => {
+              insertedPayload = payload;
+              return insertQuery;
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+      rpc: rpcMock,
+    } as never);
+
+    const response = await POST(
+      makeCreateRequest(
+        buildScheduledCreatePayload({
+          selectedProblemIds: ["problem-1"],
+          scoringMode: "difficulty",
+          penaltyMode: "fixed_deduction",
+          deductionValue: 1,
+          tieBreaker: "lowest_total_time",
+        }),
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.code).toBe("created");
+    expect(insertedPayload?.scoring_mode).toBe("automatic");
+    expect(insertedPayload?.penalty_mode).toBe("deduction");
+    expect(insertedPayload?.tie_breaker).toBe("average_time");
+    expect(rpcMock).toHaveBeenCalledWith(
+      "save_competition_draft",
+      expect.objectContaining({
+        p_payload_json: expect.objectContaining({
+          scoringMode: "automatic",
+          penaltyMode: "deduction",
+          tieBreaker: "average_time",
+        }),
+      }),
+    );
+    expect(body.competition.status).toBe("draft");
+    expect(body.currentDraftRevision).toBe(2);
+  });
+
+  test("falls back to legacy competition select columns when primary post-save read returns no data", async () => {
     vi.mocked(createClient).mockResolvedValue(
       makeServerClient(["problem-1"], {
         competitionSelectResults: {
           [COMPETITION_SELECT_COLUMNS]: {
             data: null,
-            error: {
-              code: "42703",
-              message: 'column competitions.status does not exist',
-            },
+            error: null,
           },
           [LEGACY_COMPETITION_SELECT_COLUMNS]: {
             data: buildLegacyCompetitionRow(),
@@ -498,16 +570,19 @@ describe("POST /api/organizer/competitions", () => {
     expect(body.currentDraftRevision).toBe(2);
   });
 
-  test("falls back to legacy competition select columns when primary post-save read returns no data", async () => {
+  test("keeps created draft successful when post-save refresh is unavailable under schema drift", async () => {
     vi.mocked(createClient).mockResolvedValue(
       makeServerClient(["problem-1"], {
         competitionSelectResults: {
           [COMPETITION_SELECT_COLUMNS]: {
             data: null,
-            error: null,
+            error: {
+              code: "42703",
+              message: "column competitions.status does not exist",
+            },
           },
           [LEGACY_COMPETITION_SELECT_COLUMNS]: {
-            data: buildLegacyCompetitionRow(),
+            data: null,
             error: null,
           },
         },

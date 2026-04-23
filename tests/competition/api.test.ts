@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  buildCompetitionDraftRpcPayload,
   buildLegacyCompetitionMutationPayload,
   competitionRecordToFormState,
   normalizeCompetitionLifecycleResult,
@@ -132,6 +133,44 @@ describe("competition api helpers", () => {
     expect(payload.tie_breaker).toBe("average_time");
     expect(payload.start_time).toBe("2026-05-01T03:00:00.000Z");
     expect(payload).not.toHaveProperty("end_time");
+  });
+
+  test("maps current competition enums back to rpc-safe payload tokens", () => {
+    const payload = buildCompetitionDraftRpcPayload({
+      name: "Modern payload",
+      description: "Modern description",
+      instructions: "Modern instructions",
+      type: "scheduled",
+      format: "individual",
+      registrationTimingMode: "default",
+      registrationStart: "2026-05-01T01:00:00.000Z",
+      registrationEnd: "2026-05-01T02:00:00.000Z",
+      startTime: "2026-05-01T03:00:00.000Z",
+      endTime: null,
+      durationMinutes: 60,
+      attemptsAllowed: 1,
+      multiAttemptGradingMode: "highest_score",
+      maxParticipants: 3,
+      participantsPerTeam: null,
+      maxTeams: null,
+      scoringMode: "difficulty",
+      customPointsByProblemId: {},
+      penaltyMode: "fixed_deduction",
+      deductionValue: 0,
+      tieBreaker: "lowest_total_time",
+      shuffleQuestions: false,
+      shuffleOptions: false,
+      logTabSwitch: false,
+      offensePenalties: [],
+      answerKeyVisibility: "after_end",
+      selectedProblemIds: [],
+    });
+
+    expect(payload.scoringMode).toBe("automatic");
+    expect(payload.penaltyMode).toBe("deduction");
+    expect(payload.tieBreaker).toBe("average_time");
+    expect(payload.startTime).toBe("2026-05-01T03:00:00.000Z");
+    expect(payload.selectedProblemIds).toEqual([]);
   });
 
   test("normalizes competition form state with selected problems", () => {

@@ -110,6 +110,9 @@ Competition create and post-save refresh paths must apply the same legacy-column
 ### 3.14
 Competition mutation routes must use the same legacy competition-read fallback as organizer pages, not just create flow. Publish/save/delete can succeed or partially succeed on older schemas while the follow-up modern read fails; compatibility reads and delete fallbacks must turn those cases into deterministic success or explicit `service_unavailable`, never generic `operation_failed`.
 
+### 3.15
+Organizer competition create and save paths must serialize scoring, penalty, and tie-breaker values to database enum tokens before hitting insert/update RPCs. UI/domain tokens remain the API contract, but raw `difficulty`, `fixed_deduction`, and `lowest_total_time` values cannot be sent directly to lifecycle SQL that still casts legacy enum names.
+
 ## 4. Workflow Rules
 
 ### 4.1

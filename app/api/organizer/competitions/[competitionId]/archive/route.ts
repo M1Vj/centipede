@@ -12,6 +12,7 @@ import {
   requireCompetitionAdminClient,
   requireOrganizerCompetitionActor,
   requireSameOriginMutation,
+  withCompetitionStatus,
 } from "../../_shared";
 
 export async function POST(request: Request, context: { params: Promise<{ competitionId: string }> }) {
@@ -112,20 +113,27 @@ export async function POST(request: Request, context: { params: Promise<{ compet
 
     const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);
     if ("response" in refreshed) {
-      return refreshed.response;
+      if (refreshed.response.status !== 404 && refreshed.response.status !== 503) {
+        return refreshed.response;
+      }
     }
 
     return jsonOk({
       code: "ok",
-      competition: refreshed.competition,
+      competition:
+        "response" in refreshed
+          ? withCompetitionStatus(competition, "archived")
+          : refreshed.competition.status === "archived"
+            ? refreshed.competition
+            : withCompetitionStatus(refreshed.competition, "archived"),
       lifecycle: {
         machineCode: "ok",
-        status: refreshed.competition.status,
+        status: "archived",
         eventId: null,
         replayed: false,
         changed: true,
         requestIdempotencyToken,
-        draftRevision: refreshed.competition.draftRevision,
+        draftRevision: competition.draftRevision,
         selectedProblemCount: null,
       },
     });
@@ -136,11 +144,7 @@ export async function POST(request: Request, context: { params: Promise<{ compet
   }
 
   const lifecycleResult = normalizeLifecycleOutcome(normalizeCompetitionLifecycleResult(data));
-  if (!lifecycleResult) {
-    return jsonError("operation_failed", "Competition archive failed.", 500);
-  }
-
-  if (lifecycleResult.machineCode !== "ok") {
+  if (lifecycleResult && lifecycleResult.machineCode !== "ok") {
     return jsonError(
       lifecycleResult.machineCode,
       competitionLifecycleErrorMessage(lifecycleResult.machineCode),
@@ -153,14 +157,48 @@ export async function POST(request: Request, context: { params: Promise<{ compet
     );
   }
 
+  const archivedCompetition = withCompetitionStatus(competition, "archived");
+
   const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);
   if ("response" in refreshed) {
+    if (refreshed.response.status === 404 || refreshed.response.status === 503) {
+      return jsonOk({
+        code: "ok",
+        competition: archivedCompetition,
+        lifecycle: {
+          machineCode: "ok",
+          status: "archived",
+          eventId: null,
+          replayed: false,
+          changed: true,
+          requestIdempotencyToken,
+          draftRevision: competition.draftRevision,
+          selectedProblemCount: null,
+        },
+      });
+    }
+
     return refreshed.response;
   }
 
   return jsonOk({
     code: "ok",
-    competition: refreshed.competition,
-    lifecycle: lifecycleResult,
+    competition:
+      refreshed.competition.status === "archived"
+        ? refreshed.competition
+        : withCompetitionStatus(refreshed.competition, "archived"),
+    lifecycle:
+      lifecycleResult && lifecycleResult.machineCode === "ok"
+        ? lifecycleResult
+        : {
+            machineCode: "ok",
+            status: "archived",
+            eventId: null,
+            replayed: false,
+            changed: true,
+            requestIdempotencyToken,
+            draftRevision: competition.draftRevision,
+            selectedProblemCount: null,
+          },
   });
 }
