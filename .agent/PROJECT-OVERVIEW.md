@@ -378,6 +378,47 @@ The execution plan below covers:
 ## Primary References
 
 - Next.js App Router docs: https://nextjs.org/docs/app
+
+## Figma Mathlete Competition Discovery Trace (2026-04-22)
+
+- Source design file: `https://www.figma.com/design/cBQPJi1UVMFzrHlfsNPbsx/Mathwiz?node-id=1-125&t=wi7iD40k8rPMSyLH-1`
+- Mathlete competition discovery reference nodes:
+	- `1:125`
+	- `45:2`
+	- `62:5`
+	- `164:2488`
+	- `167:3350`
+
+Implemented pattern mapping for this migration:
+
+- Competition discovery:
+	- server-filtered list with search, type, format, and status filters
+	- implemented in `app/mathlete/competition/page.tsx` and `components/competitions/*`
+- Competition calendar:
+	- localized schedule cards and calendar summary using client-side time formatting
+	- implemented in `app/mathlete/competition/calendar/page.tsx` and `components/competitions/competition-calendar.tsx`
+- Competition detail and registration:
+	- detail page, registration panel, withdrawal controls, and mode arbitration placeholders for arena handoff
+	- implemented in `app/mathlete/competition/[competitionId]/page.tsx` and `components/competitions/registration-panel.tsx`
+
+Repository surfaces updated for this migration:
+
+- `app/mathlete/competition/page.tsx`
+- `app/mathlete/competition/calendar/page.tsx`
+- `app/mathlete/competition/[competitionId]/page.tsx`
+- `app/api/mathlete/competition/*`
+- `components/competitions/*`
+- `components/mathlete/workspace-nav.tsx`
+- `lib/competition/discovery.ts`
+- `lib/registrations/*`
+- `lib/notifications/dispatch.ts`
+- `supabase/migrations/20260422120000_10_competition_registrations.sql`
+
+Behavioral boundaries preserved during this migration:
+
+- competition discovery remains server-filtered and URL-driven
+- registration and withdrawal remain routed through trusted server RPCs
+- calendar display localizes on the client while storage stays UTC
 - Next.js loading and streaming: https://nextjs.org/docs/app/building-your-application/routing/loading-ui-and-streaming
 - Supabase Next.js SSR auth guide: https://supabase.com/docs/guides/auth/server-side/nextjs
 - Supabase API security and RLS: https://supabase.com/docs/guides/api/securing-your-api

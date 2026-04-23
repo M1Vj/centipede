@@ -1,6 +1,7 @@
 import { ArrowRight, PlayCircle, Target, Shield, MousePointer2, Users, Clock, Trophy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProgressLink } from "@/components/ui/progress-link";
+import { CurrentYear } from "@/components/landing/current-year";
 import { hasEnvVars } from "@/lib/supabase/env";
 
 const featureCards = [
@@ -317,7 +318,7 @@ function LandingFooter() {
           </div>
         </div>
         <div className="flex flex-col items-center justify-between gap-6 border-t border-[#0f172a] pt-8 md:flex-row">
-          <p className="text-sm font-medium text-slate-500">© {new Date().getFullYear()} MathWiz Arena. All rights reserved.</p>
+          <p className="text-sm font-medium text-slate-500">© <CurrentYear /> MathWiz Arena. All rights reserved.</p>
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm font-medium text-slate-500">
             <ProgressLink href="/privacy" className="transition-colors hover:text-white">Privacy Policy</ProgressLink>
             <ProgressLink href="/terms" className="transition-colors hover:text-white">Terms of Service</ProgressLink>
