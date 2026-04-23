@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { type AnchorHTMLAttributes, type ReactNode } from "react";
+import { render, screen, within } from "@testing-library/react";
+import { type ReactNode } from "react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import OrganizerLayout from "@/app/organizer/layout";
 import { createClient } from "@/lib/supabase/server";
@@ -15,29 +15,14 @@ vi.mock("@/components/ui/progress-link", () => ({
     children,
     className,
     href,
-    ...props
   }: {
     children: ReactNode;
     className?: string;
     href: string;
-  } & AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a href={href} className={className} {...props}>
+  }) => (
+    <a href={href} className={className}>
       {children}
     </a>
-  ),
-}));
-
-vi.mock("@/components/logout-button", () => ({
-  LogoutButton: ({
-    className,
-    label = "Logout",
-  }: {
-    className?: string;
-    label?: string;
-  }) => (
-    <button type="button" className={className}>
-      {label}
-    </button>
   ),
 }));
 
@@ -83,22 +68,20 @@ describe("organizer layout navigation", () => {
       }),
     );
 
+    const [shellNav] = screen.getAllByRole("navigation");
     const nav = screen.getByRole("navigation", { name: "Organizer navigation" });
-    expect(nav).toHaveClass("md:flex");
-    expect(nav).toHaveClass("gap-2");
+    expect(shellNav).toHaveClass("rounded-full");
+    expect(nav).toHaveClass("gap-10");
     expect(screen.getByRole("button", { name: "Open organizer navigation" })).toBeInTheDocument();
 
-    for (const label of ["Dashboard", "Problem Banks", "Competitions", "Scoring"]) {
+    for (const label of ["Dashboard", "Competitions", "Problembanks", "History", "Profile", "Settings"]) {
       expect(within(nav).getByRole("link", { name: label })).toBeInTheDocument();
     }
 
-    for (const link of within(nav).getAllByRole("link")) {
-      expect(link).toHaveClass("organizer-nav-chip");
+    for (const label of ["Dashboard", "Competitions", "Problembanks", "History"]) {
+      expect(within(nav).getByRole("link", { name: label })).toHaveClass("font-semibold");
     }
 
-    fireEvent.click(screen.getByRole("button", { name: "Open organizer profile menu" }));
-    expect(screen.getByRole("menuitem", { name: "Profile" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Settings" })).toBeInTheDocument();
     expect(client.mocks.from).toHaveBeenCalledWith("profiles");
   });
 

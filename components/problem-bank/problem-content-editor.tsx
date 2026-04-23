@@ -1,8 +1,5 @@
 import { Pencil } from "lucide-react";
-import {
-  MathliveField,
-  inferPreferredInitialModeFromValue,
-} from "@/components/math-editor/mathlive-field";
+import { MathliveField } from "@/components/math-editor/mathlive-field";
 
 interface ProblemContentEditorProps {
   contentLatex: string;
@@ -36,7 +33,6 @@ export function ProblemContentEditor({
               label=""
               value={contentLatex}
               onChange={onContentChange}
-              preferredInitialMode={inferPreferredInitialModeFromValue(contentLatex)}
               placeholder="Enter problem statement.."
               className="w-full bg-transparent border-none outline-none text-[15px] text-[#10182b] placeholder:text-slate-400 font-medium resize-none h-full"
               showPreviewToggle={true}
@@ -54,7 +50,6 @@ export function ProblemContentEditor({
               label=""
               value={explanationLatex}
               onChange={onExplanationChange}
-              preferredInitialMode={inferPreferredInitialModeFromValue(explanationLatex)}
               placeholder="Explain the solution step-by-step..."
               className="w-full bg-transparent border-none outline-none text-[15px] text-[#10182b] placeholder:text-slate-400 font-medium resize-none h-full"
               showPreviewToggle={true}

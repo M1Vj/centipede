@@ -1,33 +1,33 @@
-export type OrganizerDashboardMetricTone = "default" | "success";
+import type { CompetitionStatus } from "@/lib/competition/types";
 
-export type OrganizerDashboardMetric = {
+export interface OrganizerDashboardMetric {
   id: string;
   label: string;
   value: string;
   hint: string;
-  tone: OrganizerDashboardMetricTone;
-};
+  tone: "default" | "success";
+}
 
-export type OrganizerCompetitionRow = {
+export interface OrganizerCompetitionRow {
   id: string;
   name: string;
   subtitle: string;
-  status: "draft" | "published" | "live" | "paused" | "ended" | "archived";
+  status: CompetitionStatus;
   registrationCount: number;
-  capacity?: number | null;
+  capacity: number | null;
   dateLabel: string;
   href: string;
-};
+}
 
-export type OrganizerCalendarEvent = {
+export interface OrganizerCalendarEvent {
   id: string;
   title: string;
   date: string;
-};
+}
 
-export type OrganizerActivityItem = {
+export interface OrganizerActivityItem {
   id: string;
   message: string;
   timestampLabel: string;
-  tone: "default" | "success" | "info";
-};
+  tone: "success" | "info" | "default";
+}

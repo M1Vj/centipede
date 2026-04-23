@@ -21,20 +21,28 @@ export default async function OrganizerLayout({
   }
   
   return (
-    <div className="organizer-shell min-h-screen">
-      <header className="sticky top-0 z-40 border-b border-border/50 bg-background/70 px-4 py-4 backdrop-blur-xl">
-        <div className="shell relative flex items-center justify-between gap-4 rounded-[1.75rem] border border-border/70 bg-[#111827]/95 px-4 py-3 text-white shadow-[0_24px_80px_-44px_rgba(15,23,42,0.8)]">
+    <div className="min-h-screen bg-[#f8f6f6]">
+      <header className="sticky top-0 z-40 flex justify-center px-4 pt-4">
+        <nav className="backdrop-blur-md bg-[#1a1e2e] w-full max-w-[1024px] rounded-full px-5 py-3 flex items-center justify-between shadow-2xl border border-white/5 relative">
+          
+          {/* Logo Area */}
           <ProgressLink
             href="/organizer"
-            className="flex items-center gap-3 rounded-full px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827]"
+            className="flex items-center gap-2 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1e2e]"
           >
-            <span className="text-lg font-black tracking-tight text-white">MathWiz</span>
-            <span className="organizer-kicker border-white/10 bg-white/5 text-[#f9c96a]">
+            <img
+              src="/mathwiz-logo.svg"
+              alt="MathWiz"
+              className="h-7 w-auto object-contain"
+            />
+            <span className="text-[#f49700] font-bold text-[14px] tracking-wide">
               Organizer
             </span>
           </ProgressLink>
+
+          {/* Nav + Actions */}
           <OrganizerNav isOrganizer={isOrganizer} isAuthenticated={Boolean(user)} />
-        </div>
+        </nav>
       </header>
       {children}
     </div>

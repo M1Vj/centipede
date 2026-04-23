@@ -115,18 +115,10 @@ export function OrganizerScoringRuleControls({
             </p>
           </div>
 
-          <div
-            role="radiogroup"
-            aria-label="Scoring mode"
-            aria-invalid={Boolean(scoringModeError)}
-            aria-describedby={scoringModeErrorId}
-            className="grid w-full min-w-0 gap-4 md:grid-cols-2"
-          >
+          <div className="grid gap-4 md:grid-cols-2">
             <button
               type="button"
               disabled={disabled}
-              role="radio"
-              aria-checked={value.scoringMode === "difficulty"}
               aria-describedby={scoringModeErrorId}
               className={cn(
                 "rounded-2xl border-2 p-5 text-left transition-all",
@@ -164,8 +156,6 @@ export function OrganizerScoringRuleControls({
             <button
               type="button"
               disabled={disabled}
-              role="radio"
-              aria-checked={value.scoringMode === "custom"}
               aria-describedby={scoringModeErrorId}
               className={cn(
                 "rounded-2xl border-2 p-5 text-left transition-all",
@@ -237,10 +227,8 @@ export function OrganizerScoringRuleControls({
                 </p>
               </div>
               <div
-                role="group"
-                aria-label="Custom points"
                 className="rounded-2xl border border-slate-200 bg-white p-5"
-                data-invalid={customPointsError ? "true" : undefined}
+                aria-invalid={Boolean(customPointsError)}
                 aria-describedby={customPointsDescribedBy}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -292,7 +280,7 @@ export function OrganizerScoringRuleControls({
                         : "earliest_final_submission",
                   })
                 }
-                className="h-12 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-[#10182b] outline-none transition focus:border-[#f49700] focus:ring-2 focus:ring-[#f49700]/20"
+                className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-[#10182b] outline-none transition focus:border-[#f49700] focus:ring-2 focus:ring-[#f49700]/20"
               >
                 <option value="earliest_final_submission">Earliest final submission</option>
                 <option value="lowest_total_time">Lowest total time</option>
@@ -320,7 +308,7 @@ export function OrganizerScoringRuleControls({
                     penaltyMode: event.target.value === "fixed_deduction" ? "fixed_deduction" : "none",
                   })
                 }
-                className="h-12 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-[#10182b] outline-none transition focus:border-[#f49700] focus:ring-2 focus:ring-[#f49700]/20"
+                className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-[#10182b] outline-none transition focus:border-[#f49700] focus:ring-2 focus:ring-[#f49700]/20"
               >
                 <option value="none">No deduction</option>
                 <option value="fixed_deduction">Fixed deduction</option>
@@ -356,7 +344,7 @@ export function OrganizerScoringRuleControls({
                           : "highest_score",
                   });
                 }}
-                className="h-12 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-[#10182b] outline-none transition focus:border-[#f49700] focus:ring-2 focus:ring-[#f49700]/20 disabled:opacity-60"
+                className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-[#10182b] outline-none transition focus:border-[#f49700] focus:ring-2 focus:ring-[#f49700]/20 disabled:opacity-60"
               >
                 <option value="highest_score">Highest score</option>
                 <option value="latest_score">Latest score</option>
@@ -393,7 +381,7 @@ export function OrganizerScoringRuleControls({
                     deductionValue: Number.isFinite(nextValue) ? Math.max(0, nextValue) : 0,
                   });
                 }}
-                className="h-12 w-full min-w-0 rounded-xl border-slate-200 bg-slate-50 text-[#10182b] focus-visible:ring-[#f49700]/30"
+                className="h-12 rounded-xl border-slate-200 bg-slate-50 text-[#10182b] focus-visible:ring-[#f49700]/30"
               />
               {deductionValueError ? (
                 <p id={deductionValueErrorId} className="text-xs font-bold text-red-500">
@@ -438,7 +426,6 @@ export function OrganizerScoringRuleControls({
 
           <fieldset
             className="space-y-4 rounded-[24px] border border-slate-200 bg-slate-50/70 p-5"
-            aria-label="Offense penalties"
             aria-invalid={Boolean(offensePenaltiesError)}
             aria-describedby={offensePenaltiesDescribedBy}
           >

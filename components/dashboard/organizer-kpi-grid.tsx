@@ -8,34 +8,45 @@ const iconMap = {
   bank: FileText,
 } as const;
 
-export function OrganizerKpiGrid({
-  metrics,
-}: {
+const hintStyleMap = {
+  default: "text-[11px] font-bold text-[#64748b] tracking-wider uppercase",
+  success:
+    "bg-[#dcfce7] text-[#166534] text-[11px] font-bold px-2 py-0.5 rounded-full",
+} as const;
+
+interface OrganizerKpiGridProps {
   metrics: OrganizerDashboardMetric[];
-}) {
+}
+
+export function OrganizerKpiGrid({ metrics }: OrganizerKpiGridProps) {
   return (
     <div className="grid gap-5 md:grid-cols-3">
       {metrics.map((metric) => {
         const Icon = iconMap[metric.id as keyof typeof iconMap] ?? Activity;
 
         return (
-          <article key={metric.id} className="organizer-panel organizer-panel-hover overflow-hidden p-5">
-            <div className="mb-6 flex items-center justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm shadow-primary/10">
+          <article
+            key={metric.id}
+            className="bg-white rounded-2xl border border-[#f1f5f9] p-5 shadow-[0px_4px_12px_rgba(0,0,0,0.03)] flex flex-col relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="w-9 h-9 rounded-lg bg-[#f49700] flex items-center justify-center text-[#0d1b2a]">
                 <Icon className="w-[18px] h-[18px]" />
               </div>
               <span
                 className={cn(
-                  metric.tone === "success"
-                    ? "rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"
-                    : "organizer-muted-kicker",
+                  hintStyleMap[metric.tone],
                 )}
               >
-                {metric.tone === "success" ? `+${metric.hint.match(/\d+/)?.[0] ?? "12"}%` : metric.hint}
+                {metric.tone === "success" ? `+${metric.hint.match(/\d+/) || "12"}%` : metric.hint}
               </span>
             </div>
-            <p className="mb-1.5 text-[13px] font-medium text-foreground/70">{metric.label}</p>
-            <h3 className="text-3xl font-bold leading-none text-foreground">{metric.value}</h3>
+            <p className="text-[13px] text-[#0d1b2a] mb-1.5 font-medium">
+              {metric.label}
+            </p>
+            <h3 className="text-2xl font-bold text-[#0d1b2a] leading-none">
+              {metric.value}
+            </h3>
           </article>
         );
       })}

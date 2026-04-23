@@ -2,18 +2,18 @@
 
 import { useState } from "react";
 import {
-  BarChart2,
-  Calendar,
-  Edit3,
-  Pause,
-  Play,
-  Plus,
-  Settings,
-  Trash2,
   User,
   Users,
-  Eye,
+  Calendar,
+  Settings,
+  Trash2,
+  Edit3,
+  BarChart2,
+  Pause,
+  Plus,
   MoreHorizontal,
+  Play,
+  Eye,
 } from "lucide-react";
 import { ProgressLink } from "@/components/ui/progress-link";
 import type { CompetitionRecord } from "@/lib/competition/types";
@@ -50,63 +50,101 @@ function formatDate(dateStr: string | null): string {
 function StatusBadge({ status }: { status: CompetitionRecord["status"] }) {
   switch (status) {
     case "live":
-      return <div className="flex items-center gap-1.5 rounded-full bg-[#dcfce7] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-[#166534]"><div className="h-1.5 w-1.5 rounded-full bg-[#166534]" />Live</div>;
+      return (
+        <div className="bg-[#dcfce7] text-[#166534] px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest uppercase flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#166534] animate-pulse" />
+          Live
+        </div>
+      );
     case "paused":
-      return <div className="flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700"><div className="h-1.5 w-1.5 rounded-full bg-amber-600" />Paused</div>;
+      return (
+        <div className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest uppercase flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-amber-600" />
+          Paused
+        </div>
+      );
     case "published":
-      return <div className="rounded-full bg-[#fff3e0] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-[#ea580c]">Upcoming</div>;
+      return (
+        <div className="bg-[#fff3e0] text-[#ea580c] px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest uppercase">
+          Upcoming
+        </div>
+      );
     case "draft":
-      return <div className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-foreground/55">Draft</div>;
+      return (
+        <div className="bg-[#f1f5f9] text-[#475569] px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest uppercase">
+          Draft
+        </div>
+      );
     case "ended":
     case "archived":
-      return <div className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-foreground/50">Completed</div>;
+      return (
+        <div className="bg-slate-200 text-slate-600 px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest uppercase">
+          Completed
+        </div>
+      );
     default:
-      return <div className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-foreground/50">{status}</div>;
+      return (
+        <div className="bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest uppercase capitalize">
+          {status}
+        </div>
+      );
   }
 }
 
 function CompetitionCard({ competition }: { competition: CompetitionRecord }) {
   const isLive = competition.status === "live";
   const isPaused = competition.status === "paused";
+  const isActive = isLive || isPaused;
   const isUpcoming = competition.status === "published";
   const isDraft = competition.status === "draft";
   const isCompleted = competition.status === "ended" || competition.status === "archived";
 
   const cardBase = isDraft
-    ? "organizer-panel organizer-panel-soft p-5 flex flex-col relative h-[260px] transition-all duration-300 hover:-translate-y-0.5"
+    ? "bg-white rounded-2xl border-2 border-dashed border-[#e2e8f0] p-5 flex flex-col relative h-[260px] hover:bg-slate-50/50 transition-colors"
     : isCompleted
-      ? "organizer-panel p-5 flex flex-col relative h-[260px] group opacity-95"
-      : "organizer-panel organizer-panel-hover p-5 flex flex-col relative h-[260px] group";
+      ? "bg-slate-100/70 rounded-2xl border border-slate-200 p-5 flex flex-col relative h-[260px] group"
+      : "bg-white rounded-2xl border border-slate-200 p-5 shadow-[0px_4px_12px_rgba(0,0,0,0.03)] flex flex-col relative h-[260px] group hover:border-[#f49700]/50 transition-colors";
 
   return (
     <div className={cardBase}>
-      <div className="mb-auto flex items-center justify-between">
+      {/* Header: Badge + Menu */}
+      <div className="flex items-center justify-between mb-auto">
         <StatusBadge status={competition.status} />
-        {!isDraft ? (
-          <ProgressLink href={`/organizer/competition/${competition.id}`} className="text-foreground/40 transition-colors hover:text-foreground">
+        {!isDraft && (
+          <ProgressLink
+            href={`/organizer/competition/${competition.id}`}
+            className="text-slate-400 hover:text-slate-700 transition-colors"
+          >
             <MoreHorizontal className="w-5 h-5" />
           </ProgressLink>
-        ) : null}
+        )}
       </div>
 
+      {/* Body */}
       <div className="mb-6">
-        <h3 className={`mb-3 line-clamp-2 text-xl font-bold leading-snug ${isDraft ? "text-foreground/45" : isCompleted ? "text-foreground/80" : "text-foreground"}`}>
+        <h3
+          className={`font-bold text-xl leading-snug mb-3 line-clamp-2 ${
+            isDraft ? "text-slate-400" : isCompleted ? "text-slate-800" : "text-[#10182b]"
+          }`}
+        >
           {competition.name || "Untitled competition"}
         </h3>
 
         {isDraft ? (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] font-medium text-foreground/45">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-slate-400 text-[13px] font-medium">
             <div className="flex items-center gap-1.5">
               <Edit3 className="w-4 h-4" /> Drafting Content
             </div>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] font-medium text-foreground/60">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-slate-500 text-[13px] font-medium">
             <div className="flex items-center gap-1.5">
               {competition.format === "team" ? (
                 <>
                   <Users className="w-4 h-4" /> Team
-                  {competition.participantsPerTeam ? ` (${competition.participantsPerTeam})` : ""}
+                  {competition.participantsPerTeam
+                    ? ` (${competition.participantsPerTeam})`
+                    : ""}
                 </>
               ) : (
                 <>
@@ -114,119 +152,154 @@ function CompetitionCard({ competition }: { competition: CompetitionRecord }) {
                 </>
               )}
             </div>
-            {competition.startTime ? (
+            {competition.startTime && (
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-4 h-4" /> {formatDate(competition.startTime)}
               </div>
-            ) : null}
+            )}
           </div>
         )}
       </div>
 
-      <div className="mt-auto flex items-center gap-3">
-        {isLive ? (
+      {/* Footer Actions */}
+      <div className="flex items-center gap-3 mt-auto">
+        {isLive && (
           <>
-            <ProgressLink href={`/organizer/competition/${competition.id}`} className="flex-1 rounded-xl bg-primary py-3 text-center text-[14px] font-bold text-primary-foreground transition-colors hover:bg-primary/90">
+            <ProgressLink
+              href={`/organizer/competition/${competition.id}`}
+              className="flex-1 bg-[#10182b] hover:bg-slate-800 text-white py-3 rounded-xl font-bold text-[14px] transition-colors text-center"
+            >
               Live View
             </ProgressLink>
-            <button className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground/75 transition-colors hover:bg-secondary/80 hover:text-foreground">
+            <button className="w-12 h-12 shrink-0 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center text-slate-700 transition-colors">
               <Pause className="w-5 h-5" />
             </button>
           </>
-        ) : null}
+        )}
 
-        {isPaused ? (
+        {isPaused && (
           <>
-            <ProgressLink href={`/organizer/competition/${competition.id}`} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-secondary py-3 text-[14px] font-bold text-foreground transition-colors hover:bg-secondary/80">
+            <ProgressLink
+              href={`/organizer/competition/${competition.id}`}
+              className="flex-1 bg-slate-100 hover:bg-slate-200 text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2"
+            >
               <Play className="w-4 h-4" /> Resume
             </ProgressLink>
-            <ProgressLink href={`/organizer/competition/${competition.id}`} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground/55 transition-colors hover:bg-secondary/80 hover:text-foreground">
+            <ProgressLink
+              href={`/organizer/competition/${competition.id}`}
+              className="w-12 h-12 shrink-0 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center text-slate-500 transition-colors"
+            >
               <Eye className="w-5 h-5" />
             </ProgressLink>
           </>
-        ) : null}
+        )}
 
-        {isUpcoming ? (
+        {isUpcoming && (
           <>
-            <ProgressLink href={`/organizer/competition/${competition.id}`} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-secondary py-3 text-[14px] font-bold text-foreground transition-colors hover:bg-secondary/80">
+            <ProgressLink
+              href={`/organizer/competition/${competition.id}`}
+              className="flex-1 bg-slate-100 hover:bg-slate-200 text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2"
+            >
               <Settings className="w-4 h-4" /> Manage
             </ProgressLink>
-            <button className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground/55 transition-colors hover:bg-red-50 hover:text-red-600">
+            <button className="w-12 h-12 shrink-0 bg-slate-100 hover:bg-red-50 hover:text-red-600 rounded-xl flex items-center justify-center text-slate-500 transition-colors">
               <Trash2 className="w-5 h-5" />
             </button>
           </>
-        ) : null}
+        )}
 
-        {isDraft ? (
+        {isDraft && (
           <>
-            <ProgressLink href={`/organizer/competition/${competition.id}`} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 text-[14px] font-bold text-primary-foreground shadow-sm shadow-primary/10 transition-colors hover:bg-primary/90">
+            <ProgressLink
+              href={`/organizer/competition/${competition.id}`}
+              className="flex-1 bg-[#f49700] hover:bg-[#e08900] text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2 shadow-sm"
+            >
               <Edit3 className="w-4 h-4" /> Edit Draft
             </ProgressLink>
-            <button className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background text-foreground/40 transition-colors hover:bg-red-50 hover:text-red-600">
+            <button className="w-12 h-12 shrink-0 bg-slate-50 hover:bg-red-50 hover:text-red-600 rounded-xl flex items-center justify-center text-slate-400 transition-colors border border-slate-100">
               <Trash2 className="w-5 h-5" />
             </button>
           </>
-        ) : null}
+        )}
 
-        {isCompleted ? (
-          <ProgressLink href={`/organizer/competition/${competition.id}`} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border/70 bg-background py-3 text-[14px] font-bold text-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+        {isCompleted && (
+          <ProgressLink
+            href={`/organizer/competition/${competition.id}`}
+            className="flex-1 bg-white border border-slate-200 hover:border-slate-300 text-[#10182b] shadow-sm hover:shadow-md py-3 rounded-xl font-bold text-[14px] transition-all flex items-center justify-center gap-2"
+          >
             <BarChart2 className="w-4 h-4" /> View Report
           </ProgressLink>
-        ) : null}
+        )}
       </div>
     </div>
   );
 }
 
-export function CompetitionCardGrid({ competitions }: { competitions: CompetitionRecord[] }) {
+interface CompetitionCardGridProps {
+  competitions: CompetitionRecord[];
+}
+
+export function CompetitionCardGrid({ competitions }: CompetitionCardGridProps) {
   const [activeTab, setActiveTab] = useState<Tab>("All Events");
 
   const filtered =
-    activeTab === "All Events" ? competitions : competitions.filter((c) => mapStatusToTab(c.status) === activeTab);
+    activeTab === "All Events"
+      ? competitions
+      : competitions.filter((c) => mapStatusToTab(c.status) === activeTab);
 
   return (
     <>
-      <div className="mb-8 flex flex-wrap items-center gap-3">
+      {/* Tabs */}
+      <div className="flex flex-wrap items-center gap-3 mb-8">
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`organizer-tab ${activeTab === tab ? "organizer-tab-active" : ""}`}
+            className={`px-5 py-2.5 rounded-full text-[14px] font-bold transition-all ${
+              activeTab === tab
+                ? "bg-[#10182b] text-white shadow-md"
+                : "bg-white text-slate-500 border border-slate-200 hover:border-slate-300 hover:text-[#10182b]"
+            }`}
           >
             {tab}
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+      {/* Card Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filtered.map((competition) => (
           <CompetitionCard key={competition.id} competition={competition} />
         ))}
 
+        {/* Quick Start Card */}
         <ProgressLink
           href="/organizer/competition/create"
-          className="organizer-panel organizer-panel-soft flex h-[260px] flex-col items-center justify-center p-5 text-center no-underline transition-all duration-300 hover:-translate-y-0.5"
+          className="rounded-2xl border-2 border-dashed border-[#e2e8f0] p-5 flex flex-col h-[260px] hover:border-[#f49700]/50 hover:bg-[#f49700]/5 transition-all items-center justify-center group no-underline"
         >
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-foreground/35 transition-all hover:bg-background hover:text-primary">
+          <div className="w-16 h-16 rounded-full bg-slate-100 group-hover:bg-white group-hover:shadow-sm flex items-center justify-center text-slate-400 group-hover:text-[#f49700] transition-all mb-4">
             <Plus className="w-8 h-8" />
           </div>
-          <span className="w-[60%] text-[15px] font-bold text-foreground/45 transition-colors hover:text-primary">
+          <span className="font-bold text-slate-400 group-hover:text-[#f49700] text-[15px] transition-colors w-[60%] text-center">
             Quick Start New Draft Competition
           </span>
         </ProgressLink>
       </div>
 
-      {filtered.length === 0 ? (
+      {/* Empty state for filtered view */}
+      {filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-foreground/35">
+          <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-4">
             <BarChart2 className="w-7 h-7" />
           </div>
-          <p className="mb-1 text-[15px] font-bold text-foreground/70">No competitions found</p>
-          <p className="text-[13px] text-foreground/45">
+          <p className="font-bold text-slate-500 text-[15px] mb-1">
+            No competitions found
+          </p>
+          <p className="text-slate-400 text-[13px]">
             There are no competitions matching the &ldquo;{activeTab}&rdquo; filter.
           </p>
         </div>
-      ) : null}
+      )}
     </>
   );
 }

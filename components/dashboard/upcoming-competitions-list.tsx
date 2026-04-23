@@ -3,10 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CompetitionRecord } from "@/lib/competition/types";
 import { cn } from "@/lib/utils";
 
-export function UpcomingCompetitionsList({
+export function UpcomingCompetitionsList({ 
   className,
   competitions = []
-}: {
+}: { 
   className?: string;
   competitions?: CompetitionRecord[];
 }) {
@@ -30,8 +30,8 @@ export function UpcomingCompetitionsList({
               .map((event) => {
                 const startDate = event.startTime ? new Date(event.startTime) : null;
                 const formattedDate = startDate ? startDate.toLocaleDateString() : "TBD";
-                const formattedTime = startDate
-                  ? startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                const formattedTime = startDate 
+                  ? startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
                   : "Flexible Window";
 
                 return (

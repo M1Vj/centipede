@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 import { ChevronRight } from "lucide-react";
-import { OrganizerWorkspaceShell } from "@/components/organizer/workspace-patterns";
+import {
+  OrganizerWorkspaceShell,
+  organizerSecondaryActionClass,
+} from "@/components/organizer/workspace-patterns";
 import { ProblemForm } from "@/components/problem-bank/problem-form";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";

@@ -1,4 +1,4 @@
-import { CalendarClock, CirclePlus, Trophy } from "lucide-react";
+import { PlusCircle, Trophy } from "lucide-react";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { CompetitionCardGrid } from "@/components/organizer/competition-card-grid";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
@@ -9,6 +9,7 @@ import {
   isLegacyCompetitionSelectError,
   normalizeCompetitionRecord,
 } from "@/lib/competition/api";
+import type { CompetitionRecord } from "@/lib/competition/types";
 
 export default async function OrganizerCompetitionPage() {
   const { profile } = await getWorkspaceContext({ requireRole: "organizer" });
@@ -35,83 +36,64 @@ export default async function OrganizerCompetitionPage() {
   const competitions = !error
     ? (data ?? [])
         .map((row) => normalizeCompetitionRecord(row))
-        .filter((row): row is NonNullable<ReturnType<typeof normalizeCompetitionRecord>> => row !== null)
+        .filter((row): row is CompetitionRecord => row !== null)
     : [];
 
-  const counts = competitions.reduce(
-    (summary, competition) => {
-      summary[competition.status] += 1;
-      return summary;
-    },
-    {
-      draft: 0,
-      published: 0,
-      live: 0,
-      paused: 0,
-      ended: 0,
-      archived: 0,
-    },
-  );
-
   return (
-    <section className="organizer-shell flex w-full justify-center px-4">
-      <div className="shell flex w-full max-w-[1024px] flex-col pb-12 pt-8 md:pt-10 font-['Poppins'] space-y-8">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+    <div className="w-full flex justify-center px-4">
+      <div className="w-full max-w-[1024px] mt-12 flex flex-col pb-12 font-['Poppins']">
+
+        {/* Page Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
-            <span className="organizer-kicker mb-3">Organizer / competitions</span>
-            <h1 className="mb-2 text-3xl font-black leading-tight tracking-tight text-foreground md:text-[34px]">
+            <h1 className="text-3xl md:text-[34px] font-black text-[#10182b] tracking-tight leading-tight mb-2">
               Competition Dashboard
             </h1>
-            <p className="text-[15px] font-medium text-foreground/60">
+            <p className="text-slate-600 text-[15px] font-medium">
               Overview of your active and upcoming mathematical events.
             </p>
           </div>
-          <ProgressLink href="/organizer/competition/create" className="organizer-action self-start no-underline md:self-auto">
-            <CirclePlus className="size-5" />
-            Create New Competition
+          <ProgressLink
+            href="/organizer/competition/create"
+            className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3.5 rounded-xl font-bold text-[15px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2 self-start md:self-auto no-underline"
+          >
+            <PlusCircle className="w-5 h-5" /> Create New Competition
           </ProgressLink>
         </div>
 
+        {/* Error state */}
         {error ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700 mb-8">
             Unable to load competitions. Please try again later.
           </div>
         ) : null}
 
+        {/* Empty state (no competitions at all) */}
         {!error && competitions.length === 0 ? (
-          <div className="organizer-panel organizer-panel-soft flex flex-col items-center justify-center py-20 text-center">
-            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-secondary text-foreground/35">
-              <Trophy className="size-9" />
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-6">
+              <Trophy className="w-9 h-9" />
             </div>
-            <h2 className="mb-2 text-xl font-bold text-foreground">No competitions yet</h2>
-            <p className="mb-6 max-w-md text-[14px] text-foreground/55">
+            <h2 className="font-bold text-[#10182b] text-xl mb-2">
+              No competitions yet
+            </h2>
+            <p className="text-slate-500 text-[14px] max-w-md mb-6">
               Create your first competition to begin schedule setup, problem selection, and scoring configuration.
             </p>
-            <ProgressLink href="/organizer/competition/create" className="organizer-action no-underline">
-              <CirclePlus className="size-5" />
-              Create Draft
+            <ProgressLink
+              href="/organizer/competition/create"
+              className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3 rounded-xl font-bold text-[14px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2 no-underline"
+            >
+              <PlusCircle className="w-5 h-5" /> Create Draft
             </ProgressLink>
           </div>
         ) : null}
 
+        {/* Competitions Grid */}
         {!error && competitions.length > 0 ? (
-          <div className="space-y-4">
-            <div className="organizer-panel flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground/45">Competition overview</p>
-                <p className="mt-1 text-sm text-foreground/60">
-                  {counts.draft} drafts, {counts.live + counts.published + counts.paused} active, {counts.archived} archived.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-2 text-sm text-foreground/65">
-                <CalendarClock className="size-4 text-primary" />
-                Drafts save incrementally
-              </div>
-            </div>
-            <CompetitionCardGrid competitions={competitions} />
-          </div>
+          <CompetitionCardGrid competitions={competitions} />
         ) : null}
       </div>
-    </section>
+    </div>
   );
 }

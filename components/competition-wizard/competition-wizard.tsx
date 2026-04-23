@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useState } from "react";
+import { type ReactNode, useDeferredValue, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Award,
@@ -9,6 +9,7 @@ import {
   ArrowRight,
   ArrowUp,
   BookOpen,
+  CalendarDays,
   CheckCircle2,
   Clock3,
   FileText,
@@ -80,10 +81,10 @@ const FIELD_TO_ELEMENT_ID: Record<string, string> = {
   description: "competition-description",
   instructions: "competition-instructions",
   registrationTimingMode: "registration-timing-mode",
-  registrationStart: "registration-start",
-  registrationEnd: "registration-end",
-  startTime: "competition-start",
-  endTime: "competition-end",
+  registrationStart: "registration-start-date",
+  registrationEnd: "registration-end-date",
+  startTime: "competition-start-date",
+  endTime: "competition-end-date",
   format: "competition-format",
   attemptsAllowed: "attempts-allowed",
   maxParticipants: "max-participants",
@@ -196,6 +197,47 @@ function formatDateTimeLocalInput(value: Date) {
   )}:${pad(value.getMinutes())}`;
 }
 
+function formatDateLocalInput(value: Date) {
+  const pad = (input: number) => String(input).padStart(2, "0");
+
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+}
+
+function formatTimeLocalInput(value: Date) {
+  const pad = (input: number) => String(input).padStart(2, "0");
+
+  return `${pad(value.getHours())}:${pad(value.getMinutes())}`;
+}
+
+function splitDateTimeLocalInput(value: string) {
+  if (!value.trim()) {
+    return { date: "", time: "" };
+  }
+
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  if (match) {
+    return { date: match[1], time: match[2] };
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return { date: "", time: "" };
+  }
+
+  return {
+    date: formatDateLocalInput(parsed),
+    time: formatTimeLocalInput(parsed),
+  };
+}
+
+function combineDateTimeLocalInput(date: string, time: string) {
+  if (!date.trim()) {
+    return "";
+  }
+
+  return `${date}T${time || "00:00"}`;
+}
+
 function computeScheduledEndLocal(startTime: string, durationMinutes: number) {
   if (!startTime.trim()) {
     return "";
@@ -207,6 +249,110 @@ function computeScheduledEndLocal(startTime: string, durationMinutes: number) {
   }
 
   return formatDateTimeLocalInput(new Date(startAt.getTime() + durationMinutes * 60_000));
+}
+
+function DateTimePickerField({
+  label,
+  id,
+  value,
+  onChange,
+  disabled = false,
+  readOnly = false,
+  hint,
+}: {
+  label: string;
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  readOnly?: boolean;
+  hint?: ReactNode;
+}) {
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
+  const timeInputRef = useRef<HTMLInputElement | null>(null);
+  const { date, time } = splitDateTimeLocalInput(value);
+
+  function openPicker(input: HTMLInputElement | null) {
+    if (!input || disabled) {
+      return;
+    }
+
+    input.focus();
+
+    if (typeof input.showPicker === "function") {
+      try {
+        input.showPicker();
+      } catch {
+        // Fallback to focus-only for environments that block programmatic picker access.
+      }
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor={`${id}-date`} className="text-[#10182b] font-bold text-[14px]">
+        {label}
+      </label>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_150px]">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={`${id}-date`} className="sr-only">
+            {label} date
+          </Label>
+          <div className="relative">
+            <Input
+              id={`${id}-date`}
+              ref={dateInputRef}
+              type="date"
+              value={date}
+              onChange={(event) => onChange(combineDateTimeLocalInput(event.target.value, time))}
+              disabled={disabled}
+              readOnly={readOnly}
+              className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 pr-12 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
+            />
+            <button
+              type="button"
+              aria-label={`Open ${label} date picker`}
+              onClick={() => openPicker(dateInputRef.current)}
+              disabled={disabled}
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 transition-colors hover:text-[#f49700] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <CalendarDays className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={`${id}-time`} className="sr-only">
+            {label} time
+          </Label>
+          <div className="relative">
+            <Input
+              id={`${id}-time`}
+              ref={timeInputRef}
+              type="time"
+              step={60}
+              value={time}
+              onChange={(event) => onChange(combineDateTimeLocalInput(date, event.target.value))}
+              disabled={disabled}
+              readOnly={readOnly}
+              className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 pr-12 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
+            />
+            <button
+              type="button"
+              aria-label={`Open ${label} time picker`}
+              onClick={() => openPicker(timeInputRef.current)}
+              disabled={disabled}
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 transition-colors hover:text-[#f49700] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Clock3 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {hint ? <div>{hint}</div> : null}
+    </div>
+  );
 }
 
 function escapeSearch(value: string) {
@@ -361,7 +507,6 @@ export function CompetitionWizard({
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState<CompetitionWizardStep>("overview");
-  const expandedSectionMode = true;
   const [reviewProblemPage, setReviewProblemPage] = useState(1);
   const [draftRevision, setDraftRevision] = useState<number>(initialCompetition?.draftRevision ?? 1);
   const [competitionStatus, setCompetitionStatus] = useState<CompetitionStatus>(initialCompetition?.status ?? "draft");
@@ -958,7 +1103,7 @@ export function CompetitionWizard({
           </div>
         ) : null}
 
-        {expandedSectionMode && (
+        {activeStep === "overview" && (
         <section id="overview" className="scroll-mt-24 space-y-6">
           <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
             <h2 className="text-[#10182b] font-black text-[18px] mb-1">Competition Overview</h2>
@@ -1013,7 +1158,7 @@ export function CompetitionWizard({
         </section>
         )}
 
-        {expandedSectionMode && (
+        {(activeStep === "schedule" || activeStep === "format") && (
         <>
         <section id="schedule" className="scroll-mt-24 space-y-6">
           <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
@@ -1038,7 +1183,7 @@ export function CompetitionWizard({
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <label htmlFor="competition-duration" className="text-[#10182b] font-bold text-[14px]">Duration minutes</label>
+                  <label htmlFor="competition-duration" className="text-[#10182b] font-bold text-[14px]">Duration (Min)</label>
                   <Input
                     id="competition-duration"
                     type="number"
@@ -1068,70 +1213,58 @@ export function CompetitionWizard({
                   </div>
                 ) : null}
 
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="registration-start" className="text-[#10182b] font-bold text-[14px]">Registration start</label>
-                  <Input
-                    id="registration-start"
-                    type="datetime-local"
-                    value={draftState.registrationStart}
-                    onChange={(event) => updateDraft("registrationStart", event.target.value)}
-                    disabled={
-                      draftState.type !== "scheduled" ||
-                      draftState.registrationTimingMode !== "manual" ||
-                      (!isEditable && mode === "edit")
-                    }
-                    className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
-                  />
-                </div>
+                <DateTimePickerField
+                  id="registration-start"
+                  label="Registration start"
+                  value={draftState.registrationStart}
+                  onChange={(value) => updateDraft("registrationStart", value)}
+                  disabled={
+                    draftState.type !== "scheduled" ||
+                    draftState.registrationTimingMode !== "manual" ||
+                    (!isEditable && mode === "edit")
+                  }
+                />
 
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="registration-end" className="text-[#10182b] font-bold text-[14px]">Registration end</label>
-                  <Input
-                    id="registration-end"
-                    type="datetime-local"
-                    value={computedRegistrationEndLocal}
-                    onChange={(event) => updateDraft("registrationEnd", event.target.value)}
-                    disabled={
-                      draftState.type !== "scheduled" ||
-                      draftState.registrationTimingMode !== "manual" ||
-                      (!isEditable && mode === "edit")
-                    }
-                    className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
-                  />
-                  {draftState.type === "scheduled" && draftState.registrationTimingMode === "default" ? (
-                    <p className="text-slate-400 text-[12px] font-medium">
-                      Default mode keeps registration open until competition start.
-                    </p>
-                  ) : null}
-                </div>
+                <DateTimePickerField
+                  id="registration-end"
+                  label="Registration end"
+                  value={computedRegistrationEndLocal}
+                  onChange={(value) => updateDraft("registrationEnd", value)}
+                  disabled={
+                    draftState.type !== "scheduled" ||
+                    draftState.registrationTimingMode !== "manual" ||
+                    (!isEditable && mode === "edit")
+                  }
+                  hint={
+                    draftState.type === "scheduled" && draftState.registrationTimingMode === "default" ? (
+                      <p className="text-slate-400 text-[12px] font-medium">
+                        Default mode keeps registration open until competition start.
+                      </p>
+                    ) : null
+                  }
+                />
 
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="competition-start" className="text-[#10182b] font-bold text-[14px]">Competition start</label>
-                  <Input
-                    id="competition-start"
-                    type="datetime-local"
-                    value={draftState.startTime}
-                    onChange={(event) => updateDraft("startTime", event.target.value)}
-                    disabled={draftState.type !== "scheduled" || (!isEditable && mode === "edit")}
-                    className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
-                  />
-                </div>
+                <DateTimePickerField
+                  id="competition-start"
+                  label="Competition start"
+                  value={draftState.startTime}
+                  onChange={(value) => updateDraft("startTime", value)}
+                  disabled={draftState.type !== "scheduled" || (!isEditable && mode === "edit")}
+                />
 
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="competition-end" className="text-[#10182b] font-bold text-[14px]">Competition end</label>
-                  <Input
-                    id="competition-end"
-                    type="datetime-local"
-                    value={computedScheduledEndLocal}
-                    readOnly
-                    disabled={draftState.type !== "scheduled" || (!isEditable && mode === "edit")}
-                    placeholder="Set start and duration to compute end"
-                    className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] transition-all h-auto"
-                  />
-                  {draftState.type === "scheduled" ? (
-                    <p className="text-slate-400 text-[12px] font-medium">Computed from competition start plus duration.</p>
-                  ) : null}
-                </div>
+                <DateTimePickerField
+                  id="competition-end"
+                  label="Competition end"
+                  value={computedScheduledEndLocal}
+                  onChange={() => {}}
+                  readOnly
+                  disabled={draftState.type !== "scheduled" || (!isEditable && mode === "edit")}
+                  hint={
+                    draftState.type === "scheduled" ? (
+                      <p className="text-slate-400 text-[12px] font-medium">Computed from competition start plus duration.</p>
+                    ) : null
+                  }
+                />
               </div>
 
               {scheduleErrors.length > 0 ? (
@@ -1283,7 +1416,7 @@ export function CompetitionWizard({
         </>
         )}
 
-        {expandedSectionMode ? (
+        {activeStep === "problems" ? (
           <section id="problems-redesign" className="scroll-mt-24 space-y-6">
             <div className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-sm">
               <div className="grid xl:grid-cols-[minmax(0,1.08fr)_390px]">
@@ -1420,9 +1553,7 @@ export function CompetitionWizard({
                       const selectedInBank = group.problems.filter((problem) =>
                         selectedProblemSet.has(problem.id),
                       ).length;
-                      const expanded =
-                        expandedBankIds[group.bankId] ??
-                        group.bankId === groupedVisibleProblems[0]?.bankId;
+                      const expanded = expandedBankIds[group.bankId] ?? false;
                       const allSelected =
                         group.problems.length > 0 && selectedInBank === group.problems.length;
 
@@ -1439,16 +1570,9 @@ export function CompetitionWizard({
                           <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
                             <button
                               type="button"
-                              onClick={() => {
-                                setExpandedBankIds((prev) => {
-                                  const next = { ...prev };
-                                  for (const visibleGroup of groupedVisibleProblems) {
-                                    next[visibleGroup.bankId] = false;
-                                  }
-                                  next[group.bankId] = !expanded;
-                                  return next;
-                                });
-                              }}
+                              onClick={() =>
+                                setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: !expanded }))
+                              }
                               className="flex min-w-0 flex-1 items-center gap-3 text-left"
                             >
                               <div
@@ -1503,16 +1627,9 @@ export function CompetitionWizard({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setExpandedBankIds((prev) => {
-                                    const next = { ...prev };
-                                    for (const visibleGroup of groupedVisibleProblems) {
-                                      next[visibleGroup.bankId] = false;
-                                    }
-                                    next[group.bankId] = !expanded;
-                                    return next;
-                                  });
-                                }}
+                                onClick={() =>
+                                  setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: !expanded }))
+                                }
                                 className="rounded-lg border border-slate-200 bg-white p-2 text-slate-400 transition-colors hover:text-[#10182b]"
                                 aria-label={expanded ? "Collapse bank" : "Expand bank"}
                               >
@@ -1589,9 +1706,6 @@ export function CompetitionWizard({
                         <p className="mt-1 text-[13px] font-medium text-slate-500">
                           {selectedProblemCount} selected across {selectedBankCount} bank
                           {selectedBankCount === 1 ? "" : "s"}.
-                        </p>
-                        <p className="sr-only">
-                          {selectedProblemCount} selected. Publish requires 10 to 100.
                         </p>
                       </div>
                       <div
@@ -1738,7 +1852,6 @@ export function CompetitionWizard({
                                   className="text-[12px] font-bold uppercase tracking-[0.16em] text-slate-400"
                                 >
                                   Custom points
-                                  <span className="sr-only"> for {problem.contentLatex || "Untitled problem"}</span>
                                 </Label>
                                 <Input
                                   id={`custom-points-${problem.id}-redesign`}
@@ -1965,9 +2078,7 @@ export function CompetitionWizard({
                     {groupedVisibleProblems.map((group) => {
                       const bankProblemIds = group.problems.map((problem) => problem.id);
                       const selectedInBank = group.problems.filter((problem) => selectedProblemSet.has(problem.id)).length;
-                      const expanded =
-                        expandedBankIds[group.bankId] ??
-                        group.bankId === groupedVisibleProblems[0]?.bankId;
+                      const expanded = expandedBankIds[group.bankId] ?? (selectedInBank < group.problems.length);
 
                       return (
                         <div key={group.bankId} className="rounded-xl border border-border/60 bg-background/60 p-3">
@@ -1976,18 +2087,7 @@ export function CompetitionWizard({
                               type="button"
                               variant="ghost"
                               className="h-auto flex-1 justify-start px-0 py-0 text-left"
-                              onClick={() =>
-                                setExpandedBankIds((prev) => {
-                                  const next: Record<string, boolean> = {};
-
-                                  for (const visibleGroup of groupedVisibleProblems) {
-                                    next[visibleGroup.bankId] = false;
-                                  }
-
-                                  next[group.bankId] = !expanded;
-                                  return { ...prev, ...next };
-                                })
-                              }
+                              onClick={() => setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: !expanded }))}
                             >
                               <div className="space-y-1">
                                 <p className="text-sm font-semibold text-foreground">{group.bankName}</p>
@@ -2016,12 +2116,7 @@ export function CompetitionWizard({
                                 size="sm"
                                 onClick={() => {
                                   removeProblemIds(bankProblemIds);
-                                  const next: Record<string, boolean> = {};
-                                  for (const visibleGroup of groupedVisibleProblems) {
-                                    next[visibleGroup.bankId] = false;
-                                  }
-                                  next[group.bankId] = true;
-                                  setExpandedBankIds((prev) => ({ ...prev, ...next }));
+                                  setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: true }));
                                 }}
                                 disabled={!isEditable || bankProblemIds.length === 0}
                               >
@@ -2031,18 +2126,7 @@ export function CompetitionWizard({
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() =>
-                                  setExpandedBankIds((prev) => {
-                                    const next: Record<string, boolean> = {};
-
-                                    for (const visibleGroup of groupedVisibleProblems) {
-                                      next[visibleGroup.bankId] = false;
-                                    }
-
-                                    next[group.bankId] = !expanded;
-                                    return { ...prev, ...next };
-                                  })
-                                }
+                                onClick={() => setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: !expanded }))}
                                 aria-label={expanded ? "Collapse bank" : "Expand bank"}
                               >
                                 {expanded ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
@@ -2112,7 +2196,7 @@ export function CompetitionWizard({
         </section>
         )}
 
-        {expandedSectionMode ? (
+        {activeStep === "scoring" ? (
           <section id="scoring-redesign" className="scroll-mt-24 space-y-6">
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_350px]">
               <OrganizerScoringRuleControls
@@ -2218,7 +2302,7 @@ export function CompetitionWizard({
         </section>
         )}
 
-        {expandedSectionMode ? (
+        {activeStep === "review" ? (
           <section id="review-redesign" className="scroll-mt-24 space-y-6">
             <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
               <div className="space-y-6">

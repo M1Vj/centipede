@@ -52,10 +52,9 @@ export function ProblemBasicInfo({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="flex flex-col gap-2">
-          <label htmlFor="problem-type" className="text-[#10182b] font-bold text-[13px]">Problem Type</label>
+          <label className="text-[#10182b] font-bold text-[13px]">Problem Type</label>
           <div className="relative">
             <select
-              id="problem-type"
               value={type}
               onChange={(e) => onTypeChange(e.target.value as ProblemType)}
               className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] appearance-none"
@@ -70,10 +69,9 @@ export function ProblemBasicInfo({
         </div>
 
         <div className="flex flex-col gap-2">
-          <label htmlFor="problem-difficulty" className="text-[#10182b] font-bold text-[13px]">Difficulty Level</label>
+          <label className="text-[#10182b] font-bold text-[13px]">Difficulty Level</label>
           <div className="relative">
             <select
-              id="problem-difficulty"
               value={difficulty}
               onChange={(e) => onDifficultyChange(e.target.value as ProblemDifficulty)}
               className="w-full bg-slate-50 border border-slate-200 text-[#10182b] rounded-2xl px-4 py-3.5 text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f49700] appearance-none"
@@ -88,7 +86,7 @@ export function ProblemBasicInfo({
       </div>
 
       <div className="flex flex-col gap-2">
-        <label htmlFor="problem-tags" className="text-[#10182b] font-bold text-[13px]">Tags (Press Enter to add)</label>
+        <label className="text-[#10182b] font-bold text-[13px]">Tags (Press Enter to add)</label>
         <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 min-h-[52px] flex flex-wrap items-center gap-2 focus-within:ring-2 focus-within:ring-[#f49700] transition-all">
           {tagsList.map((tag) => (
             <div
@@ -107,7 +105,6 @@ export function ProblemBasicInfo({
             </div>
           ))}
           <input
-            id="problem-tags"
             type="text"
             placeholder="Type tag and press enter..."
             onKeyDown={handleAddTag}

@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import { getWorkspaceContext as getProtectedWorkspaceContext } from "@/lib/auth/workspace";
 import { createClient } from "@/lib/supabase/server";
+
+
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { OrganizerKpiGrid } from "@/components/dashboard/organizer-kpi-grid";
 import { ActiveCompetitionsTable } from "@/components/dashboard/active-competitions-table";
@@ -12,6 +14,11 @@ import type {
   OrganizerCompetitionRow,
   OrganizerDashboardMetric,
 } from "@/components/dashboard/types";
+
+async function getWorkspaceContext() {
+  return getProtectedWorkspaceContext({ requireRole: "organizer" });
+}
+
 import {
   COMPETITION_SELECT_COLUMNS,
   LEGACY_COMPETITION_SELECT_COLUMNS,
@@ -20,15 +27,16 @@ import {
 } from "@/lib/competition/api";
 import type { CompetitionRecord } from "@/lib/competition/types";
 
-async function getWorkspaceContext() {
-  return getProtectedWorkspaceContext({ requireRole: "organizer" });
-}
-
 type DashboardEventRow = {
   id: string;
   event_type: string | null;
   happened_at: string | null;
   competition_id?: { name?: string | null } | null;
+};
+
+type RegistrationRow = {
+  competition_id: string | null;
+  status?: string | null;
 };
 
 function isMissingRegistrationSchema(error: { code?: string | null; message?: string | null } | null | undefined) {
@@ -170,8 +178,8 @@ async function OrganizerPageContent() {
         .map((row) => normalizeCompetitionRecord(row))
         .filter((row): row is CompetitionRecord => row !== null);
       competitionCount = competitions.length;
-      activeCompetitionCount = competitions.filter(
-        (competition) => competition.status !== "archived" && competition.status !== "ended",
+      activeCompetitionCount = competitions.filter((competition) =>
+        competition.status !== "archived" && competition.status !== "ended",
       ).length;
 
       const competitionIds = competitions.map((competition) => competition.id);
@@ -184,7 +192,7 @@ async function OrganizerPageContent() {
           .in("competition_id", competitionIds);
 
         if (!registrationsResult.error) {
-          ((registrationsResult.data ?? []) as Array<{ competition_id?: string | null; status?: string | null }>).forEach((row) => {
+          ((registrationsResult.data as RegistrationRow[] | null) ?? []).forEach((row) => {
             if (!row.competition_id || row.status === "withdrawn" || row.status === "cancelled") {
               return;
             }
@@ -227,19 +235,21 @@ async function OrganizerPageContent() {
           }));
         }
 
-        competitionRows = competitions.slice(0, 5).map((competition) => ({
-          id: competition.id,
-          name: competition.name || "Untitled competition",
-          subtitle: buildCompetitionSubtitle(competition),
-          status: competition.status,
-          registrationCount: registrationCounts.get(competition.id) ?? 0,
-          capacity: competition.format === "team" ? competition.maxTeams : competition.maxParticipants,
-          dateLabel: formatCompactDate(competition.startTime),
-          href: `/organizer/competition/${competition.id}`,
-        }));
+        competitionRows = competitions
+          .slice(0, 5)
+          .map((competition) => ({
+            id: competition.id,
+            name: competition.name || "Untitled competition",
+            subtitle: buildCompetitionSubtitle(competition),
+            status: competition.status,
+            registrationCount: registrationCounts.get(competition.id) ?? 0,
+            capacity: competition.format === "team" ? competition.maxTeams : competition.maxParticipants,
+            dateLabel: formatCompactDate(competition.startTime),
+            href: `/organizer/competition/${competition.id}`,
+          }));
 
         calendarEvents = competitions
-          .filter((competition) => competition.startTime)
+          .filter((competition) => competition.type === "scheduled" && competition.startTime)
           .slice(0, 6)
           .map((competition) => ({
             id: competition.id,
@@ -275,15 +285,13 @@ async function OrganizerPageContent() {
   ];
 
   return (
-    <section className="organizer-shell flex flex-col items-center px-4 pb-12">
-      <div className="shell pt-8 md:pt-10">
-        <DashboardHeader name={profile?.full_name || userEmail?.split("@")[0]} className="mb-8" />
-      </div>
+    <section className="flex flex-col items-center px-4 pb-12">
+      <DashboardHeader name={profile?.full_name || userEmail?.split("@")[0]} className="mt-12 mb-6" />
 
-      <div className="shell flex w-full max-w-[1024px] flex-col gap-5">
+      <div className="w-full max-w-[1024px] flex flex-col gap-5">
         <OrganizerKpiGrid metrics={metrics} />
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <ActiveCompetitionsTable competitions={competitionRows} className="lg:col-span-2" />
           <div className="flex flex-col gap-5">
             <CalendarWidget events={calendarEvents} />
@@ -297,23 +305,21 @@ async function OrganizerPageContent() {
 
 function OrganizerPageFallback() {
   return (
-    <section className="organizer-shell flex flex-col items-center px-4 pb-12">
-      <div className="shell pt-8 md:pt-10">
-        <div className="mb-8 text-center">
-          <div className="mx-auto h-10 w-64 animate-pulse rounded-lg bg-secondary/70" />
-        </div>
+    <section className="flex flex-col items-center px-4 pb-12">
+      <div className="mt-12 mb-6 text-center">
+        <div className="h-10 w-64 rounded-lg bg-slate-200/60 animate-pulse mx-auto" />
       </div>
-      <div className="shell flex w-full max-w-[1024px] flex-col gap-5">
+      <div className="w-full max-w-[1024px] flex flex-col gap-5">
         <div className="grid gap-5 md:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="organizer-panel h-32 animate-pulse p-5" />
+            <div key={i} className="bg-white rounded-2xl border border-[#f1f5f9] p-5 h-32 animate-pulse" />
           ))}
         </div>
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          <div className="organizer-panel h-64 animate-pulse lg:col-span-2" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-[#f1f5f9] h-64 animate-pulse" />
           <div className="flex flex-col gap-5">
-            <div className="organizer-panel h-48 animate-pulse" />
-            <div className="organizer-panel h-40 animate-pulse" />
+            <div className="bg-white rounded-2xl border border-[#f1f5f9] h-48 animate-pulse" />
+            <div className="bg-white rounded-2xl border border-[#f1f5f9] h-40 animate-pulse" />
           </div>
         </div>
       </div>
