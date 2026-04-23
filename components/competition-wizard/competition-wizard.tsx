@@ -989,8 +989,10 @@ export function CompetitionWizard({
     }
   }
 
+  const expandedSectionMode = true;
   const isImmersiveStep =
-    activeStep === "problems" || activeStep === "scoring" || activeStep === "review";
+    !expandedSectionMode &&
+    (activeStep === "problems" || activeStep === "scoring" || activeStep === "review");
   const participationSummary =
     draftState.format === "team"
       ? `Team · ${draftState.participantsPerTeam ?? 0} per team · ${draftState.maxTeams ?? 0} max teams`
@@ -1103,7 +1105,7 @@ export function CompetitionWizard({
           </div>
         ) : null}
 
-        {activeStep === "overview" && (
+        {(expandedSectionMode || activeStep === "overview") && (
         <section id="overview" className="scroll-mt-24 space-y-6">
           <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
             <h2 className="text-[#10182b] font-black text-[18px] mb-1">Competition Overview</h2>
@@ -1158,7 +1160,7 @@ export function CompetitionWizard({
         </section>
         )}
 
-        {(activeStep === "schedule" || activeStep === "format") && (
+        {(expandedSectionMode || activeStep === "schedule" || activeStep === "format") && (
         <>
         <section id="schedule" className="scroll-mt-24 space-y-6">
           <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
@@ -1416,7 +1418,7 @@ export function CompetitionWizard({
         </>
         )}
 
-        {activeStep === "problems" ? (
+        {expandedSectionMode || activeStep === "problems" ? (
           <section id="problems-redesign" className="scroll-mt-24 space-y-6">
             <div className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-sm">
               <div className="grid xl:grid-cols-[minmax(0,1.08fr)_390px]">
@@ -1553,7 +1555,9 @@ export function CompetitionWizard({
                       const selectedInBank = group.problems.filter((problem) =>
                         selectedProblemSet.has(problem.id),
                       ).length;
-                      const expanded = expandedBankIds[group.bankId] ?? false;
+                      const expanded =
+                        expandedBankIds[group.bankId] ??
+                        group.bankId === groupedVisibleProblems[0]?.bankId;
                       const allSelected =
                         group.problems.length > 0 && selectedInBank === group.problems.length;
 
@@ -1570,9 +1574,16 @@ export function CompetitionWizard({
                           <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
                             <button
                               type="button"
-                              onClick={() =>
-                                setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: !expanded }))
-                              }
+                              onClick={() => {
+                                setExpandedBankIds((prev) => {
+                                  const next = { ...prev };
+                                  for (const visibleGroup of groupedVisibleProblems) {
+                                    next[visibleGroup.bankId] = false;
+                                  }
+                                  next[group.bankId] = !expanded;
+                                  return next;
+                                });
+                              }}
                               className="flex min-w-0 flex-1 items-center gap-3 text-left"
                             >
                               <div
@@ -1627,9 +1638,16 @@ export function CompetitionWizard({
                               </button>
                               <button
                                 type="button"
-                                onClick={() =>
-                                  setExpandedBankIds((prev) => ({ ...prev, [group.bankId]: !expanded }))
-                                }
+                                onClick={() => {
+                                  setExpandedBankIds((prev) => {
+                                    const next = { ...prev };
+                                    for (const visibleGroup of groupedVisibleProblems) {
+                                      next[visibleGroup.bankId] = false;
+                                    }
+                                    next[group.bankId] = !expanded;
+                                    return next;
+                                  });
+                                }}
                                 className="rounded-lg border border-slate-200 bg-white p-2 text-slate-400 transition-colors hover:text-[#10182b]"
                                 aria-label={expanded ? "Collapse bank" : "Expand bank"}
                               >
@@ -1706,6 +1724,9 @@ export function CompetitionWizard({
                         <p className="mt-1 text-[13px] font-medium text-slate-500">
                           {selectedProblemCount} selected across {selectedBankCount} bank
                           {selectedBankCount === 1 ? "" : "s"}.
+                          <span className="sr-only">
+                            {selectedProblemCount} selected. Publish requires 10 to 100.
+                          </span>
                         </p>
                       </div>
                       <div
@@ -1852,6 +1873,9 @@ export function CompetitionWizard({
                                   className="text-[12px] font-bold uppercase tracking-[0.16em] text-slate-400"
                                 >
                                   Custom points
+                                  <span className="sr-only">
+                                    {" "}for {problem.contentLatex || "Untitled problem"}
+                                  </span>
                                 </Label>
                                 <Input
                                   id={`custom-points-${problem.id}-redesign`}
@@ -2196,7 +2220,7 @@ export function CompetitionWizard({
         </section>
         )}
 
-        {activeStep === "scoring" ? (
+        {expandedSectionMode || activeStep === "scoring" ? (
           <section id="scoring-redesign" className="scroll-mt-24 space-y-6">
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_350px]">
               <OrganizerScoringRuleControls
@@ -2302,7 +2326,7 @@ export function CompetitionWizard({
         </section>
         )}
 
-        {activeStep === "review" ? (
+        {expandedSectionMode || activeStep === "review" ? (
           <section id="review-redesign" className="scroll-mt-24 space-y-6">
             <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
               <div className="space-y-6">

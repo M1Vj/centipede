@@ -2,7 +2,6 @@ import { createDefaultCompetitionDraftState, validateCompetitionDraftInput } fro
 import {
   COMPETITION_SELECT_COLUMNS,
   LEGACY_COMPETITION_SELECT_COLUMNS,
-  isLegacyCompetitionSelectError,
   normalizeCompetitionLifecycleResult,
   normalizeCompetitionRecord,
 } from "@/lib/competition/api";
@@ -15,52 +14,13 @@ import {
   jsonError,
   jsonOk,
   isLegacyCompetitionSchemaError,
+  fetchCompetition,
   requireCompetitionAdminClient,
   requireOrganizerCompetitionActor,
   requireSameOriginMutation,
   replaceCompetitionProblemsLegacy,
   validateCompetitionProblemSelection,
 } from "./_shared";
-
-type CompetitionReadResult = {
-  data: unknown;
-  error: { code?: string | null; message?: string | null; details?: string | null } | null;
-};
-
-type CompetitionReadQuery = {
-  eq: (column: "id" | "organizer_id", value: string) => CompetitionReadQuery;
-  maybeSingle: () => Promise<CompetitionReadResult>;
-};
-
-type CompetitionReadClient = {
-  from: (table: "competitions") => {
-    select: (columns: string) => CompetitionReadQuery;
-  };
-};
-
-async function readCompetitionWithFallback(
-  client: CompetitionReadClient,
-  competitionId: string,
-  organizerId: string,
-) {
-  const primaryResult = await client
-    .from("competitions")
-    .select(COMPETITION_SELECT_COLUMNS)
-    .eq("id", competitionId)
-    .eq("organizer_id", organizerId)
-    .maybeSingle();
-
-  if (primaryResult.error && isLegacyCompetitionSelectError(primaryResult.error)) {
-    return client
-      .from("competitions")
-      .select(LEGACY_COMPETITION_SELECT_COLUMNS)
-      .eq("id", competitionId)
-      .eq("organizer_id", organizerId)
-      .maybeSingle();
-  }
-
-  return primaryResult;
-}
 
 function buildCreationDraftState(payload: Record<string, unknown> | null): CompetitionDraftFormState {
   const baseState = createDefaultCompetitionDraftState();
@@ -305,27 +265,25 @@ export async function POST(request: Request) {
       });
     }
 
-    const refreshed = await readCompetitionWithFallback(
-      supabase as unknown as CompetitionReadClient,
-      competition.id,
-      actor.userId,
-    );
+    const refreshed = await fetchCompetition(supabase, competition.id, actor.userId);
+    if ("response" in refreshed) {
+      if (refreshed.response.status === 404) {
+        return jsonError(
+          "service_unavailable",
+          "Competition could not be created while database migrations are incomplete.",
+          503,
+        );
+      }
 
-    if (refreshed.error) {
-      return jsonDatabaseError(refreshed.error);
-    }
-
-    const refreshedCompetition = normalizeCompetitionRecord(refreshed.data);
-    if (!refreshedCompetition) {
-      return jsonError("operation_failed", "Competition could not be created.", 500);
+      return refreshed.response;
     }
 
     return jsonOk(
       {
         code: "created",
-        competition: refreshedCompetition,
+        competition: refreshed.competition,
         selectedProblemCount: savedLifecycle.selectedProblemCount ?? 0,
-        currentDraftRevision: savedLifecycle.currentDraftRevision ?? refreshedCompetition.draftRevision,
+        currentDraftRevision: savedLifecycle.currentDraftRevision ?? refreshed.competition.draftRevision,
       },
       201,
     );

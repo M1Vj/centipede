@@ -94,7 +94,6 @@ function StatusBadge({ status }: { status: CompetitionRecord["status"] }) {
 function CompetitionCard({ competition }: { competition: CompetitionRecord }) {
   const isLive = competition.status === "live";
   const isPaused = competition.status === "paused";
-  const isActive = isLive || isPaused;
   const isUpcoming = competition.status === "published";
   const isDraft = competition.status === "draft";
   const isCompleted = competition.status === "ended" || competition.status === "archived";

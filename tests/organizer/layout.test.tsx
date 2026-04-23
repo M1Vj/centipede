@@ -72,6 +72,7 @@ describe("organizer layout navigation", () => {
     const nav = screen.getByRole("navigation", { name: "Organizer navigation" });
     expect(shellNav).toHaveClass("rounded-full");
     expect(nav).toHaveClass("gap-10");
+    expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open organizer navigation" })).toBeInTheDocument();
 
     for (const label of ["Dashboard", "Competitions", "Problembanks", "History", "Profile", "Settings"]) {

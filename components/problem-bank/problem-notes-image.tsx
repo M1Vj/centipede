@@ -53,10 +53,13 @@ export function ProblemNotesImage({
           <div className="w-10 h-10 rounded-2xl bg-[#f49700]/10 flex items-center justify-center text-[#f49700]">
             <ImageIcon className="w-5 h-5" />
           </div>
-          <h2 className="text-[16px] font-bold text-[#10182b]">Problem Image</h2>
+          <label htmlFor="problem-image" className="text-[16px] font-bold text-[#10182b]">
+            Problem image
+          </label>
         </div>
 
         <input
+          id="problem-image"
           type="file"
           accept="image/*"
           className="hidden"

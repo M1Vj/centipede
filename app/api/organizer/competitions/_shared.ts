@@ -345,32 +345,43 @@ export async function fetchCompetition(
     .eq("organizer_id", organizerId)
     .maybeSingle();
 
-  const fallbackResult =
-    primaryResult.error && isLegacyCompetitionSelectError(primaryResult.error)
-      ? await supabase
-          .from("competitions")
-          .select(LEGACY_COMPETITION_SELECT_COLUMNS)
-          .eq("id", competitionId)
-          .eq("organizer_id", organizerId)
-          .maybeSingle()
-      : null;
+  const primaryCompetition = normalizeCompetitionRecord(primaryResult.data);
+  const shouldTryLegacyRead =
+    !primaryCompetition || (primaryResult.error && isLegacyCompetitionSelectError(primaryResult.error));
 
-  const { data, error } = fallbackResult ?? primaryResult;
+  if (shouldTryLegacyRead) {
+    const fallbackResult = await supabase
+      .from("competitions")
+      .select(LEGACY_COMPETITION_SELECT_COLUMNS)
+      .eq("id", competitionId)
+      .eq("organizer_id", organizerId)
+      .maybeSingle();
 
-  if (error) {
+    if (fallbackResult.error) {
+      return {
+        response: jsonDatabaseError(fallbackResult.error),
+      };
+    }
+
+    const fallbackCompetition = normalizeCompetitionRecord(fallbackResult.data);
+    if (fallbackCompetition) {
+      return { competition: fallbackCompetition };
+    }
+  }
+
+  if (primaryResult.error) {
     return {
-      response: jsonDatabaseError(error),
+      response: jsonDatabaseError(primaryResult.error),
     };
   }
 
-  const competition = normalizeCompetitionRecord(data);
-  if (!competition) {
+  if (!primaryCompetition) {
     return {
       response: jsonError("not_found", "Requested resource was not found.", 404),
     };
   }
 
-  return { competition };
+  return { competition: primaryCompetition };
 }
 
 export function requireCompetitionAdminClient() {

@@ -226,6 +226,77 @@ function makeLegacySelectFallbackSupabaseClient() {
   };
 }
 
+function makeNullPrimaryReadFallbackSupabaseClient() {
+  const profileQuery = {
+    select: vi.fn(),
+    eq: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue({
+      data: {
+        id: ORGANIZER_ID,
+        role: "organizer",
+        is_active: true,
+      },
+      error: null,
+    }),
+  };
+  profileQuery.select.mockImplementation(() => profileQuery);
+  profileQuery.eq.mockImplementation(() => profileQuery);
+
+  const queues = new Map<string, Array<{ data: Record<string, unknown> | null; error: { code?: string; message?: string } | null }>>([
+    [
+      COMPETITION_SELECT_COLUMNS,
+      [
+        { data: null, error: null },
+        { data: null, error: null },
+      ],
+    ],
+    [
+      LEGACY_COMPETITION_SELECT_COLUMNS,
+      [
+        { data: makeLegacyCompetitionRow("draft"), error: null },
+        { data: makeLegacyCompetitionRow("published"), error: null },
+      ],
+    ],
+  ]);
+
+  function makeCompetitionMaybeSingle(columns: string) {
+    return {
+      eq: vi.fn().mockImplementation(() => makeCompetitionMaybeSingle(columns)),
+      maybeSingle: vi.fn().mockImplementation(async () => {
+        const queue = queues.get(columns) ?? [];
+        const next = queue.shift() ?? { data: null, error: null };
+        queues.set(columns, queue);
+        return next;
+      }),
+    };
+  }
+
+  return {
+    auth: {
+      getUser: vi.fn().mockResolvedValue({
+        data: {
+          user: {
+            id: ORGANIZER_ID,
+          },
+        },
+      }),
+    },
+    from: vi.fn((table: string) => {
+      if (table === "profiles") {
+        return profileQuery;
+      }
+
+      if (table === "competitions") {
+        return {
+          select: vi.fn((columns: string) => makeCompetitionMaybeSingle(columns)),
+        };
+      }
+
+      throw new Error(`Unexpected table in server client: ${table}`);
+    }),
+  };
+}
+
 describe("publish route compatibility", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -343,6 +414,30 @@ describe("publish route compatibility", () => {
 
   test("falls back to legacy competition reads when modern competition columns are unavailable", async () => {
     vi.mocked(createClient).mockResolvedValue(makeLegacySelectFallbackSupabaseClient() as never);
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: ["ok"],
+      error: null,
+    });
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc,
+      from: vi.fn(),
+    } as never);
+
+    const response = await POST(makePublishRequest(), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.competition.status).toBe("published");
+    expect(body.lifecycle.machineCode).toBe("ok");
+  });
+
+  test("falls back to legacy competition reads when primary read returns no data", async () => {
+    vi.mocked(createClient).mockResolvedValue(makeNullPrimaryReadFallbackSupabaseClient() as never);
 
     const rpc = vi.fn().mockResolvedValue({
       data: ["ok"],

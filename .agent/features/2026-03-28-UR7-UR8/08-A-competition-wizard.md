@@ -169,7 +169,7 @@ Mutation guards by status:
 - Publish action guard hardened to draft-only in wizard UI so non-draft states cannot trigger invalid publish attempts.
 - Hardened draft creation for under-migrated competition schemas: create-route insert fallback now retries with legacy competition select columns, and post-save refresh uses the same legacy read fallback instead of returning a generic 500 after successful draft persistence.
 - Added regression coverage in `tests/competition/create-route.test.ts` for both legacy insert-response fallback and legacy post-save refresh fallback.
-- Hardened organizer mutation compatibility beyond create flow: shared competition reads now retry with legacy competition select columns, draft save fallback now reads legacy rows after compatibility updates, and draft delete now has a legacy soft-delete fallback when `delete_draft_competition` RPC is unavailable.
+- Hardened organizer mutation compatibility beyond create flow: shared competition reads now retry with legacy competition select columns even when the primary read returns `data = null`, draft save fallback now reads legacy rows after compatibility updates, and draft delete now has a legacy soft-delete fallback when `delete_draft_competition` RPC is unavailable.
 - Added regression coverage in `tests/competition/edit-route.test.ts` and extended `tests/competition/publish-route.test.ts` so save, delete, and publish paths no longer regress into generic operation-failed responses on under-migrated schemas.
 
 ### UI Fidelity Update (2026-04-18)

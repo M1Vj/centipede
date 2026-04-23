@@ -1,9 +1,4 @@
 import { ArrowLeft } from "lucide-react";
-import {
-  OrganizerWorkspaceHeader,
-  OrganizerWorkspaceShell,
-  organizerSecondaryActionClass,
-} from "@/components/organizer/workspace-patterns";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import { createDefaultCompetitionDraftState } from "@/lib/competition/validation";

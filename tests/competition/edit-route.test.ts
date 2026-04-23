@@ -342,4 +342,55 @@ describe("competition edit route legacy compatibility", () => {
     expect(body.machineCode).toBe("ok");
     expect(body.isDeleted).toBe(true);
   });
+
+  test("delete falls back to legacy competition reads when primary read returns no data", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeServerClient({
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: [{ data: null, error: null }],
+          [LEGACY_COMPETITION_SELECT_COLUMNS]: [{ data: buildLegacyCompetitionRow(), error: null }],
+        },
+      }) as never,
+    );
+
+    const updateQuery = {
+      eq: vi.fn(),
+      select: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { id: COMPETITION_ID },
+        error: null,
+      }),
+    };
+    updateQuery.eq.mockImplementation(() => updateQuery);
+    updateQuery.select.mockImplementation(() => updateQuery);
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc: vi.fn().mockResolvedValue({
+        data: null,
+        error: {
+          code: "42883",
+          message: "function public.delete_draft_competition(uuid, text) does not exist",
+        },
+      }),
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return {
+            update: vi.fn(() => updateQuery),
+          };
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+    } as never);
+
+    const response = await DELETE(makeDeleteRequest(), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.machineCode).toBe("ok");
+    expect(body.isDeleted).toBe(true);
+  });
 });
