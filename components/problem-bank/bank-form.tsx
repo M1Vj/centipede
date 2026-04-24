@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Trash2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
 import { validateBankInput } from "@/lib/problem-bank/validation";
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
@@ -64,6 +65,7 @@ export function BankForm({
   const [expectedUpdatedAt, setExpectedUpdatedAt] = useState(initialValue?.updatedAt ?? "");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [status, setStatus] = useState<FormStatus>({
     type: "pending",
     message: null,
@@ -196,10 +198,6 @@ export function BankForm({
       return;
     }
 
-    if (!window.confirm("Soft-delete this bank? You can no longer use it in authoring flows.")) {
-      return;
-    }
-
     setIsDeleting(true);
     setStatus({
       type: "pending",
@@ -229,6 +227,7 @@ export function BankForm({
         type: "success",
         message: "Bank deleted.",
       });
+      setDeleteConfirmOpen(false);
       router.push(successRedirectHref);
       router.refresh();
     } catch {
@@ -293,7 +292,7 @@ export function BankForm({
         {mode === "edit" ? (
           <button
             type="button"
-            onClick={handleSoftDelete}
+            onClick={() => setDeleteConfirmOpen(true)}
             disabled={isDeleting || isSaving}
             className="flex items-center gap-2 px-5 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 font-bold text-[14px] hover:bg-red-100 transition-colors disabled:opacity-50"
           >
@@ -313,7 +312,16 @@ export function BankForm({
         </button>
       </div>
 
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Soft-delete bank?"
+        description="This bank will no longer be available in authoring flows."
+        confirmLabel="Soft delete"
+        pending={isDeleting}
+        pendingLabel="Deleting..."
+        onConfirm={() => void handleSoftDelete()}
+      />
     </form>
   );
 }
-

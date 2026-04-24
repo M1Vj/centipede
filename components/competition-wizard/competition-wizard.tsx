@@ -2887,13 +2887,6 @@ export function CompetitionWizard({
         confirmLabel="Publish"
         confirmDisabled={!canPublish}
         confirmVariant="default"
-        overlayClassName="bg-[#10182b]/24 backdrop-blur-[2px]"
-        contentClassName="w-[calc(100vw-2rem)] max-w-[28rem] rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_28px_80px_-40px_rgba(16,24,43,0.32)]"
-        titleClassName="text-[#10182b] text-[24px] font-black tracking-[-0.04em]"
-        descriptionClassName="mt-2 text-[14px] font-medium leading-7 text-slate-500"
-        actionsClassName="mt-8 grid gap-3 sm:grid-cols-2"
-        cancelClassName="h-12 rounded-2xl border-slate-200 bg-white px-5 text-[14px] font-bold text-slate-500 shadow-none hover:bg-slate-50 hover:text-[#10182b]"
-        confirmClassName="h-12 rounded-2xl bg-[#f49700] px-5 text-[14px] font-bold text-[#10182b] shadow-sm hover:bg-[#e08900]"
         pending={savingAction === "publish"}
         pendingLabel="Publishing..."
         onConfirm={async () => {
@@ -3108,14 +3101,6 @@ export function CompetitionWizard({
         description="This will remove the current draft from your organizer workspace. Published records stay protected."
         confirmLabel="Delete"
         confirmDisabled={!canDelete}
-        confirmVariant="default"
-        overlayClassName="bg-[#10182b]/24 backdrop-blur-[2px]"
-        contentClassName="w-[calc(100vw-2rem)] max-w-[28rem] rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_28px_80px_-40px_rgba(16,24,43,0.32)]"
-        titleClassName="text-[#10182b] text-[24px] font-black tracking-[-0.04em]"
-        descriptionClassName="mt-2 text-[14px] font-medium leading-7 text-slate-500"
-        actionsClassName="mt-8 grid gap-3 sm:grid-cols-2"
-        cancelClassName="h-12 rounded-2xl border-slate-200 bg-white px-5 text-[14px] font-bold text-slate-500 shadow-none hover:bg-slate-50 hover:text-[#10182b]"
-        confirmClassName="h-12 rounded-2xl bg-[#10182b] px-5 text-[14px] font-bold text-white shadow-sm hover:bg-[#0f121a]"
         pending={savingAction === "delete"}
         pendingLabel="Deleting..."
         onConfirm={async () => {

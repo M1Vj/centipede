@@ -17,7 +17,11 @@ describe("ConfirmDialog", () => {
       />,
     );
 
-    expect(screen.getByRole("alertdialog")).toHaveTextContent("Sign out now?");
+    const dialog = screen.getByRole("alertdialog");
+
+    expect(dialog).toHaveTextContent("Sign out now?");
+    expect(dialog.className).toContain("bg-white");
+    expect(dialog.className).toContain("border-slate-200");
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Signing out..." })).toBeDisabled();
   });
