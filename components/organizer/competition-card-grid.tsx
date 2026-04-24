@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   User,
   Users,
@@ -16,6 +17,7 @@ import {
   Eye,
 } from "lucide-react";
 import { ProgressLink } from "@/components/ui/progress-link";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { CompetitionRecord } from "@/lib/competition/types";
 
 const TABS = ["All Events", "Active", "Upcoming", "Drafts", "Completed"] as const;
@@ -91,12 +93,22 @@ function StatusBadge({ status }: { status: CompetitionRecord["status"] }) {
   }
 }
 
-function CompetitionCard({ competition }: { competition: CompetitionRecord }) {
+function CompetitionCard({
+  competition,
+  deletingCompetitionId,
+  onRequestDelete,
+}: {
+  competition: CompetitionRecord;
+  deletingCompetitionId: string | null;
+  onRequestDelete: (competition: CompetitionRecord) => void;
+}) {
   const isLive = competition.status === "live";
   const isPaused = competition.status === "paused";
   const isUpcoming = competition.status === "published";
   const isDraft = competition.status === "draft";
   const isCompleted = competition.status === "ended" || competition.status === "archived";
+  const isDeleting = deletingCompetitionId === competition.id;
+  const deleteButtonLabel = isDraft ? "Delete draft competition" : "Delete competition unavailable";
 
   const cardBase = isDraft
     ? "bg-white rounded-2xl border-2 border-dashed border-[#e2e8f0] p-5 flex flex-col relative h-[260px] hover:bg-slate-50/50 transition-colors"
@@ -201,7 +213,13 @@ function CompetitionCard({ competition }: { competition: CompetitionRecord }) {
             >
               <Settings className="w-4 h-4" /> Manage
             </ProgressLink>
-            <button className="w-12 h-12 shrink-0 bg-slate-100 hover:bg-red-50 hover:text-red-600 rounded-xl flex items-center justify-center text-slate-500 transition-colors">
+            <button
+              type="button"
+              disabled
+              aria-label={deleteButtonLabel}
+              title="Only draft competitions can be deleted"
+              className="w-12 h-12 shrink-0 bg-slate-100 rounded-xl flex items-center justify-center text-slate-300 cursor-not-allowed transition-colors"
+            >
               <Trash2 className="w-5 h-5" />
             </button>
           </>
@@ -215,7 +233,16 @@ function CompetitionCard({ competition }: { competition: CompetitionRecord }) {
             >
               <Edit3 className="w-4 h-4" /> Edit Draft
             </ProgressLink>
-            <button className="w-12 h-12 shrink-0 bg-slate-50 hover:bg-red-50 hover:text-red-600 rounded-xl flex items-center justify-center text-slate-400 transition-colors border border-slate-100">
+            <button
+              type="button"
+              aria-label={deleteButtonLabel}
+              title="Delete draft competition"
+              disabled={isDeleting}
+              onClick={() => {
+                onRequestDelete(competition);
+              }}
+              className="w-12 h-12 shrink-0 bg-slate-50 hover:bg-red-50 hover:text-red-600 rounded-xl flex items-center justify-center text-slate-400 transition-colors border border-slate-100 disabled:cursor-not-allowed disabled:hover:bg-slate-50 disabled:hover:text-slate-400"
+            >
               <Trash2 className="w-5 h-5" />
             </button>
           </>
@@ -240,11 +267,57 @@ interface CompetitionCardGridProps {
 
 export function CompetitionCardGrid({ competitions }: CompetitionCardGridProps) {
   const [activeTab, setActiveTab] = useState<Tab>("All Events");
+  const [items, setItems] = useState(competitions);
+  const [competitionToDelete, setCompetitionToDelete] = useState<CompetitionRecord | null>(null);
+  const [deletingCompetitionId, setDeletingCompetitionId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+  const router = useRouter();
+
+  useEffect(() => {
+    setItems(competitions);
+  }, [competitions]);
 
   const filtered =
     activeTab === "All Events"
-      ? competitions
-      : competitions.filter((c) => mapStatusToTab(c.status) === activeTab);
+      ? items
+      : items.filter((c) => mapStatusToTab(c.status) === activeTab);
+
+  async function handleDeleteCompetition() {
+    const competition = competitionToDelete;
+    if (!competition) {
+      return;
+    }
+
+    if (competition.status !== "draft") {
+      return;
+    }
+
+    setDeletingCompetitionId(competition.id);
+    setDeleteError("");
+    try {
+      const response = await fetch(`/api/organizer/competitions/${competition.id}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: {
+          "x-idempotency-key": crypto.randomUUID(),
+        },
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        setDeleteError(payload?.message ?? "Draft could not be deleted.");
+        return;
+      }
+
+      setItems((current) => current.filter((item) => item.id !== competition.id));
+      setCompetitionToDelete(null);
+      router.refresh();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Draft could not be deleted.");
+    } finally {
+      setDeletingCompetitionId((current) => (current === competition.id ? null : current));
+    }
+  }
 
   return (
     <>
@@ -268,7 +341,15 @@ export function CompetitionCardGrid({ competitions }: CompetitionCardGridProps) 
       {/* Card Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filtered.map((competition) => (
-          <CompetitionCard key={competition.id} competition={competition} />
+          <CompetitionCard
+            key={competition.id}
+            competition={competition}
+            deletingCompetitionId={deletingCompetitionId}
+            onRequestDelete={(nextCompetition) => {
+              setDeleteError("");
+              setCompetitionToDelete(nextCompetition);
+            }}
+          />
         ))}
 
         {/* Quick Start Card */}
@@ -299,6 +380,29 @@ export function CompetitionCardGrid({ competitions }: CompetitionCardGridProps) 
           </p>
         </div>
       )}
+
+      <ConfirmDialog
+        open={competitionToDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCompetitionToDelete(null);
+            setDeleteError("");
+          }
+        }}
+        title="Delete draft?"
+        description={`This will remove "${competitionToDelete?.name || "Untitled competition"}" from your organizer workspace. Published competitions are not affected.`}
+        confirmLabel="Delete"
+        confirmDisabled={deletingCompetitionId !== null}
+        pending={deletingCompetitionId !== null}
+        pendingLabel="Deleting..."
+        onConfirm={handleDeleteCompetition}
+      >
+        {deleteError ? (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+            {deleteError}
+          </p>
+        ) : null}
+      </ConfirmDialog>
     </>
   );
 }
