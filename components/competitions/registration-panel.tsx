@@ -113,7 +113,7 @@ export function CompetitionRegistrationPanel({
         },
         body: JSON.stringify({
           competitionId: competition.id,
-          teamId: selectedTeam?.id ?? null,
+          teamId: competition.format === "team" ? selectedTeam?.id ?? null : null,
           requestIdempotencyToken: createIdempotencyToken(),
         }),
       });
