@@ -65,6 +65,7 @@ function toLegacyTieBreaker(value: CompetitionDraftMutationPayload["tieBreaker"]
 export function buildCompetitionDraftRpcPayload(input: CompetitionDraftMutationPayload) {
   return {
     ...input,
+    customPoints: input.customPointsByProblemId,
     scoringMode: toLegacyScoringMode(input.scoringMode),
     penaltyMode: toLegacyPenaltyMode(input.penaltyMode),
     tieBreaker: toLegacyTieBreaker(input.tieBreaker),
@@ -168,22 +169,11 @@ function asLifecycleRecord(value: unknown): Record<string, unknown> | null {
     }
   }
 
-  const entries = Object.entries(record);
-  if (entries.length === 1) {
-    const onlyValue = entries[0][1];
-    const wrappedRecord = asRecord(onlyValue);
-    if (wrappedRecord) {
-      return wrappedRecord;
-    }
-
-    if (typeof onlyValue === "string") {
-      return {
-        machine_code: onlyValue,
-      };
-    }
-  }
-
   return record;
+}
+
+function hasExplicitLifecycleMachineCode(record: Record<string, unknown>): boolean {
+  return typeof record.machine_code === "string" || typeof record.machineCode === "string";
 }
 
 function normalizeLifecycleFiniteInt(value: unknown): number | null {
@@ -521,6 +511,10 @@ export function normalizeCompetitionBankRecord(row: unknown): CompetitionBankRec
 export function normalizeCompetitionLifecycleResult(row: unknown): CompetitionLifecycleResult | null {
   const record = asLifecycleRecord(row);
   if (!record) {
+    return null;
+  }
+
+  if (!hasExplicitLifecycleMachineCode(record)) {
     return null;
   }
 

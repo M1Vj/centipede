@@ -477,6 +477,51 @@ describe("publish route compatibility", () => {
     expect(from).not.toHaveBeenCalled();
   });
 
+  test("keeps publish successful when lifecycle RPC returns unshaped payload", async () => {
+    const supabase = makeSupabaseClient([
+      makeCompetitionRow("draft"),
+      makeCompetitionRow("published"),
+    ]);
+    vi.mocked(createClient).mockResolvedValue(supabase.client as never);
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: { ok: true },
+      error: null,
+    });
+
+    const competitionProblemsQuery = {
+      eq: vi.fn(),
+    };
+    competitionProblemsQuery.eq.mockResolvedValue({ count: 10, error: null });
+    const competitionProblemsSelect = vi.fn().mockImplementation(() => ({
+      eq: vi.fn().mockReturnValue(competitionProblemsQuery),
+    }));
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc,
+      from: vi.fn((table: string) => {
+        if (table === "competition_problems") {
+          return {
+            select: competitionProblemsSelect,
+          };
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+    } as never);
+
+    const response = await POST(makePublishRequest(), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.competition.status).toBe("published");
+    expect(body.lifecycle.machineCode).toBe("ok");
+    expect(body.lifecycle.selectedProblemCount).toBe(0);
+  });
+
   test("falls back to legacy competition reads when modern competition columns are unavailable", async () => {
     vi.mocked(createClient).mockResolvedValue(makeLegacySelectFallbackSupabaseClient() as never);
 

@@ -168,6 +168,54 @@ describe("lifecycle route legacy fallback compatibility", () => {
     });
   });
 
+  test.each([
+    {
+      name: "start",
+      handler: startCompetition,
+      current: makeCompetitionRow("published"),
+      refreshed: makeCompetitionRow("live"),
+      path: "start" as const,
+    },
+    {
+      name: "end",
+      handler: endCompetition,
+      current: makeCompetitionRow("live"),
+      refreshed: makeCompetitionRow("ended"),
+      path: "end" as const,
+    },
+    {
+      name: "archive",
+      handler: archiveCompetition,
+      current: makeCompetitionRow("ended"),
+      refreshed: makeCompetitionRow("archived"),
+      path: "archive" as const,
+    },
+  ])("$name route keeps target status when lifecycle RPC returns unshaped payload", async ({ handler, current, refreshed, path }) => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseClient([current, refreshed]) as never,
+    );
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: { ok: true },
+      error: null,
+    });
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc,
+      from: vi.fn(),
+    } as never);
+
+    const response = await handler(makeMutationRequest(path), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.competition.status).toBe(path === "start" ? "live" : path === "end" ? "ended" : "archived");
+    expect(body.lifecycle.machineCode).toBe("ok");
+  });
+
   test("start route falls back and persists transition when lifecycle RPC is unavailable", async () => {
     vi.mocked(createClient).mockResolvedValue(
       makeSupabaseClient([makeCompetitionRow("published"), makeCompetitionRow("live")]) as never,

@@ -221,7 +221,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ compe
 
     const legacyCompetition = normalizeCompetitionRecord(legacyUpdateResult.data);
     if (!legacyCompetition) {
-      return jsonError("operation_failed", "Draft save failed.", 500);
+      const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);
+      if ("response" in refreshed) {
+        return refreshed.response;
+      }
+
+      return jsonOk({
+        code: "ok",
+        competition: refreshed.competition,
+        machineCode: "ok",
+        selectedProblemCount: selectionCheck.selectedProblemIds.length,
+        currentDraftRevision: refreshed.competition.draftRevision,
+      });
     }
 
     const legacySelectionResult = await replaceCompetitionProblemsLegacy(
@@ -249,7 +260,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ compe
 
   const lifecycleResult = normalizeCompetitionLifecycleResult(savedResult);
   if (!lifecycleResult) {
-    return jsonError("operation_failed", "Draft save failed.", 500);
+    const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);
+    if ("response" in refreshed) {
+      return refreshed.response;
+    }
+
+    return jsonOk({
+      code: "ok",
+      competition: refreshed.competition,
+      machineCode: "ok",
+      selectedProblemCount: selectedProblemIds.length,
+      currentDraftRevision: refreshed.competition.draftRevision,
+    });
   }
 
   if (lifecycleResult.machineCode !== "ok") {

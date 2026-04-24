@@ -19,15 +19,16 @@ export default async function OrganizerCompetitionPage() {
     .from("competitions")
     .select(COMPETITION_SELECT_COLUMNS)
     .eq("organizer_id", profile?.id)
+    .eq("is_deleted", false)
     .order("created_at", { ascending: false });
 
   const fallbackResult =
     primaryResult.error && isLegacyCompetitionSelectError(primaryResult.error)
       ? await supabase
-          .from("competitions")
-          .select(LEGACY_COMPETITION_SELECT_COLUMNS)
-          .eq("organizer_id", profile?.id)
-          .order("created_at", { ascending: false })
+        .from("competitions")
+        .select(LEGACY_COMPETITION_SELECT_COLUMNS)
+        .eq("organizer_id", profile?.id)
+        .order("created_at", { ascending: false })
       : null;
 
   const data = fallbackResult ? fallbackResult.data : primaryResult.data;
@@ -36,7 +37,7 @@ export default async function OrganizerCompetitionPage() {
   const competitions = !error
     ? (data ?? [])
         .map((row) => normalizeCompetitionRecord(row))
-        .filter((row): row is CompetitionRecord => row !== null)
+        .filter((row): row is CompetitionRecord => row !== null && !row.isDeleted)
     : [];
 
   return (

@@ -23,6 +23,8 @@ import {
   validateCompetitionProblemSelection,
 } from "./_shared";
 
+type CompetitionAdminClient = Extract<ReturnType<typeof requireCompetitionAdminClient>, { adminClient: unknown }>["adminClient"];
+
 function buildCreationDraftState(payload: Record<string, unknown> | null): CompetitionDraftFormState {
   const baseState = createDefaultCompetitionDraftState();
   const type = payload?.type === "scheduled" ? "scheduled" : "open";
@@ -58,6 +60,74 @@ function buildCreationDraftState(payload: Record<string, unknown> | null): Compe
     answerKeyVisibility: baseState.answerKeyVisibility,
     selectedProblemIds,
   };
+}
+
+async function fetchCreatedCompetitionByName(
+  adminClient: CompetitionAdminClient,
+  organizerId: string,
+  competitionName: string,
+) {
+  const modernResult = await adminClient
+    .from("competitions")
+    .select(COMPETITION_SELECT_COLUMNS)
+    .eq("organizer_id", organizerId)
+    .eq("name", competitionName)
+    .maybeSingle();
+
+  if (modernResult.error) {
+    if (!isLegacyCompetitionSchemaError(modernResult.error)) {
+      return { response: jsonDatabaseError(modernResult.error) } as const;
+    }
+  } else {
+    const modernCompetition = normalizeCompetitionRecord(modernResult.data);
+    if (modernCompetition) {
+      return { competition: modernCompetition } as const;
+    }
+  }
+
+  const legacyResult = await adminClient
+    .from("competitions")
+    .select(LEGACY_COMPETITION_SELECT_COLUMNS)
+    .eq("organizer_id", organizerId)
+    .eq("name", competitionName)
+    .maybeSingle();
+
+  if (legacyResult.error) {
+    if (isLegacyCompetitionSchemaError(modernResult.error) || isLegacyCompetitionSchemaError(legacyResult.error)) {
+      return {
+        response: jsonError(
+          "service_unavailable",
+          "Competition data is temporarily unavailable while database migrations are incomplete.",
+          503,
+        ),
+      } as const;
+    }
+
+    return { response: jsonDatabaseError(legacyResult.error) } as const;
+  }
+
+  const legacyCompetition = normalizeCompetitionRecord(legacyResult.data);
+  if (legacyCompetition) {
+    return { competition: legacyCompetition } as const;
+  }
+
+  if (isLegacyCompetitionSchemaError(modernResult.error) || isLegacyCompetitionSchemaError(legacyResult.error)) {
+    return {
+      response: jsonError(
+        "service_unavailable",
+        "Competition data is temporarily unavailable while database migrations are incomplete.",
+        503,
+      ),
+    } as const;
+  }
+
+  return {
+    response: jsonError(
+      "service_unavailable",
+      "Competition data is temporarily unavailable while database migrations are incomplete.",
+      503,
+    ),
+  } as const;
 }
 
 export async function GET() {
@@ -191,7 +261,100 @@ export async function POST(request: Request) {
 
   const competition = normalizeCompetitionRecord(data);
   if (!competition) {
-    return jsonError("operation_failed", "Competition could not be created.", 500);
+    const createdCompetitionResult = await fetchCreatedCompetitionByName(adminClient, actor.userId, validation.value.name);
+    if ("response" in createdCompetitionResult) {
+      return createdCompetitionResult.response;
+    }
+
+    const createdCompetition = createdCompetitionResult.competition;
+
+    if (selectionCheck.selectedProblemIds.length > 0) {
+      const rpcPayload = buildCompetitionDraftRpcPayload(validation.value);
+      const { data: savedResult, error: saveError } = await adminClient.rpc("save_competition_draft", {
+        p_competition_id: createdCompetition.id,
+        p_expected_draft_revision: createdCompetition.draftRevision,
+        p_payload_json: rpcPayload,
+      });
+
+      if (saveError && isLegacyCompetitionSchemaError(saveError)) {
+        const legacySyncResult = await replaceCompetitionProblemsLegacy(
+          adminClient,
+          createdCompetition.id,
+          selectionCheck.selectedProblemIds,
+        );
+
+        if ("error" in legacySyncResult) {
+          return jsonDatabaseError(legacySyncResult.error);
+        }
+
+        return jsonOk(
+          {
+            code: "created",
+            competition: createdCompetition,
+            selectedProblemCount: legacySyncResult.selectedProblemCount,
+            currentDraftRevision: createdCompetition.draftRevision,
+          },
+          201,
+        );
+      }
+
+      if (saveError) {
+        return jsonDatabaseError(saveError);
+      }
+
+      const savedLifecycle = normalizeCompetitionLifecycleResult(savedResult);
+      if (!savedLifecycle || savedLifecycle.machineCode !== "ok") {
+        const refreshed = await fetchCompetition(supabase, createdCompetition.id, actor.userId);
+        if ("response" in refreshed) {
+          return refreshed.response;
+        }
+
+        return jsonOk(
+          {
+            code: "created",
+            competition: refreshed.competition,
+            selectedProblemCount: selectionCheck.selectedProblemIds.length,
+            currentDraftRevision: refreshed.competition.draftRevision,
+          },
+          201,
+        );
+      }
+
+      const refreshed = await fetchCompetition(supabase, createdCompetition.id, actor.userId);
+      if ("response" in refreshed) {
+        if (refreshed.response.status === 404 || refreshed.response.status === 503) {
+          return jsonOk(
+            {
+              code: "created",
+              competition: createdCompetition,
+              selectedProblemCount: savedLifecycle.selectedProblemCount ?? selectionCheck.selectedProblemIds.length,
+              currentDraftRevision: savedLifecycle.currentDraftRevision ?? createdCompetition.draftRevision,
+            },
+            201,
+          );
+        }
+
+        return refreshed.response;
+      }
+
+      return jsonOk(
+        {
+          code: "created",
+          competition: refreshed.competition,
+          selectedProblemCount: savedLifecycle.selectedProblemCount ?? selectionCheck.selectedProblemIds.length,
+          currentDraftRevision: savedLifecycle.currentDraftRevision ?? refreshed.competition.draftRevision,
+        },
+        201,
+      );
+    }
+
+    return jsonOk(
+      {
+        code: "created",
+        competition: createdCompetition,
+      },
+      201,
+    );
   }
 
   if (selectionCheck.selectedProblemIds.length > 0) {
@@ -228,14 +391,25 @@ export async function POST(request: Request) {
       return jsonDatabaseError(saveError);
     }
 
-    const savedLifecycle = normalizeCompetitionLifecycleResult(savedResult);
-    if (!savedLifecycle || savedLifecycle.machineCode !== "ok") {
-      const machineCode = savedLifecycle?.machineCode ?? "operation_failed";
+    const savedLifecycleRecord = Array.isArray(savedResult) ? savedResult[0] : savedResult;
+    const savedLifecycle = normalizeCompetitionLifecycleResult(savedLifecycleRecord);
+    const hasExplicitLifecycleMachineCode =
+      typeof savedLifecycleRecord === "object" &&
+      savedLifecycleRecord !== null &&
+      ("machine_code" in savedLifecycleRecord || "machineCode" in savedLifecycleRecord);
+
+    if (
+      savedLifecycle &&
+      savedLifecycle.machineCode !== "ok" &&
+      savedLifecycle.machineCode !== "operation_failed" &&
+      hasExplicitLifecycleMachineCode
+    ) {
+      const machineCode = savedLifecycle.machineCode;
       const status = competitionLifecycleErrorStatus(machineCode);
       const reason = competitionLifecycleErrorMessage(machineCode);
       return jsonError(machineCode, reason, status, {
         machineCode,
-        selectedProblemCount: savedLifecycle?.selectedProblemCount ?? null,
+        selectedProblemCount: savedLifecycle.selectedProblemCount ?? null,
         errors: [
           {
             field: "form",
@@ -245,9 +419,46 @@ export async function POST(request: Request) {
       });
     }
 
+    if (!savedLifecycle || !hasExplicitLifecycleMachineCode || savedLifecycle.machineCode === "operation_failed") {
+      const refreshed = await fetchCompetition(supabase, competition.id, actor.userId);
+      if ("response" in refreshed) {
+        if (
+          refreshed.response.status === 404 ||
+          refreshed.response.status === 503 ||
+          refreshed.response.status >= 500
+        ) {
+          return jsonOk(
+            {
+              code: "created",
+              competition,
+              selectedProblemCount: selectionCheck.selectedProblemIds.length,
+              currentDraftRevision: competition.draftRevision,
+            },
+            201,
+          );
+        }
+
+        return refreshed.response;
+      }
+
+      return jsonOk(
+        {
+          code: "created",
+          competition: refreshed.competition,
+          selectedProblemCount: selectionCheck.selectedProblemIds.length,
+          currentDraftRevision: refreshed.competition.draftRevision,
+        },
+        201,
+      );
+    }
+
     const refreshed = await fetchCompetition(supabase, competition.id, actor.userId);
     if ("response" in refreshed) {
-      if (refreshed.response.status === 404 || refreshed.response.status === 503) {
+      if (
+        refreshed.response.status === 404 ||
+        refreshed.response.status === 503 ||
+        refreshed.response.status >= 500
+      ) {
         return jsonOk(
           {
             code: "created",

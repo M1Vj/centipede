@@ -171,6 +171,8 @@ describe("competition api helpers", () => {
     expect(payload.tieBreaker).toBe("average_time");
     expect(payload.startTime).toBe("2026-05-01T03:00:00.000Z");
     expect(payload.selectedProblemIds).toEqual([]);
+    expect(payload.customPoints).toEqual({});
+    expect(payload.customPointsByProblemId).toEqual({});
   });
 
   test("normalizes competition form state with selected problems", () => {
@@ -310,6 +312,35 @@ describe("competition api helpers", () => {
     expect(fromArrayScalar).not.toBeNull();
     expect(fromArrayScalar?.machineCode).toBe("invalid_transition");
     expect(fromArrayScalar?.status).toBeNull();
+  });
+
+  test("treats unshaped lifecycle payloads as unknown", () => {
+    expect(
+      normalizeCompetitionLifecycleResult({
+        competition_id: "competition-1",
+      }),
+    ).toBeNull();
+
+    expect(
+      normalizeCompetitionLifecycleResult({
+        ok: true,
+      }),
+    ).toBeNull();
+  });
+
+  test("preserves explicit lifecycle failure machine codes", () => {
+    const result = normalizeCompetitionLifecycleResult({
+      machine_code: "draft_write_conflict",
+      competition_id: "competition-1",
+      selected_problem_count: 10,
+      draft_revision: 8,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.machineCode).toBe("draft_write_conflict");
+    expect(result?.competitionId).toBe("competition-1");
+    expect(result?.selectedProblemCount).toBe(10);
+    expect(result?.draftRevision).toBe(8);
   });
 
   test("normalizes lifecycle rpc rows from wrapped and camelCase payloads", () => {

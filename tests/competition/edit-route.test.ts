@@ -373,6 +373,176 @@ describe("competition edit route legacy compatibility", () => {
     );
   });
 
+  test("patch re-reads draft when save RPC returns no row data", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeServerClient({
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: [
+            { data: buildCompetitionRow(), error: null },
+            { data: buildCompetitionRow({ name: "Modern Draft Updated" }), error: null },
+          ],
+        },
+      }) as never,
+    );
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc: vi.fn().mockResolvedValue({
+        data: null,
+        error: null,
+      }),
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return {
+            update: vi.fn(),
+          };
+        }
+
+        if (table === "competition_problems") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
+            })),
+          };
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+    } as never);
+
+    const response = await PATCH(
+      makePatchRequest({
+        name: "Modern Draft Updated",
+        description: "Legacy save coverage",
+        instructions: "Read carefully.",
+        type: "scheduled",
+        format: "individual",
+        registrationTimingMode: "default",
+        registrationStart: null,
+        registrationEnd: null,
+        startTime: "2026-06-01T09:00:00.000Z",
+        endTime: "2026-06-01T10:30:00.000Z",
+        durationMinutes: 90,
+        attemptsAllowed: 1,
+        multiAttemptGradingMode: "highest_score",
+        maxParticipants: 30,
+        participantsPerTeam: null,
+        maxTeams: null,
+        scoringMode: "difficulty",
+        customPointsByProblemId: {},
+        penaltyMode: "fixed_deduction",
+        tieBreaker: "lowest_total_time",
+        shuffleQuestions: false,
+        shuffleOptions: false,
+        logTabSwitch: false,
+        offensePenalties: [],
+        answerKeyVisibility: "after_end",
+        deductionValue: 1,
+        selectedProblemIds: [],
+      }),
+      { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.competition.name).toBe("Modern Draft Updated");
+  });
+
+  test("patch re-reads updated competition when legacy save fallback returns no row", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeServerClient({
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: [
+            {
+              data: buildCompetitionRow(),
+              error: null,
+            },
+            {
+              data: buildCompetitionRow({
+                name: "Legacy Draft Updated",
+                draft_revision: 2,
+                updated_at: "2026-04-02T00:00:00.000Z",
+              }),
+              error: null,
+            },
+          ],
+        },
+        selectedProblemIds: ["problem-1"],
+      }) as never,
+    );
+
+    const updateQuery = {
+      eq: vi.fn(),
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: null,
+        error: null,
+      }),
+    };
+    updateQuery.eq.mockImplementation(() => updateQuery);
+    updateQuery.select.mockImplementation(() => updateQuery);
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return {
+            update: vi.fn(() => updateQuery),
+          };
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+      rpc: vi.fn().mockResolvedValue({
+        data: null,
+        error: {
+          code: "42883",
+          message: "function public.save_competition_draft(uuid, integer, jsonb) does not exist",
+        },
+      }),
+    } as never);
+
+    const response = await PATCH(
+      makePatchRequest({
+        name: "Legacy Draft Updated",
+        description: "Legacy save coverage",
+        instructions: "Read carefully.",
+        type: "scheduled",
+        format: "individual",
+        registrationTimingMode: "default",
+        registrationStart: null,
+        registrationEnd: null,
+        startTime: "2026-06-01T09:00:00.000Z",
+        endTime: "2026-06-01T10:30:00.000Z",
+        durationMinutes: 90,
+        attemptsAllowed: 1,
+        multiAttemptGradingMode: "highest_score",
+        maxParticipants: 30,
+        participantsPerTeam: null,
+        maxTeams: null,
+        scoringMode: "difficulty",
+        customPointsByProblemId: {},
+        penaltyMode: "fixed_deduction",
+        deductionValue: 1,
+        tieBreaker: "lowest_total_time",
+        shuffleQuestions: false,
+        shuffleOptions: false,
+        logTabSwitch: false,
+        offensePenalties: [],
+        answerKeyVisibility: "after_end",
+        selectedProblemIds: ["problem-1"],
+      }),
+      { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.competition.name).toBe("Legacy Draft Updated");
+    expect(body.currentDraftRevision).toBe(2);
+  });
+
   test("delete falls back to legacy soft delete when lifecycle RPC is unavailable", async () => {
     vi.mocked(createClient).mockResolvedValue(
       makeServerClient({
@@ -486,6 +656,34 @@ describe("competition edit route legacy compatibility", () => {
     vi.mocked(createAdminClient).mockReturnValue({
       rpc: vi.fn().mockResolvedValue({
         data: null,
+        error: null,
+      }),
+      from: vi.fn(),
+    } as never);
+
+    const response = await DELETE(makeDeleteRequest(), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.machineCode).toBe("ok");
+    expect(body.isDeleted).toBe(true);
+  });
+
+  test("delete treats unshaped lifecycle payload as success when mutation already completed", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeServerClient({
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: [{ data: buildCompetitionRow(), error: null }],
+        },
+      }) as never,
+    );
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc: vi.fn().mockResolvedValue({
+        data: { ok: true },
         error: null,
       }),
       from: vi.fn(),
