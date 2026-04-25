@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { MathliveField } from "@/components/math-editor/mathlive-field";
 import { KatexPreview } from "@/components/math-editor/katex-preview";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -10,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ProgressLink } from "@/components/ui/progress-link";
+import { createIdempotencyToken } from "@/components/competitions/utils";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { formatTimerText, getTimerAnnouncementText, resolvePersistedAnswerStatusFlag } from "@/lib/arena/helpers";
@@ -113,6 +115,8 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   );
   const [requestState, setRequestState] = useState<RequestState>("idle");
   const [requestMessage, setRequestMessage] = useState<string | null>(null);
+  const [withdrawPending, setWithdrawPending] = useState(false);
+  const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [submitPending, setSubmitPending] = useState(false);
   const [acknowledgements, setAcknowledgements] = useState({
@@ -129,6 +133,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   const [connectionState, setConnectionState] = useState<"live" | "syncing" | "offline">("live");
   const [timerAnnouncement, setTimerAnnouncement] = useState("");
   const expiryHandledAttemptRef = useRef<string | null>(null);
+  const router = useRouter();
 
   function clearPendingSaves() {
     for (const pending of pendingSavesRef.current.values()) {
@@ -514,6 +519,54 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
     });
   }
 
+  async function withdrawRegistration() {
+    if (!pageData.registration || pageData.activeAttempt || pageData.latestAttempt || withdrawPending) {
+      return;
+    }
+
+    setWithdrawPending(true);
+    setRequestState("pending");
+    setRequestMessage(null);
+
+    try {
+      const response = await fetch("/api/mathlete/competition/withdraw", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          registrationId: pageData.registration.id,
+          competitionId: pageData.competition.id,
+          statusReason: pageData.registration.teamId ? "team_withdrew" : "participant_withdrew",
+          requestIdempotencyToken: createIdempotencyToken(),
+        }),
+      });
+
+      const payload = await readJson<{ tone?: string; message?: string }>(response);
+      const message = payload.message ?? "Withdrawal failed.";
+
+      if (!response.ok || payload.tone === "error") {
+        setRequestState("error");
+        setRequestMessage(message);
+        return;
+      }
+
+      setWithdrawDialogOpen(false);
+      setRequestState("idle");
+      setRequestMessage(message);
+      await refreshState({
+        preservePending: false,
+        resetRequest: false,
+      });
+      router.refresh();
+    } catch {
+      setRequestState("error");
+      setRequestMessage("Withdrawal failed.");
+    } finally {
+      setWithdrawPending(false);
+    }
+  }
+
   async function flushSave(problemId: string, options?: FlushSaveOptions) {
     const pending = pendingSavesRef.current.get(problemId);
     if (!pending || !pageData.activeAttempt) {
@@ -640,6 +693,9 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
       pageData.attemptsRemaining > 0,
   );
   const canWrite = Boolean(pageData.registration?.actorCanWrite && pageData.activeAttempt);
+  const canWithdraw = Boolean(
+    pageData.registration?.status === "registered" && !pageData.activeAttempt && !pageData.latestAttempt,
+  );
 
   return (
     <div className="grid gap-6">
@@ -852,6 +908,17 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
               >
                 Start competition
               </Button>
+              {canWithdraw ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setWithdrawDialogOpen(true)}
+                  disabled={requestState === "pending"}
+                >
+                  Withdraw registration
+                </Button>
+              ) : null}
             </div>
           </CardContent>
         </Card>
@@ -1041,6 +1108,17 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
           />
         </div>
       ) : null}
+      <ConfirmDialog
+        open={withdrawDialogOpen}
+        onOpenChange={setWithdrawDialogOpen}
+        title="Withdraw registration?"
+        description="This cancels your registration for this competition. You can register again while the registration window remains open."
+        confirmLabel="Withdraw"
+        confirmVariant="destructive"
+        onConfirm={() => void withdrawRegistration()}
+        pending={withdrawPending}
+        pendingLabel="Withdrawing"
+      />
     </div>
   );
 }

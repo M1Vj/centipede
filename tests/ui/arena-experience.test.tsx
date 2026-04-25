@@ -3,6 +3,14 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { ArenaExperience } from "@/components/arena/arena-experience";
 import type { ArenaPageData } from "@/lib/arena/types";
 
+const routerRefreshMock = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh: routerRefreshMock,
+  }),
+}));
+
 vi.mock("@/components/ui/progress-link", () => ({
   ProgressLink: ({
     children,
@@ -124,6 +132,7 @@ function buildPageData(mode: ArenaPageData["mode"]): ArenaPageData {
 describe("ArenaExperience", () => {
   beforeEach(() => {
     fetchMock.mockReset();
+    routerRefreshMock.mockReset();
   });
 
   afterEach(() => {
@@ -144,6 +153,7 @@ describe("ArenaExperience", () => {
 
     const startButton = screen.getByRole("button", { name: "Start competition" });
     expect(startButton).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Withdraw registration" })).toBeEnabled();
 
     const checkboxes = screen.getAllByRole("checkbox");
     for (const checkbox of checkboxes) {
@@ -151,6 +161,59 @@ describe("ArenaExperience", () => {
     }
 
     expect(startButton).toBeEnabled();
+  });
+
+  test("pre-entry can withdraw registration before an attempt starts", async () => {
+    const withdrawnData = {
+      ...buildPageData("detail_register"),
+      registration: {
+        ...buildPageData("pre_entry").registration!,
+        status: "withdrawn" as const,
+        statusReason: "participant_withdrew",
+      },
+    };
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/state")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ data: withdrawnData }), { status: 200 }),
+        );
+      }
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            tone: "success",
+            message: "Registration withdrawn.",
+          }),
+          { status: 200 },
+        ),
+      );
+    });
+
+    render(<ArenaExperience initialData={buildPageData("pre_entry")} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw registration" }));
+    await screen.findByText("Withdraw registration?");
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/mathlete/competition/withdraw",
+        expect.objectContaining({
+          method: "POST",
+        }),
+      );
+      expect(routerRefreshMock).toHaveBeenCalledTimes(1);
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+    expect(body).toMatchObject({
+      registrationId: "registration-1",
+      competitionId: "competition-1",
+      statusReason: "participant_withdrew",
+    });
   });
 
   test("flushes pending autosave before submit", async () => {

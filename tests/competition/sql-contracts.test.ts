@@ -6,6 +6,10 @@ const FORWARD_MIGRATION_PATH = join(
   process.cwd(),
   "supabase/migrations/20260425065500_12_fix_authenticated_registration_ambiguity.sql",
 );
+const DEFAULT_REGISTRATION_WINDOW_MIGRATION_PATH = join(
+  process.cwd(),
+  "supabase/migrations/20260425080000_fix_default_registration_window.sql",
+);
 const LIFECYCLE_FORWARD_MIGRATION_PATH = join(
   process.cwd(),
   "supabase/migrations/20260425061000_12_fix_registration_and_lifecycle_ambiguity.sql",
@@ -47,6 +51,19 @@ describe("competition sql contracts", () => {
     expect(sql).toContain(
       "grant execute on function public.register_for_competition(uuid, uuid, text) to authenticated, service_role;",
     );
+  });
+
+  test("register_for_competition treats default registration start as already open", () => {
+    const sql = readFileSync(DEFAULT_REGISTRATION_WINDOW_MIGRATION_PATH, "utf8");
+
+    expect(sql).toContain(
+      "v_effective_registration_end := coalesce(v_competition.registration_end, v_competition.start_time);",
+    );
+    expect(sql).toContain("if v_effective_registration_end is null then");
+    expect(sql).toContain(
+      "if v_competition.registration_start is not null and v_now < v_competition.registration_start then",
+    );
+    expect(sql).not.toContain("registration_start is null or v_competition.registration_end is null");
   });
 
   test("end_competition qualifies event lookup and returning status columns", () => {

@@ -26,6 +26,26 @@ function formatCapacityLabel(competition: DiscoverableCompetition) {
   return competition.maxParticipants ? `${competition.maxParticipants} participants` : "Participant capacity";
 }
 
+function formatRegistrationStartFallback(competition: DiscoverableCompetition) {
+  if (
+    competition.type === "scheduled" &&
+    !competition.registrationStart &&
+    (competition.registrationEnd || competition.startTime)
+  ) {
+    return "Upon publication";
+  }
+
+  return "TBD";
+}
+
+function getEffectiveRegistrationEnd(competition: DiscoverableCompetition) {
+  if (competition.type === "scheduled") {
+    return competition.registrationEnd ?? competition.startTime;
+  }
+
+  return competition.registrationEnd;
+}
+
 export function CompetitionDetailPanel({ competition }: CompetitionDetailPanelProps) {
   return (
     <section className="space-y-6">
@@ -81,6 +101,7 @@ export function CompetitionDetailPanel({ competition }: CompetitionDetailPanelPr
             <span>Registration opens</span>
             <LocalDateTime
               value={competition.registrationStart}
+              fallback={formatRegistrationStartFallback(competition)}
               options={{
                 month: "short",
                 day: "numeric",
@@ -93,7 +114,7 @@ export function CompetitionDetailPanel({ competition }: CompetitionDetailPanelPr
           <div className="flex items-center justify-between">
             <span>Registration closes</span>
             <LocalDateTime
-              value={competition.registrationEnd}
+              value={getEffectiveRegistrationEnd(competition)}
               options={{
                 month: "short",
                 day: "numeric",
