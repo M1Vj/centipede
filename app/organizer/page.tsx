@@ -249,7 +249,7 @@ async function OrganizerPageContent() {
           }));
 
         calendarEvents = competitions
-          .filter((competition) => competition.startTime)
+          .filter((competition) => competition.type === "scheduled" && competition.startTime)
           .slice(0, 6)
           .map((competition) => ({
             id: competition.id,

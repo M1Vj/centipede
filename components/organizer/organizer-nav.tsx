@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, Menu, Settings, UserCircle2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
@@ -36,10 +36,16 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
   const [menuOpen, setMenuOpen] = useState(false);
   const navItems = isAuthenticated && isOrganizer ? organizerItems : guestItems;
 
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
   return (
     <>
-      {/* Desktop Nav Links — centered absolutely */}
-      <nav className="hidden items-center gap-10 absolute left-1/2 -translate-x-1/2 md:flex" aria-label="Organizer navigation">
+      <nav
+        className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-10 md:flex"
+        aria-label="Organizer navigation"
+      >
         {navItems.map((item) => {
           const active =
             item.href === "/organizer"
@@ -73,10 +79,9 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
         ) : null}
       </nav>
 
-      {/* Desktop Right Actions */}
       {isAuthenticated ? (
         <div className="relative hidden md:block">
-          <div className="flex items-center gap-4 pr-2 bg-[#0f121a] rounded-full pl-6 py-1">
+          <div className="flex items-center gap-4 rounded-full bg-[#0f121a] py-1 pl-6 pr-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -84,7 +89,7 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
                   className="relative mr-2 text-[#f49700] transition-colors hover:text-white"
                   aria-label="Notifications"
                 >
-                  <Bell className="w-5 h-5" />
+                  <Bell className="h-5 w-5" />
                   <span className="absolute right-0 top-0 h-2 w-2 rounded-full bg-red-500" />
                 </button>
               </DropdownMenuTrigger>
@@ -94,7 +99,7 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <div className="px-3 py-4 text-sm text-slate-500">
-                  No notifications yet. Competition and team updates will appear here.
+                  No notifications yet. Organizer updates will appear here.
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -146,7 +151,6 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
         </div>
       ) : null}
 
-      {/* Mobile Menu Toggle */}
       <button
         type="button"
         onClick={() => setMenuOpen((current) => !current)}
@@ -156,7 +160,6 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
         <Menu className="size-5" />
       </button>
 
-      {/* Mobile Menu Dropdown */}
       {menuOpen ? (
         <div className="absolute left-4 right-4 top-[calc(100%+12px)] rounded-[28px] border border-slate-200 bg-white p-3 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.45)] md:hidden">
           <div className="space-y-1">

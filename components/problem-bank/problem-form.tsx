@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, Save, X, Info } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import {
@@ -20,8 +21,6 @@ import {
 } from "@/lib/problem-bank/api-helpers";
 import { preprocessImageForUpload } from "@/lib/problem-bank/image-preprocessing";
 import {
-  PROBLEM_DIFFICULTIES,
-  PROBLEM_TYPES,
   type ProblemDifficulty,
   type ProblemOption,
   type ProblemType,
@@ -321,6 +320,7 @@ export function ProblemForm({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploadingAsset, setIsUploadingAsset] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [status, setStatus] = useState<FormStatus>({
     type: "pending",
     message: null,
@@ -402,8 +402,6 @@ export function ProblemForm({
   );
 
   const canSubmit = editable && !isSaving && !isDeleting && !isUploadingAsset;
-
-  const submitLabel = isEditMode ? "Save problem" : "Create problem";
 
   const handleTypeChange = (nextType: ProblemType) => {
     setType(nextType);
@@ -632,10 +630,6 @@ export function ProblemForm({
       return;
     }
 
-    if (!window.confirm("Soft-delete this problem?")) {
-      return;
-    }
-
     setIsDeleting(true);
     setStatus({
       type: "pending",
@@ -672,6 +666,7 @@ export function ProblemForm({
         type: "success",
         message: "Problem deleted.",
       });
+      setDeleteConfirmOpen(false);
       isDraftClearedRef.current = true;
       clearDraft();
       setDraftBannerVisible(false);
@@ -796,60 +791,6 @@ export function ProblemForm({
     }
   };
 
-  const handleRemoveImage = async () => {
-    if (!imagePath || !editable || isUploadingAsset) {
-      return;
-    }
-
-    setIsUploadingAsset(true);
-    setStatus({
-      type: "pending",
-      message: "Removing image...",
-    });
-
-    try {
-      const response = await fetch("/api/organizer/problem-banks/assets", {
-        method: "DELETE",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ imagePath, bankId }),
-      });
-
-      const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
-
-      if (!isMountedRef.current) {
-        return;
-      }
-
-      if (!response.ok) {
-        setStatus({
-          type: "error",
-          message: toPayloadErrorMessage(payload),
-        });
-        return;
-      }
-
-      setImagePath(null);
-      setImageUrl(null);
-      setStatus({
-        type: "success",
-        message: "Image removed.",
-      });
-    } catch {
-      if (isMountedRef.current) {
-        setStatus({
-          type: "error",
-          message: "Unable to remove image right now.",
-        });
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setIsUploadingAsset(false);
-      }
-    }
-  };
-
   return (
     <div className="flex flex-col gap-6 w-full max-w-[850px] mx-auto font-['Poppins',sans-serif]">
       {draftBannerVisible ? (
@@ -930,7 +871,7 @@ export function ProblemForm({
             {isEditMode && (
               <button
                 type="button"
-                onClick={handleSoftDelete}
+                onClick={() => setDeleteConfirmOpen(true)}
                 disabled={!editable || isDeleting || isSaving}
                 className="text-red-500 hover:text-red-600 font-bold text-[14px] transition-colors px-4 py-2 disabled:opacity-50"
               >
@@ -951,10 +892,21 @@ export function ProblemForm({
               disabled={!editable || isDeleting || isSaving}
               className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3 rounded-xl font-bold text-[14px] transition-all shadow-sm hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Save className="w-4 h-4" /> {isSaving ? "Saving..." : isEditMode ? "Save Problem" : "Add Problem"}
+              <Save className="w-4 h-4" /> {isSaving ? "Saving..." : isEditMode ? "Save problem" : "Add problem"}
             </button>
           </div>
         </div>
+
+        <ConfirmDialog
+          open={deleteConfirmOpen}
+          onOpenChange={setDeleteConfirmOpen}
+          title="Soft-delete problem?"
+          description="This problem will no longer be available in the current bank."
+          confirmLabel="Soft delete"
+          pending={isDeleting}
+          pendingLabel="Deleting..."
+          onConfirm={() => void handleSoftDelete()}
+        />
       </form>
     </div>
   );

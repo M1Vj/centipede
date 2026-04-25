@@ -326,6 +326,7 @@ Purpose: immutable problem snapshots attached to a competition.
 | `problem_id` | uuid fk -> problems.id |
 | `order_index` | integer |
 | `points` | integer |
+| `problem_type_snapshot` | enum `problem_type` |
 | `content_snapshot_latex` | text |
 | `options_snapshot_json` | jsonb |
 | `answer_key_snapshot_json` | jsonb |
@@ -356,19 +357,22 @@ Constraint: exactly one of `profile_id` or `team_id` must be populated. `entry_s
 
 ### Registration RPC Contract (Canonical)
 
-`register_for_competition(competition_id uuid, team_id uuid default null, request_idempotency_token text)` is the only trusted write path for creating new `competition_registrations` rows.
+`register_for_competition(competition_id uuid, team_id uuid default null, request_idempotency_token text)` is the branch `10` trusted participant-facing write path for creating new `competition_registrations` rows, using `auth.uid()` for actor ownership.
+
+`register_for_competition(competition_id uuid, actor_user_id uuid, team_id uuid default null)` is the branch `11` service-role arena entry write path for pre-entry registration repair, and must fail closed unless `auth.role() = 'service_role'`.
 
 - Individual registration path (`team_id is null`):
-	- writes `profile_id = auth.uid()` and `team_id = null`
+	- writes `profile_id = actor_user_id` and `team_id = null`
 	- allowed only when `competitions.format = 'individual'`
 - Team registration path (`team_id is not null`):
 	- writes `team_id = team_id` and `profile_id = null`
 	- allowed only when `competitions.format = 'team'` and `competitions.type = 'scheduled'`
-	- caller must be an active leader of the selected team
+	- trusted server route must pass authenticated `actor_user_id`, and that actor must be an active leader of the selected team
 - Shared checks for both paths:
+	- function must fail closed when `auth.role() <> 'service_role'`; authenticated clients must enter through trusted server routes so callers cannot spoof `actor_user_id`
 	- participant is active and profile-complete
 	- competition is visible, not deleted, and inside allowed registration window (for scheduled)
-	- persist immutable `entry_snapshot_json` from the accepted registration context before returning success; later profile, school, grade-level, or roster edits must not mutate the stored snapshot for that registration row
+	- persist immutable `entry_snapshot_json` from the accepted registration context before returning success; individual snapshots store a `display_name` JSON key sourced from canonical `profiles.full_name`, and later profile, school, grade-level, or roster edits must not mutate the stored snapshot for that registration row
 	- capacity and duplicate-registration guards pass, except trusted re-entry for the same `(competition_id, team_id)` when the prior status is `ineligible` OR `withdrawn` and registration timing still allows entry. When repairing an `ineligible` or `withdrawn` registration back to `registered` via re-entry, `entry_snapshot_json` MUST be regenerated and overwritten to capture the new context.
 	- responses return deterministic machine-readable error codes for UI mapping
 
@@ -460,6 +464,9 @@ Purpose: one attempt row per `attempt_no` for a participant or team registration
 | `offense_count` | integer |
 | `is_latest_visible_result` | boolean |
 | `grade_summary_json` | jsonb |
+| `attempt_base_deadline_at` | timestamptz | fixed at start |
+| `scheduled_competition_end_cap_at` | timestamptz | fixed scheduled cap snapshot |
+| `effective_attempt_deadline_at` | timestamptz | immutable trusted runtime deadline |
 
 Indexes: `(competition_id, status)`, `(registration_id, attempt_no)`.
 
@@ -468,7 +475,7 @@ Unique key: `(registration_id, attempt_no)`.
 ### Team Attempt Authority and Concurrency Contract (Canonical)
 
 - Individual registration attempts: only the owning `competition_registrations.profile_id` actor may start, resume, save, or submit the attempt lifecycle.
-- Team registration attempts: only an active team leader for the registration team may start, resume, save, or submit attempt lifecycle mutations; non-leader team members are read-only in arena state views.
+- Team registration attempts: only an active team leader for the registration team may start, resume, save, submit, or close active attempt intervals; non-leader team members are read-only in arena state views.
 - Trusted `start`, `resume`, and `submit` attempt mutations must serialize writes by registration or attempt lock (`select ... for update` or equivalent) and enforce at most one active `in_progress` attempt per registration at any moment.
 - Concurrent lifecycle races must return deterministic machine code `attempt_lifecycle_conflict`; idempotent retries with the same request token must return existing state and must not duplicate lifecycle side effects.
 
@@ -507,10 +514,13 @@ Purpose: autosaved and submitted answers for each problem in an attempt.
 | `is_correct` | boolean nullable |
 | `points_awarded` | numeric nullable |
 | `last_saved_at` | timestamptz |
+| `client_updated_at` | timestamptz | monotonic client freshness marker for deterministic stale-write rejection |
 
 Unique key: `(attempt_id, competition_problem_id)`.
 
 Canonical untouched-question contract: `start_competition_attempt` pre-seeds one `attempt_answers` row per `competition_problem` with `status_flag = 'blank'` and empty answer payload fields. Review, submission, grading, and navigator counts must derive from persisted `status_flag` rows only. If an older compatibility attempt misses pre-seeded rows, trusted query helpers must deterministically infer missing rows as `blank` through left-join projection before counting.
+
+Answer write-order contract: `save_attempt_answer(...)` must reject stale or replayed writes using `client_updated_at` monotonic ordering and return deterministic machine code `answer_write_conflict` without mutating the stored row.
 
 ### `tab_switch_logs`
 
@@ -783,23 +793,24 @@ Required trusted functions:
 - `prevent_problem_bank_hard_delete()` trigger helper that blocks hard deletes on `problem_banks` and `problems`
 - `problem_assets_path_owner_id(name)`, `problem_assets_path_bank_id(name)`, and `problem_assets_path_is_valid(name)` storage-policy helpers for canonical object-key validation and ownership extraction
 - `snapshot_competition_problems(competition_id)`
-- `publish_competition(competition_id, request_idempotency_token)`
-- `start_competition(competition_id, request_idempotency_token)` trusted scheduled-competition promotion from `published` to `live` with idempotent event logging at the server-authoritative start boundary
+- `publish_competition(competition_id, request_idempotency_token)` trusted publish path; replay lookup against `competition_events` must qualify `ce.competition_id`, `ce.control_action`, `ce.actor_user_id`, `ce.request_idempotency_token`, `ce.happened_at`, and `ce.id` because the `competition_id` and `request_idempotency_token` output columns otherwise shadow same-named table columns in PL/pgSQL
+- `start_competition(competition_id, request_idempotency_token)` trusted scheduled-competition promotion from `published` to `live` with idempotent event logging at the server-authoritative start boundary; cron worker `startDueScheduledCompetitions(now)` and `/api/cron/competitions/start-due` call this RPC for due published scheduled rows using deterministic `scheduled-start:{competition_id}:{start_time}` tokens
 - `end_competition(competition_id, reason, request_idempotency_token, transition_source)` trusted lifecycle transition from `live` or `paused` to `ended`; `transition_source` must be `system_timer` or `trusted_manual_action` with split enforcement: scheduled competitions accept `system_timer` only and do not allow organizer manual end, while open manual end accepts organizer-only `trusted_manual_action` with required non-empty reason and `request_idempotency_token`; repeated requests are idempotent and return existing terminal state
 - `archive_competition(competition_id, request_idempotency_token)` trusted retirement path for historically significant competitions and paused open competitions with no active attempts
-- `delete_draft_competition(competition_id, request_idempotency_token)` trusted draft-delete path allowed only for `status = 'draft'` with deterministic idempotent replay semantics.
+- `delete_draft_competition(competition_id, request_idempotency_token)` trusted draft-delete path allowed only for `status = 'draft'` with deterministic idempotent replay semantics; replay lookup against `competition_events` must qualify `ce.competition_id`, `ce.control_action`, `ce.actor_user_id`, `ce.request_idempotency_token`, `ce.happened_at`, and `ce.id` because function output columns can shadow table columns in PL/pgSQL.
+- `save_competition_draft(competition_id, expected_draft_revision, payload_json)` trusted draft-save path; competition-problem delete and count queries must qualify `competition_problems` as `cp` and filter on `cp.competition_id` so the PL/pgSQL output column `competition_id` never collides with table-column resolution
 - `competition_lifecycle_guard()` trigger helper for canonical status transitions, legacy boolean sync (`published`/`is_paused`), scoring snapshot immutability after publish, and draft revision/version bumping
 - `competition_active_name_guard()` trigger helper that blocks organizer duplicate active competition names in statuses `draft`, `published`, `live`, `paused`, and `ended` when `is_deleted = false`
 - `competition_problem_snapshot_guard()` trigger helper that freezes publish-time snapshot columns in `competition_problems` once competition status is `published` or later
 - `moderate_delete_competition(competition_id, reason, request_idempotency_token)` trusted admin-only abuse or fraud deletion path for non-draft competitions with mandatory audit trace
-- `register_for_competition(competition_id, team_id default null)`
+- `register_for_competition(competition_id, actor_user_id, team_id default null)`
 - `withdraw_registration(registration_id)`
 - `validate_team_registration(team_id, competition_id)`
-- `start_competition_attempt(registration_id, request_idempotency_token)` pre-seeds `attempt_answers` blank rows for all `competition_problems` and replays deterministically by token
-- `resume_competition_attempt(attempt_id, request_idempotency_token)` replays deterministically by token
-- `close_active_attempt_interval(attempt_id)`
-- `save_attempt_answer(attempt_id, competition_problem_id, answer_payload, status_flag)` where `answer_payload` is canonical LaTeX or normalized text derived from MathLive input
-- `submit_competition_attempt(attempt_id, request_idempotency_token)` canonical final-submit mutation with deterministic authority and concurrency guards for individual and team registrations
+- `start_competition_attempt(registration_id, actor_user_id, request_idempotency_token)` pre-seeds `attempt_answers` blank rows for all `competition_problems`, fixes immutable deadline snapshots on `competition_attempts`, and replays deterministically by token
+- `resume_competition_attempt(attempt_id, actor_user_id, request_idempotency_token)` replays deterministically by token
+- `close_active_attempt_interval(attempt_id, actor_user_id)` leader-authorized for team attempts so interval closure cannot skew trusted timing
+- `save_attempt_answer(attempt_id, actor_user_id, competition_problem_id, answer_payload, status_flag, client_updated_at)` where `answer_payload` is canonical LaTeX or normalized text derived from MathLive input
+- `submit_competition_attempt(attempt_id, actor_user_id, request_idempotency_token, submission_kind)` canonical final-submit mutation with deterministic authority and concurrency guards for individual and team registrations; `submission_kind = 'auto'` is the timer-expiry path
 - `create_problem_dispute(competition_problem_id, attempt_id, reason)` enforces post-end timing and ownership scope (branch `13-review-submission` ownership contract)
 - `can_view_answer_key(competition_id, viewer_profile_id)` enforces `answer_key_visibility` (`after_end` requires ended competition plus owned registration/attempt context; `hidden` always denies participant access)
 - `log_tab_switch_offense(attempt_id, metadata_json)` validates required anti-cheat metadata keys and mirrors parseable `metadata_json.client_timestamp` into `tab_switch_logs.client_timestamp`
@@ -984,6 +995,15 @@ Risky migrations and backfills:
 
 - 2026-04-14: Added team-management schema alignment, leadership transfer helpers, and team idempotency ledger support for invite and roster retries.
 - 2026-04-15: Added branch-08 lifecycle core migration introducing canonical `competition_status` and `answer_key_visibility`, deterministic status backfill from legacy booleans, draft revision/version support, immutable scoring snapshot guard after publish, competition-problem frozen snapshot columns with guard trigger, hardened `competition_events` payload/metadata/idempotency fields, and trusted lifecycle RPCs (`snapshot_competition_problems`, `publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `delete_draft_competition`) with deterministic replay semantics.
+- 2026-04-22: Added branch-11 forward fixes for deployed arena/lifecycle drift: `register_for_competition` now sources the stored `display_name` snapshot from canonical `profiles.full_name` while retaining its service-role fail-closed guard, and `start_competition` qualifies event lookup/status return columns to avoid PL/pgSQL output-parameter ambiguity.
+- 2026-04-23: Hardened organizer competition read compatibility so post-mutation refreshes fall back to legacy `competitions` select columns even when the modern read returns `data = null`, and mutation handlers now preserve successful create/publish/delete outcomes when refresh payloads are incomplete or drifted instead of surfacing generic `operation_failed` responses in under-migrated environments.
+- 2026-04-24: Hardened organizer competition write payloads so lifecycle insert and `save_competition_draft` calls serialize scoring, penalty, and tie-breaker enums to database-compatible tokens before hitting enum-casting SQL, preventing `22P02` failures from UI-domain values like `difficulty`, `fixed_deduction`, and `lowest_total_time`.
+- 2026-04-24: Added forward fix for `save_competition_draft` ambiguity by qualifying `competition_problems` delete and count references as `cp.competition_id`, preventing PL/pgSQL output-parameter collision on `competition_id` while preserving function signature and replay contract.
+- 2026-04-24: Added forward fix for `publish_competition` ambiguity by qualifying `competition_events` replay lookup columns as `ce.*`, preventing PL/pgSQL output-parameter collision on `competition_id` and `request_idempotency_token` while preserving function signature and replay contract.
+- 2026-04-24: Added forward fix for `delete_draft_competition` ambiguity by qualifying `competition_events` replay lookup columns as `ce.*`, preventing the same output-parameter collision that caused draft deletion to return generic `operation_failed`.
+- 2026-04-24: Added forward fix for publish/delete lifecycle `status` ambiguity by aliasing `competitions` as `c` and returning `c.status` from mutation updates, preventing PL/pgSQL output-parameter collision on `status`.
+- 2026-04-25: Added forward fix for authenticated `register_for_competition` ambiguity by aliasing `competition_registrations` reads and updates, keeping browser registration on the participant-facing overload while preserving execute grants.
+- 2026-04-25: Added cron-driven scheduled competition start worker plus `/api/cron/competitions/start-due`, and forward migration `20260425061000_12_fix_registration_and_lifecycle_ambiguity.sql` to alias competition registration and lifecycle queries so PL/pgSQL output parameters no longer collide with `status` or `competition_id`.
 - 2026-04-09: Added branch-07 contract-first scoring RPC signature migration for `grade_attempt(uuid)`, `recalculate_competition_scores(uuid, text)`, and `refresh_leaderboard_entries(uuid)` as trusted service-role-only placeholders with deterministic deferred owner-schema machine codes until branches `11`, `13`, and `14` activate executable wiring.
 - 2026-04-08: Added canonical trigger contract `touch_problem_bank_updated_at_from_problem()` so parent `problem_banks.updated_at` refreshes on `problems` insert, update, and delete writes, including bank reassignment updates.
 - 2026-04-06: Synced branch `06-problem-bank` migration artifacts into canonical contracts: schema alignment constraints and triggers for `problem_banks` and `problems`, private `problem-assets` storage key and policy model, and `problem_import_jobs` idempotency-ledger schema with RLS scope.

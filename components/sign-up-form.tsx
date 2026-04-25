@@ -9,7 +9,6 @@ import { useFormStatusRegion } from "@/hooks/use-form-status-region";
 import { AuthDivider, AuthField, GoogleMark } from "@/components/auth/auth-form-primitives";
 import { Button } from "@/components/ui/button";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
-import { ProgressLink } from "@/components/ui/progress-link";
 import { getErrorMessage } from "@/lib/errors";
 
 export function SignUpForm({

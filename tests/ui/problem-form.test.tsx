@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { normalizeLatexForPreview } from "@/components/math-editor/katex-preview";
@@ -501,6 +502,67 @@ describe("ProblemForm validation logic", () => {
     });
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("renders soft delete as a confirm dialog and deletes only after confirmation", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async () =>
+      ({
+        ok: true,
+        json: async () => ({}),
+      }) as Response,
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <ProblemForm
+        bankId="bank-1"
+        backHref="/organizer/problem-bank/bank-1"
+        initialValue={{
+          id: "problem-1",
+          type: "numeric",
+          difficulty: "average",
+          tags: ["number-theory"],
+          contentLatex: "2+2",
+          explanationLatex: "",
+          authoringNotes: "",
+          imagePath: null,
+          imageUrl: null,
+          options: null,
+          answerKey: { acceptedAnswers: ["4"] },
+          updatedAt: "2026-04-07T00:00:00.000Z",
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    const dialog = await screen.findByRole("alertdialog", { name: "Soft-delete problem?" });
+    expect(dialog).toHaveTextContent("This problem will no longer be available in the current bank.");
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(await screen.findByRole("button", { name: "Soft delete" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/organizer/problem-banks/bank-1/problems/problem-1",
+        {
+          method: "DELETE",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ expectedUpdatedAt: "2026-04-07T00:00:00.000Z" }),
+        },
+      );
+    });
+
+    await waitFor(() => {
+      expect(routerPushMock).toHaveBeenCalledWith("/organizer/problem-bank/bank-1");
+      expect(routerRefreshMock).toHaveBeenCalledTimes(1);
+    });
   });
 
   test("normalizes sentence-like mixed prose and math for faithful preview", () => {

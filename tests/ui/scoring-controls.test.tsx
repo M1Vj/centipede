@@ -6,7 +6,7 @@ import { ScoringSummaryCard } from "@/components/scoring/scoring-summary-card";
 import { createDefaultScoringRuleConfig } from "@/lib/scoring/validation";
 
 describe("scoring ui contracts", () => {
-  test("wires field validation errors with aria-invalid and aria-describedby", () => {
+  test("wires field validation errors with accessible error descriptions", () => {
     const config = {
       ...createDefaultScoringRuleConfig(),
       scoringMode: "custom" as const,
@@ -29,8 +29,11 @@ describe("scoring ui contracts", () => {
       />,
     );
 
-    expect(screen.getByLabelText("Scoring mode")).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByLabelText("Scoring mode")).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /Auto-level points/i })).toHaveAttribute(
+      "aria-describedby",
+      "scoring-mode-error",
+    );
+    expect(screen.getByRole("button", { name: /Manual points/i })).toHaveAttribute(
       "aria-describedby",
       "scoring-mode-error",
     );
@@ -46,15 +49,19 @@ describe("scoring ui contracts", () => {
       "true",
     );
 
-    const offensePenaltiesGroup = screen.getByRole("group", { name: "Offense penalties" });
+    const offensePenaltiesGroup = screen
+      .getByText("Offense penalties")
+      .closest("fieldset");
     expect(offensePenaltiesGroup).toHaveAttribute("aria-invalid", "true");
-    expect(offensePenaltiesGroup.getAttribute("aria-describedby")).toContain(
+    expect(offensePenaltiesGroup?.getAttribute("aria-describedby")).toContain(
       "offense-penalties-error",
     );
 
-    const customPointsGroup = screen.getByRole("group", { name: "Custom points" });
-    expect(customPointsGroup).toHaveAttribute("aria-invalid", "true");
-    expect(customPointsGroup.getAttribute("aria-describedby")).toContain("custom-points-error");
+    const customPointsPanel = screen
+      .getByText("Custom points configured")
+      .closest("div[aria-describedby]");
+    expect(customPointsPanel).toHaveAttribute("aria-invalid", "true");
+    expect(customPointsPanel?.getAttribute("aria-describedby")).toContain("custom-points-error");
   });
 
   test("renders participant-facing summary lines and notices", () => {
@@ -82,21 +89,15 @@ describe("scoring ui contracts", () => {
     ).toBeInTheDocument();
   });
 
-  test("uses full-width select classes to avoid mobile overflow", () => {
+  test("uses full-width controls to avoid mobile overflow", () => {
     render(<ScoringContractWorkbench />);
 
-    const selectLabels = [
-      "Competition type",
-      "Scoring mode",
-      "Tie-breaker",
-      "Wrong-answer penalty",
-      "Open competition attempt policy",
-    ] as const;
+    const competitionTypeSelect = screen.getByLabelText("Competition type");
+    expect(competitionTypeSelect).toHaveClass("w-full");
+    expect(competitionTypeSelect).toHaveClass("min-w-0");
 
-    for (const label of selectLabels) {
-      const select = screen.getByLabelText(label);
-      expect(select).toHaveClass("w-full");
-      expect(select).toHaveClass("min-w-0");
+    for (const label of ["Tie-breaker", "Wrong-answer penalty", "Open competition attempt policy"] as const) {
+      expect(screen.getByLabelText(label)).toHaveClass("w-full");
     }
   });
 });

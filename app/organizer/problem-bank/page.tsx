@@ -4,14 +4,22 @@ import { getWorkspaceContext } from "@/lib/auth/workspace";
 import { normalizeProblemBankRow } from "@/lib/problem-bank/api-helpers";
 import { createClient } from "@/lib/supabase/server";
 
+type ProblemBankPageSearchParams = {
+  tab?: string | string[];
+};
+
+type ProblemBankRow = Record<string, unknown> & {
+  problems?: Array<{ count?: number | null }>;
+};
+
 export default async function OrganizerProblemBankPage(props: {
-  searchParams?: any;
+  searchParams?: Promise<ProblemBankPageSearchParams> | ProblemBankPageSearchParams;
 }) {
   const { profile } = await getWorkspaceContext({ requireRole: "organizer" });
   const supabase = await createClient();
 
   const resolvedParams = (await props.searchParams) || {};
-  const tab = resolvedParams.tab || "all";
+  const tab = typeof resolvedParams.tab === "string" ? resolvedParams.tab : "all";
 
   const { data, error } = await supabase
     .from("problem_banks")
@@ -23,12 +31,12 @@ export default async function OrganizerProblemBankPage(props: {
 
   const banks = !error
     ? (data ?? [])
-        .map((row: any) => {
+        .map((row: ProblemBankRow) => {
           const normalized = normalizeProblemBankRow(row);
           if (!normalized) return null;
           return {
             ...normalized,
-            problemCount: row.problems?.[0]?.count ?? 0,
+            problemCount: Array.isArray(row.problems) ? row.problems[0]?.count ?? 0 : 0,
           };
         })
         .filter((row): row is NonNullable<typeof row> => row !== null)
@@ -202,4 +210,3 @@ export default async function OrganizerProblemBankPage(props: {
     </div>
   );
 }
-

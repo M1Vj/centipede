@@ -93,7 +93,7 @@ export function ProblemOptionsEditor({
                   </button>
                   <div className="flex-1">
                     <MathliveField
-                      id={`mcq-opt-${opt.id}`}
+                      id={`mcq-option-label-${opt.id}`}
                       label=""
                       value={opt.label}
                       onChange={(val) => onUpdateMcqOption(opt.id, "label", val)}
@@ -145,12 +145,14 @@ export function ProblemOptionsEditor({
                       } transition-colors`}
                     ></div>
                   </button>
-                  <input
-                    type="text"
+                  <MathliveField
+                    id={`tf-option-label-${opt.id}`}
+                    label=""
                     value={opt.label}
-                    onChange={(e) => onUpdateTfOptionLabel(opt.id, e.target.value)}
+                    onChange={(val) => onUpdateTfOptionLabel(opt.id, val)}
                     className="flex-1 bg-transparent border-none outline-none text-[#10182b] font-medium text-[15px] placeholder:text-slate-400 w-full"
                     placeholder="True / False"
+                    showPreviewToggle={true}
                   />
                 </div>
               );
@@ -172,6 +174,7 @@ export function ProblemOptionsEditor({
                     label=""
                     value={ans}
                     onChange={(val) => onUpdateAcceptedAnswerEntry(index, val)}
+                    preferredInitialMode="math"
                     placeholder="Enter accepted answer..."
                     className="bg-transparent border-none outline-none text-[#10182b] font-medium text-[15px] placeholder:text-slate-400 w-full"
                     showPreviewToggle={true}

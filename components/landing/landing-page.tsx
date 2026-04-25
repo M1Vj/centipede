@@ -1,5 +1,4 @@
-import { ArrowRight, PlayCircle, Target, Shield, MousePointer2, Users, Clock, Trophy, Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRight, PlayCircle, Target, Shield, MousePointer2, Users, Clock, Trophy } from "lucide-react";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { CurrentYear } from "@/components/landing/current-year";
 import { hasEnvVars } from "@/lib/supabase/env";

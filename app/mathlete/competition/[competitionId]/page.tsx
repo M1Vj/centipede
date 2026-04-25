@@ -1,18 +1,20 @@
 import { notFound } from "next/navigation";
-import { MathletePageFrame } from "@/components/mathlete/page-frame";
+import { ArenaExperience } from "@/components/arena/arena-experience";
 import { CompetitionDetailPanel } from "@/components/competitions/competition-detail-panel";
 import { CompetitionEventNotices } from "@/components/competitions/competition-event-notices";
 import { CompetitionRegistrationPanel } from "@/components/competitions/registration-panel";
+import { MathletePageFrame } from "@/components/mathlete/page-frame";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
+import { loadArenaPageData } from "@/lib/arena/server";
 import {
   COMPETITION_SELECT_COLUMNS,
   LEGACY_COMPETITION_SELECT_COLUMNS,
   isLegacyCompetitionSelectError,
   normalizeCompetitionRecord,
 } from "@/lib/competition/api";
-import { fetchCompetitionEventNotices } from "@/lib/competition/events";
 import type { CompetitionRecord } from "@/lib/competition/types";
+import { fetchCompetitionEventNotices } from "@/lib/competition/events";
 import type { DiscoverableCompetition } from "@/lib/competition/discovery";
 import type { RegistrationStatus, RegistrationSummary } from "@/lib/registrations/types";
 import { createClient } from "@/lib/supabase/server";
@@ -33,7 +35,7 @@ type RegistrationRow = {
   id: string;
   competition_id: string;
   team_id: string | null;
-  status: string | null;
+  status: RegistrationStatus | null;
   status_reason: string | null;
 };
 
@@ -168,10 +170,14 @@ export default async function CompetitionDetailPage({
   params: Promise<{ competitionId: string }>;
 }) {
   const { profile } = await getWorkspaceContext({ requireRole: "mathlete" });
-  const supabase = await createClient();
-  const resolvedParams = await params;
 
-  const rawCompetition = await fetchCompetitionById(supabase, resolvedParams.competitionId);
+  if (!profile) {
+    notFound();
+  }
+
+  const supabase = await createClient();
+  const { competitionId } = await params;
+  const rawCompetition = await fetchCompetitionById(supabase, competitionId);
   const normalized = rawCompetition ? normalizeCompetitionRecord(rawCompetition) : null;
 
   if (!normalized || normalized.isDeleted || !DISCOVERABLE_STATUSES.has(normalized.status)) {
@@ -179,13 +185,12 @@ export default async function CompetitionDetailPage({
   }
 
   const competition = toDiscoverableCompetition(normalized);
-  const eventNotices = await fetchCompetitionEventNotices(competition.id);
 
   const individualRegistrationQuery = supabase
     .from("competition_registrations")
     .select("id, competition_id, team_id, status, status_reason")
     .eq("competition_id", competition.id)
-    .eq("profile_id", profile?.id ?? "");
+    .eq("profile_id", profile.id);
 
   const individualResult = await individualRegistrationQuery.maybeSingle<RegistrationRow>();
   const individualRegistration = individualResult.error
@@ -207,7 +212,7 @@ export default async function CompetitionDetailPage({
   const { data: leaderMemberships } = await supabase
     .from("team_memberships")
     .select("team_id")
-    .eq("profile_id", profile?.id ?? "")
+    .eq("profile_id", profile.id)
     .eq("role", "leader")
     .eq("is_active", true);
 
@@ -243,7 +248,13 @@ export default async function CompetitionDetailPage({
         throw teamRegResult.error;
       }
     } else {
-      teamRegistrations = (teamRegResult.data ?? []) as RegistrationSummary[];
+      teamRegistrations = (teamRegResult.data ?? []).map((row) => ({
+        id: row.id,
+        competition_id: row.competition_id,
+        team_id: row.team_id ?? null,
+        status: normalizeRegistrationStatus(row.status),
+        status_reason: row.status_reason ?? null,
+      }));
     }
   }
 
@@ -260,28 +271,18 @@ export default async function CompetitionDetailPage({
   });
 
   if (pageMode === "arena_runtime" || pageMode === "pre_entry") {
-    return (
-      <MathletePageFrame
-        eyebrow="Competition entry"
-        title={competition.name || "Competition entry"}
-        description="Arena entry will be activated once the arena experience lands."
-        actions={
-          <ProgressLink
-            href="/mathlete/competition"
-            className="rounded-full bg-[#1a1e2e] px-5 py-2 text-sm font-semibold text-white hover:bg-[#0f121a]"
-          >
-            Back to discovery
-          </ProgressLink>
-        }
-      >
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-          {pageMode === "arena_runtime"
-            ? "Arena runtime is not available in this branch yet."
-            : "Pre-entry preparation is queued for the arena branch."}
-        </div>
-      </MathletePageFrame>
-    );
+    const arenaData = await loadArenaPageData(competition.id, profile.id);
+
+    if (!arenaData) {
+      notFound();
+    }
+
+    if (arenaData.mode !== "detail_register") {
+      return <ArenaExperience initialData={arenaData} />;
+    }
   }
+
+  const eventNotices = await fetchCompetitionEventNotices(competition.id);
 
   return (
     <MathletePageFrame
@@ -297,7 +298,7 @@ export default async function CompetitionDetailPage({
         </ProgressLink>
       }
     >
-        {eventNotices.length > 0 ? <CompetitionEventNotices notices={eventNotices} /> : null}
+      {eventNotices.length > 0 ? <CompetitionEventNotices notices={eventNotices} /> : null}
       <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         <CompetitionDetailPanel competition={competition} />
         <CompetitionRegistrationPanel
