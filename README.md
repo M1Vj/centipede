@@ -9,6 +9,7 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 
 | Release Code | Date Released |
 | ------------ | ------------- |
+| CP.010.008   | 2026-04-25    |
 | CP.010.007   | 2026-04-16    |
 | CP.010.006   | 2026-04-11    |
 | CP.010.005   | 2026-04-08    |
@@ -16,6 +17,22 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 | CP.010.003   | 2026-03-28    |
 | CP.010.002   | 2026-03-14    |
 | CP.010.001   | 2026-02-28    |
+
+---
+
+## CP.010.008 Release Notes
+
+- Rolled out the Figma UI refresh across core platform surfaces, including Auth, Admin, Organizer, Mathlete, Teams, and shared interaction primitives.
+- Delivered competition discovery improvements with searchable listings, event notices, calendar support, and validated registration/withdrawal flows.
+- Rebuilt organizer workspace domains for dashboard and competition operations, including lifecycle mutation hardening and draft deletion reliability improvements.
+- Added arena trusted-entry and attempt lifecycle helpers, then applied follow-up fixes for competition state mutations and registration-path edge cases.
+
+Known Issues:
+
+- Registration timing edge cases still exist, especially when using "Open until competition start" schedules.
+- Some competition lifecycle transitions can still surface generic failure messaging or delayed state reflection in UI.
+- Organizer registration counts and mathlete registration views may intermittently desync after successful actions.
+- Team registration and open-competition gating still have unresolved edge-case behavior in specific flows.
 
 ---
 
