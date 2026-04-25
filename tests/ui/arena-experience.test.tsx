@@ -163,6 +163,50 @@ describe("ArenaExperience", () => {
     expect(startButton).toBeEnabled();
   });
 
+  test("open competitions can start from pre-entry without a registration id", async () => {
+    const openData = buildPageData("pre_entry");
+    openData.competition = {
+      ...openData.competition,
+      type: "open",
+      status: "published",
+      startTime: null,
+      endTime: null,
+      attemptsAllowed: 3,
+    };
+    openData.registration = null;
+    openData.attemptsRemaining = 3;
+
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ data: buildPageData("arena_runtime") }), { status: 200 }),
+    );
+
+    render(<ArenaExperience initialData={openData} />);
+
+    expect(screen.queryByRole("button", { name: "Withdraw registration" })).not.toBeInTheDocument();
+    expect(screen.getByText("Entry: Open access")).toBeInTheDocument();
+
+    for (const checkbox of screen.getAllByRole("checkbox")) {
+      fireEvent.click(checkbox);
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "Start competition" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/mathlete/competition/competition-1/start",
+        expect.objectContaining({
+          method: "POST",
+        }),
+      );
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+    expect(body).toMatchObject({
+      registrationId: null,
+      attemptId: null,
+    });
+  });
+
   test("pre-entry can withdraw registration before an attempt starts", async () => {
     const withdrawnData = {
       ...buildPageData("detail_register"),

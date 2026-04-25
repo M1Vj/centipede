@@ -455,7 +455,8 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   }, [activeAttemptId, pageData.competition.format]);
 
   async function startOrResumeAttempt() {
-    if (!pageData.registration) {
+    const isOpenDirectEntry = pageData.competition.type === "open";
+    if (!pageData.registration && !isOpenDirectEntry) {
       return;
     }
 
@@ -469,7 +470,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        registrationId: pageData.registration.id,
+        registrationId: pageData.registration?.id ?? null,
         attemptId: pageData.activeAttempt?.id ?? null,
       }),
     });
@@ -687,10 +688,9 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
     ? answers.get(selectedProblem.competitionProblemId)
     : undefined;
   const canStart = Boolean(
-    pageData.registration &&
-      pageData.registration.status === "registered" &&
-      pageData.registration.actorCanStart &&
-      pageData.attemptsRemaining > 0,
+    pageData.attemptsRemaining > 0 &&
+      ((pageData.registration?.status === "registered" && pageData.registration.actorCanStart) ||
+        (pageData.competition.type === "open" && !pageData.registration)),
   );
   const canWrite = Boolean(pageData.registration?.actorCanWrite && pageData.activeAttempt);
   const canWithdraw = Boolean(
@@ -877,14 +877,16 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                   <p>Attempt window: {pageData.competition.durationMinutes} minutes</p>
                   <p>Attempts remaining: {pageData.attemptsRemaining}</p>
                   <p>
-                    Registration:
+                    Entry:{" "}
                     {pageData.registration?.teamName
-                      ? ` ${pageData.registration.teamName}`
-                      : " Individual"}
+                      ? pageData.registration.teamName
+                      : pageData.registration
+                        ? "Individual"
+                        : "Open access"}
                   </p>
                 </div>
               </div>
-              {!pageData.registration?.actorCanStart ? (
+              {pageData.registration && !pageData.registration.actorCanStart ? (
                 <Alert>
                   <p className="mb-2 text-sm font-semibold text-foreground">Leader action required</p>
                   <AlertDescription>

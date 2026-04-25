@@ -45,6 +45,30 @@ describe("arena helpers", () => {
     ).toBe("detail_register");
   });
 
+  test("allows open competitions to enter without a registration when attempts remain", () => {
+    expect(
+      determineCompetitionPageMode({
+        hasActiveAttempt: false,
+        hasRegistration: false,
+        registrationStatus: null,
+        competitionStatus: "published",
+        competitionType: "open",
+        attemptsRemaining: 1,
+      }),
+    ).toBe("pre_entry");
+
+    expect(
+      determineCompetitionPageMode({
+        hasActiveAttempt: false,
+        hasRegistration: false,
+        registrationStatus: null,
+        competitionStatus: "published",
+        competitionType: "open",
+        attemptsRemaining: 0,
+      }),
+    ).toBe("detail_register");
+  });
+
   test("computes trusted remaining seconds from immutable deadline", () => {
     expect(
       computeRemainingSeconds("2026-04-22T12:00:10.000Z", new Date("2026-04-22T12:00:00.000Z")),
