@@ -183,7 +183,8 @@ describe("ArenaExperience", () => {
     render(<ArenaExperience initialData={openData} />);
 
     expect(screen.queryByRole("button", { name: "Withdraw registration" })).not.toBeInTheDocument();
-    expect(screen.getByText("Entry: Open access")).toBeInTheDocument();
+    expect(screen.getByText("Entry")).toBeInTheDocument();
+    expect(screen.getByText("Open access")).toBeInTheDocument();
 
     for (const checkbox of screen.getAllByRole("checkbox")) {
       fireEvent.click(checkbox);
@@ -340,7 +341,7 @@ describe("ArenaExperience", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), {
       target: { value: "42" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Submit now" }));
+    fireEvent.click(screen.getByRole("button", { name: "Review & Submit" }));
     fireEvent.click(await screen.findByRole("button", { name: "Submit attempt" }));
 
     await waitFor(() => {
@@ -399,7 +400,7 @@ describe("ArenaExperience", () => {
       target: { value: "42" },
     });
 
-    expect(screen.getByText("Filled status")).toBeInTheDocument();
+    expect(screen.getAllByText("Filled").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Q1 Filled" })).toBeInTheDocument();
   });
 
@@ -480,8 +481,8 @@ describe("ArenaExperience", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start competition" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Navigator")).toBeInTheDocument();
-      expect(screen.getByText("Attempt #1")).toBeInTheDocument();
+      expect(screen.getByText("Question Grid")).toBeInTheDocument();
+      expect(screen.getByText(/Attempt:/)).toBeInTheDocument();
     });
   });
 });
