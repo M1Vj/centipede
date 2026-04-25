@@ -81,6 +81,7 @@ describe("CompetitionCardGrid delete flow", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -121,5 +122,38 @@ describe("CompetitionCardGrid delete flow", () => {
       expect(routerRefreshMock).toHaveBeenCalledTimes(1);
     });
     expect(screen.queryByText("Draft Competition")).not.toBeInTheDocument();
+  });
+});
+
+describe("CompetitionCardGrid scheduled lifecycle refresh", () => {
+  beforeEach(() => {
+    routerRefreshMock.mockReset();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-25T00:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("refreshes after the next scheduled published competition start time", () => {
+    render(
+      <CompetitionCardGrid
+        competitions={[
+          buildCompetition("published", {
+            id: "scheduled-competition",
+            name: "Scheduled Competition",
+            type: "scheduled",
+            startTime: "2026-04-25T00:01:00.000Z",
+          }),
+        ]}
+      />,
+    );
+
+    vi.advanceTimersByTime(60_999);
+    expect(routerRefreshMock).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(routerRefreshMock).toHaveBeenCalledTimes(1);
   });
 });

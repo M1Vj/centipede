@@ -129,3 +129,12 @@ export async function startDueScheduledCompetitions(now = new Date()): Promise<S
     results,
   };
 }
+
+export async function startDueScheduledCompetitionsSafely(now = new Date()) {
+  try {
+    return await startDueScheduledCompetitions(now);
+  } catch (error) {
+    console.error("Failed to start due scheduled competitions:", error);
+    return null;
+  }
+}

@@ -277,6 +277,39 @@ export function CompetitionCardGrid({ competitions }: CompetitionCardGridProps) 
     setItems(competitions);
   }, [competitions]);
 
+  useEffect(() => {
+    const now = Date.now();
+    const nextStartAt = items.reduce<number | null>((earliest, competition) => {
+      if (
+        competition.type !== "scheduled" ||
+        competition.status !== "published" ||
+        !competition.startTime
+      ) {
+        return earliest;
+      }
+
+      const startsAt = new Date(competition.startTime).getTime();
+      if (!Number.isFinite(startsAt) || startsAt <= now) {
+        return earliest;
+      }
+
+      return earliest === null || startsAt < earliest ? startsAt : earliest;
+    }, null);
+
+    if (nextStartAt === null) {
+      return;
+    }
+
+    const delayMs = Math.min(nextStartAt - now + 1000, 2_147_483_647);
+    const timeout = window.setTimeout(() => {
+      router.refresh();
+    }, delayMs);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [items, router]);
+
   const filtered =
     activeTab === "All Events"
       ? items

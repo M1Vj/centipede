@@ -8,6 +8,7 @@ import {
   fetchDiscoverableCompetitions,
   parseCompetitionSearchParams,
 } from "@/lib/competition/discovery";
+import { startDueScheduledCompetitionsSafely } from "@/lib/competition/scheduled-start";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function CompetitionCalendarPage({
@@ -18,6 +19,8 @@ export default async function CompetitionCalendarPage({
   await getWorkspaceContext({ requireRole: "mathlete" });
   const supabase = await createClient();
   const resolvedSearchParams = await searchParams;
+
+  await startDueScheduledCompetitionsSafely();
 
   const { filters, page, pageSize } = parseCompetitionSearchParams(resolvedSearchParams ?? {});
   const result = await fetchDiscoverableCompetitions(supabase, filters, page, pageSize);
