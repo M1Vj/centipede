@@ -14,6 +14,10 @@ const VALIDATE_TEAM_REGISTRATION_MIGRATION_PATH = join(
   process.cwd(),
   "supabase/migrations/20260425180500_fix_team_registration_team_id_ambiguity.sql",
 );
+const REGISTRATION_NOW_TIMEZONE_MIGRATION_PATH = join(
+  process.cwd(),
+  "supabase/migrations/20260425191200_fix_registration_now_timezone.sql",
+);
 const TEAM_REGISTRATION_RLS_HARDENING_MIGRATION_PATH = join(
   process.cwd(),
   "supabase/migrations/20260425190000_harden_team_registration_rls_qualification.sql",
@@ -98,6 +102,17 @@ describe("competition sql contracts", () => {
     expect(sql).toContain("from public.validate_team_registration(p_team_id, p_competition_id) vtr");
     expect(sql).toContain("v_existing_registration := found;");
     expect(sql).toContain("if v_existing_registration then");
+  });
+
+  test("register_for_competition compares registration windows against unshifted timestamptz now", () => {
+    const sql = readFileSync(REGISTRATION_NOW_TIMEZONE_MIGRATION_PATH, "utf8");
+
+    expect(sql).toContain("v_now timestamptz := now();");
+    expect(sql).toContain(
+      "if v_competition.registration_start is not null and v_now < v_competition.registration_start then",
+    );
+    expect(sql).toContain("if v_now >= v_effective_registration_end then");
+    expect(sql).not.toContain("v_now timestamptz := timezone('utc', now());");
   });
 
   test("team registration RLS helper and policies qualify team membership references", () => {
