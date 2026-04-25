@@ -105,6 +105,13 @@ Unblocks: arena entry, leaderboard visibility, reminders, participant monitoring
 - Branch `10` must not implement email fan-out, preference evaluation, or direct table writes from UI components; those are owned by branch `15-notifications-polish`.
 - `competition_schedule_changed` and `competition_cancelled` remain consumer-only names in branch `10`; producer ownership must be explicitly added to the shared producer/consumer matrix before any branch emits them.
 
+## Figma UI Provenance
+
+- Source file URL: https://www.figma.com/design/cBQPJi1UVMFzrHlfsNPbsx/Mathwiz?node-id=1-125&t=wi7iD40k8rPMSyLH-1
+- Baseline nodes for migration effort: `1:125`, `45:2`, `62:5`, `164:2488`, `167:3350`.
+- Use baseline nodes as starting anchors; map branch-specific frames/components before implementation.
+- When implementing UI changes in this branch, verify frame coverage first; if no frame exists for page/state, document gap and use current design system tokens without inventing unsupported Figma details.
+
 ## Atomic Steps
 
 1. Build the published competition list query with filters for type, format, status, and search text.

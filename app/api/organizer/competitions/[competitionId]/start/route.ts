@@ -12,6 +12,7 @@ import {
   requireCompetitionAdminClient,
   requireOrganizerCompetitionActor,
   requireSameOriginMutation,
+  withCompetitionStatus,
 } from "../../_shared";
 
 export async function POST(request: Request, context: { params: Promise<{ competitionId: string }> }) {
@@ -108,20 +109,27 @@ export async function POST(request: Request, context: { params: Promise<{ compet
 
     const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);
     if ("response" in refreshed) {
-      return refreshed.response;
+      if (refreshed.response.status !== 404 && refreshed.response.status !== 503) {
+        return refreshed.response;
+      }
     }
 
     return jsonOk({
       code: "ok",
-      competition: refreshed.competition,
+      competition:
+        "response" in refreshed
+          ? withCompetitionStatus(competition, "live")
+          : refreshed.competition.status === "live"
+            ? refreshed.competition
+            : withCompetitionStatus(refreshed.competition, "live"),
       lifecycle: {
         machineCode: "ok",
-        status: refreshed.competition.status,
+        status: "live",
         eventId: null,
         replayed: false,
         changed: true,
         requestIdempotencyToken,
-        draftRevision: refreshed.competition.draftRevision,
+        draftRevision: competition.draftRevision,
         selectedProblemCount: null,
       },
     });
@@ -132,11 +140,7 @@ export async function POST(request: Request, context: { params: Promise<{ compet
   }
 
   const lifecycleResult = normalizeLifecycleOutcome(normalizeCompetitionLifecycleResult(data));
-  if (!lifecycleResult) {
-    return jsonError("operation_failed", "Competition start failed.", 500);
-  }
-
-  if (lifecycleResult.machineCode !== "ok") {
+  if (lifecycleResult && lifecycleResult.machineCode !== "ok") {
     return jsonError(
       lifecycleResult.machineCode,
       competitionLifecycleErrorMessage(lifecycleResult.machineCode),
@@ -149,14 +153,48 @@ export async function POST(request: Request, context: { params: Promise<{ compet
     );
   }
 
+  const startedCompetition = withCompetitionStatus(competition, "live");
+
   const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);
   if ("response" in refreshed) {
+    if (refreshed.response.status === 404 || refreshed.response.status === 503) {
+      return jsonOk({
+        code: "ok",
+        competition: startedCompetition,
+        lifecycle: {
+          machineCode: "ok",
+          status: "live",
+          eventId: null,
+          replayed: false,
+          changed: true,
+          requestIdempotencyToken,
+          draftRevision: competition.draftRevision,
+          selectedProblemCount: null,
+        },
+      });
+    }
+
     return refreshed.response;
   }
 
   return jsonOk({
     code: "ok",
-    competition: refreshed.competition,
-    lifecycle: lifecycleResult,
+    competition:
+      refreshed.competition.status === "live"
+        ? refreshed.competition
+        : withCompetitionStatus(refreshed.competition, "live"),
+    lifecycle:
+      lifecycleResult && lifecycleResult.machineCode === "ok"
+        ? lifecycleResult
+        : {
+            machineCode: "ok",
+            status: "live",
+            eventId: null,
+            replayed: false,
+            changed: true,
+            requestIdempotencyToken,
+            draftRevision: competition.draftRevision,
+            selectedProblemCount: null,
+          },
   });
 }

@@ -6,6 +6,7 @@ import {
   type ProblemBankActorRole,
 } from "@/lib/problem-bank/api-helpers";
 import {
+  buildCompetitionDraftRpcPayload,
   buildLegacyCompetitionMutationPayload,
   COMPETITION_SELECT_COLUMNS,
   LEGACY_COMPETITION_SELECT_COLUMNS,
@@ -14,7 +15,7 @@ import {
 } from "@/lib/competition/api";
 import type { CompetitionLifecycleResult, CompetitionRecord } from "@/lib/competition/types";
 
-export { buildLegacyCompetitionMutationPayload };
+export { buildCompetitionDraftRpcPayload, buildLegacyCompetitionMutationPayload };
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>;
 type AdminSupabaseClient = NonNullable<ReturnType<typeof createAdminClient>>;
@@ -43,6 +44,13 @@ export function jsonError(
 
 export function jsonOk(payload: Record<string, unknown>, status = 200) {
   return NextResponse.json(payload, { status });
+}
+
+export function withCompetitionStatus<T extends { status: string }>(competition: T, status: T["status"]) {
+  return {
+    ...competition,
+    status,
+  };
 }
 
 export function jsonDatabaseError(error: unknown) {
@@ -345,32 +353,69 @@ export async function fetchCompetition(
     .eq("organizer_id", organizerId)
     .maybeSingle();
 
-  const fallbackResult =
-    primaryResult.error && isLegacyCompetitionSelectError(primaryResult.error)
-      ? await supabase
-          .from("competitions")
-          .select(LEGACY_COMPETITION_SELECT_COLUMNS)
-          .eq("id", competitionId)
-          .eq("organizer_id", organizerId)
-          .maybeSingle()
-      : null;
+  const primaryCompetition = normalizeCompetitionRecord(primaryResult.data);
+  const shouldTryLegacyRead =
+    !primaryCompetition || (primaryResult.error && isLegacyCompetitionSelectError(primaryResult.error));
 
-  const { data, error } = fallbackResult ?? primaryResult;
+  if (shouldTryLegacyRead) {
+    const fallbackResult = await supabase
+      .from("competitions")
+      .select(LEGACY_COMPETITION_SELECT_COLUMNS)
+      .eq("id", competitionId)
+      .eq("organizer_id", organizerId)
+      .maybeSingle();
 
-  if (error) {
+    if (fallbackResult.error) {
+      if (
+        isLegacyCompetitionSelectError(primaryResult.error) ||
+        isLegacyCompetitionSelectError(fallbackResult.error)
+      ) {
+        return {
+          response: jsonError(
+            "service_unavailable",
+            "Competition data is temporarily unavailable while database migrations are incomplete.",
+            503,
+          ),
+        };
+      }
+
+      return {
+        response: jsonDatabaseError(fallbackResult.error),
+      };
+    }
+
+    const fallbackCompetition = normalizeCompetitionRecord(fallbackResult.data);
+    if (fallbackCompetition) {
+      return { competition: fallbackCompetition };
+    }
+
+    if (
+      isLegacyCompetitionSelectError(primaryResult.error) ||
+      isLegacyCompetitionSelectError(fallbackResult.error)
+    ) {
+      return {
+        response: jsonError(
+          "service_unavailable",
+          "Competition data is temporarily unavailable while database migrations are incomplete.",
+          503,
+        ),
+      };
+    }
+  }
+
+  if (primaryResult.error) {
     return {
-      response: jsonDatabaseError(error),
+      response: jsonDatabaseError(primaryResult.error),
     };
   }
 
-  const competition = normalizeCompetitionRecord(data);
-  if (!competition) {
+  if (!primaryCompetition) {
     return {
       response: jsonError("not_found", "Requested resource was not found.", 404),
     };
   }
 
-  return { competition };
+  return { competition: primaryCompetition };
 }
 
 export function requireCompetitionAdminClient() {

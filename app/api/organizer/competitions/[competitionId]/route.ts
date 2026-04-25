@@ -8,6 +8,7 @@ import {
 } from "@/lib/competition/api";
 import { validateCompetitionDraftInput } from "@/lib/competition/validation";
 import {
+  buildCompetitionDraftRpcPayload,
   buildLegacyCompetitionMutationPayload,
   fetchCompetition,
   jsonDatabaseError,
@@ -197,10 +198,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ compe
   }
 
   const { adminClient } = adminClientResult;
+  const rpcPayload = buildCompetitionDraftRpcPayload(validation.value);
   const { data: savedResult, error: saveError } = await adminClient.rpc("save_competition_draft", {
     p_competition_id: competitionId,
     p_expected_draft_revision: expectedDraftRevision,
-    p_payload_json: validation.value,
+    p_payload_json: rpcPayload,
   });
 
   if (saveError && isLegacyCompetitionSchemaError(saveError)) {
@@ -219,7 +221,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ compe
 
     const legacyCompetition = normalizeCompetitionRecord(legacyUpdateResult.data);
     if (!legacyCompetition) {
-      return jsonError("operation_failed", "Draft save failed.", 500);
+      const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);
+      if ("response" in refreshed) {
+        return refreshed.response;
+      }
+
+      return jsonOk({
+        code: "ok",
+        competition: refreshed.competition,
+        machineCode: "ok",
+        selectedProblemCount: selectionCheck.selectedProblemIds.length,
+        currentDraftRevision: refreshed.competition.draftRevision,
+      });
     }
 
     const legacySelectionResult = await replaceCompetitionProblemsLegacy(
@@ -247,7 +260,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ compe
 
   const lifecycleResult = normalizeCompetitionLifecycleResult(savedResult);
   if (!lifecycleResult) {
-    return jsonError("operation_failed", "Draft save failed.", 500);
+    const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);
+    if ("response" in refreshed) {
+      return refreshed.response;
+    }
+
+    return jsonOk({
+      code: "ok",
+      competition: refreshed.competition,
+      machineCode: "ok",
+      selectedProblemCount: selectedProblemIds.length,
+      currentDraftRevision: refreshed.competition.draftRevision,
+    });
   }
 
   if (lifecycleResult.machineCode !== "ok") {
@@ -365,11 +389,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ comp
   }
 
   const lifecycleResult = normalizeCompetitionLifecycleResult(data);
-  if (!lifecycleResult) {
-    return jsonError("operation_failed", "Competition could not be deleted.", 500);
-  }
-
-  if (lifecycleResult.machineCode !== "ok") {
+  if (lifecycleResult && lifecycleResult.machineCode !== "ok") {
     return jsonError(lifecycleResult.machineCode, "Competition could not be deleted.", 409, {
       currentStatus: lifecycleResult.currentStatus,
     });
@@ -377,8 +397,8 @@ export async function DELETE(request: Request, context: { params: Promise<{ comp
 
   return jsonOk({
     code: "ok",
-    machineCode: lifecycleResult.machineCode,
-    currentStatus: lifecycleResult.currentStatus,
+    machineCode: lifecycleResult?.machineCode ?? "ok",
+    currentStatus: lifecycleResult?.currentStatus ?? competition.status,
     isDeleted: true,
   });
 }

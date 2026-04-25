@@ -265,7 +265,10 @@ describe("POST /api/organizer/competitions", () => {
     const insertQuery = {
       select: vi.fn(),
       single: vi.fn().mockResolvedValue({
-        data: buildCompetitionRow(),
+        data: buildCompetitionRow({
+          draft_revision: 9,
+          updated_at: "2026-04-04T00:00:00.000Z",
+        }),
         error: null,
       }),
     };
@@ -339,7 +342,10 @@ describe("POST /api/organizer/competitions", () => {
     const insertQuery = {
       select: vi.fn(),
       single: vi.fn().mockResolvedValue({
-        data: buildCompetitionRow(),
+        data: buildCompetitionRow({
+          draft_revision: 9,
+          updated_at: "2026-04-04T00:00:00.000Z",
+        }),
         error: null,
       }),
     };
@@ -439,16 +445,313 @@ describe("POST /api/organizer/competitions", () => {
     expect(select).toHaveBeenNthCalledWith(2, LEGACY_COMPETITION_SELECT_COLUMNS);
   });
 
-  test("falls back to legacy competition select columns when refreshing created draft after save", async () => {
+  test("re-reads created competition when insert returns no row data", async () => {
+    vi.mocked(createClient).mockResolvedValue(makeServerClient() as never);
+
+    const insertQuery = {
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: null,
+        error: null,
+      }),
+    };
+    insertQuery.select.mockImplementation(() => insertQuery);
+
+    const lookupQuery = {
+      eq: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: buildCompetitionRow(),
+        error: null,
+      }),
+    };
+    lookupQuery.eq.mockImplementation(() => lookupQuery);
+
+    const competitionsTable = {
+      insert: vi.fn(() => insertQuery),
+      select: vi.fn(() => lookupQuery),
+    };
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return competitionsTable;
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+    } as never);
+
+    const response = await POST(makeCreateRequest(buildScheduledCreatePayload()));
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.code).toBe("created");
+    expect(body.competition.id).toBe("competition-1");
+    expect(lookupQuery.maybeSingle).toHaveBeenCalled();
+  });
+
+  test("re-reads created competition when save draft returns empty lifecycle result", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeServerClient(["problem-1"], {
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: {
+            data: buildCompetitionRow({
+              draft_revision: 7,
+              updated_at: "2026-04-02T00:00:00.000Z",
+            }),
+            error: null,
+          },
+        },
+      }) as never,
+    );
+
+    const insertQuery = {
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: buildCompetitionRow({
+          draft_revision: 9,
+          updated_at: "2026-04-04T00:00:00.000Z",
+        }),
+        error: null,
+      }),
+    };
+    insertQuery.select.mockImplementation(() => insertQuery);
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return {
+            insert: vi.fn(() => insertQuery),
+          };
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+      rpc: vi.fn().mockResolvedValue({
+        data: null,
+        error: null,
+      }),
+    } as never);
+
+    const response = await POST(
+      makeCreateRequest(
+        buildScheduledCreatePayload({
+          selectedProblemIds: ["problem-1"],
+        }),
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.code).toBe("created");
+    expect(body.selectedProblemCount).toBe(1);
+    expect(body.currentDraftRevision).toBe(7);
+    expect(body.competition.draftRevision).toBe(7);
+    expect(body.competition.id).toBe("competition-1");
+  });
+
+  test("re-reads created competition when save draft returns unshaped lifecycle row", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeServerClient(["problem-1"], {
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: {
+            data: buildCompetitionRow({
+              draft_revision: 8,
+              updated_at: "2026-04-03T00:00:00.000Z",
+            }),
+            error: null,
+          },
+        },
+      }) as never,
+    );
+
+    const insertQuery = {
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: buildCompetitionRow({
+          draft_revision: 9,
+          updated_at: "2026-04-04T00:00:00.000Z",
+        }),
+        error: null,
+      }),
+    };
+    insertQuery.select.mockImplementation(() => insertQuery);
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return {
+            insert: vi.fn(() => insertQuery),
+          };
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+      rpc: vi.fn().mockResolvedValue({
+        data: [{ selected_problem_count: 1, current_draft_revision: 8 }],
+        error: null,
+      }),
+    } as never);
+
+    const response = await POST(
+      makeCreateRequest(
+        buildScheduledCreatePayload({
+          selectedProblemIds: ["problem-1"],
+        }),
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.code).toBe("created");
+    expect(body.selectedProblemCount).toBe(1);
+    expect(body.currentDraftRevision).toBe(8);
+    expect(body.competition.draftRevision).toBe(8);
+    expect(body.competition.id).toBe("competition-1");
+  });
+
+  test("re-reads created competition when save draft returns operation_failed lifecycle code", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeServerClient(["problem-1"], {
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: {
+            data: buildCompetitionRow({
+              draft_revision: 9,
+              updated_at: "2026-04-04T00:00:00.000Z",
+            }),
+            error: null,
+          },
+        },
+      }) as never,
+    );
+
+    const insertQuery = {
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: buildCompetitionRow({
+          draft_revision: 9,
+          updated_at: "2026-04-04T00:00:00.000Z",
+        }),
+        error: null,
+      }),
+    };
+    insertQuery.select.mockImplementation(() => insertQuery);
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return {
+            insert: vi.fn(() => insertQuery),
+          };
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+      rpc: vi.fn().mockResolvedValue({
+        data: [{ machine_code: "operation_failed", selected_problem_count: 1, current_draft_revision: 9 }],
+        error: null,
+      }),
+    } as never);
+
+    const response = await POST(
+      makeCreateRequest(
+        buildScheduledCreatePayload({
+          selectedProblemIds: ["problem-1"],
+        }),
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.code).toBe("created");
+    expect(body.selectedProblemCount).toBe(1);
+    expect(body.currentDraftRevision).toBe(9);
+    expect(body.competition.draftRevision).toBe(9);
+    expect(body.competition.id).toBe("competition-1");
+  });
+
+  test("serializes modern scoring tokens before save and refreshes created draft", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeServerClient(["problem-1"], {
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: {
+            data: buildCompetitionRow(),
+            error: null,
+          },
+        },
+      }) as never,
+    );
+
+    let insertedPayload: Record<string, unknown> | null = null;
+    const insertQuery = {
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: buildCompetitionRow(),
+        error: null,
+      }),
+    };
+    insertQuery.select.mockImplementation(() => insertQuery);
+
+    const rpcMock = vi.fn().mockResolvedValue({
+      data: [{ machine_code: "ok", selected_problem_count: 1, current_draft_revision: 2 }],
+      error: null,
+    });
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return {
+            insert: vi.fn((payload: Record<string, unknown>) => {
+              insertedPayload = payload;
+              return insertQuery;
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+      rpc: rpcMock,
+    } as never);
+
+    const response = await POST(
+      makeCreateRequest(
+        buildScheduledCreatePayload({
+          selectedProblemIds: ["problem-1"],
+          scoringMode: "difficulty",
+          penaltyMode: "fixed_deduction",
+          deductionValue: 1,
+          tieBreaker: "lowest_total_time",
+        }),
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.code).toBe("created");
+    expect(insertedPayload?.scoring_mode).toBe("automatic");
+    expect(insertedPayload?.penalty_mode).toBe("deduction");
+    expect(insertedPayload?.tie_breaker).toBe("average_time");
+    expect(rpcMock).toHaveBeenCalledWith(
+      "save_competition_draft",
+      expect.objectContaining({
+        p_payload_json: expect.objectContaining({
+          scoringMode: "automatic",
+          penaltyMode: "deduction",
+          tieBreaker: "average_time",
+        }),
+      }),
+    );
+    expect(body.competition.status).toBe("draft");
+    expect(body.currentDraftRevision).toBe(2);
+  });
+
+  test("falls back to legacy competition select columns when primary post-save read returns no data", async () => {
     vi.mocked(createClient).mockResolvedValue(
       makeServerClient(["problem-1"], {
         competitionSelectResults: {
           [COMPETITION_SELECT_COLUMNS]: {
             data: null,
-            error: {
-              code: "42703",
-              message: 'column competitions.status does not exist',
-            },
+            error: null,
           },
           [LEGACY_COMPETITION_SELECT_COLUMNS]: {
             data: buildLegacyCompetitionRow(),
@@ -496,5 +799,239 @@ describe("POST /api/organizer/competitions", () => {
     expect(body.code).toBe("created");
     expect(body.competition.status).toBe("draft");
     expect(body.currentDraftRevision).toBe(2);
+  });
+
+  test("keeps created draft successful when post-save refresh is unavailable under schema drift", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeServerClient(["problem-1"], {
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: {
+            data: null,
+            error: {
+              code: "42703",
+              message: "column competitions.status does not exist",
+            },
+          },
+          [LEGACY_COMPETITION_SELECT_COLUMNS]: {
+            data: null,
+            error: null,
+          },
+        },
+      }) as never,
+    );
+
+    const insertQuery = {
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: buildCompetitionRow(),
+        error: null,
+      }),
+    };
+    insertQuery.select.mockImplementation(() => insertQuery);
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return {
+            insert: vi.fn(() => insertQuery),
+          };
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+      rpc: vi.fn().mockResolvedValue({
+        data: [{ machine_code: "ok", selected_problem_count: 1, current_draft_revision: 2 }],
+        error: null,
+      }),
+    } as never);
+
+    const response = await POST(
+      makeCreateRequest(
+        buildScheduledCreatePayload({
+          selectedProblemIds: ["problem-1"],
+        }),
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.code).toBe("created");
+    expect(body.competition.status).toBe("draft");
+    expect(body.currentDraftRevision).toBe(2);
+  });
+
+  test("re-reads created competition when save draft returns unshaped lifecycle payload", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeServerClient(["problem-1"], {
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: {
+            data: buildCompetitionRow({
+              draft_revision: 8,
+              updated_at: "2026-04-03T00:00:00.000Z",
+            }),
+            error: null,
+          },
+        },
+      }) as never,
+    );
+
+    const insertQuery = {
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: buildCompetitionRow(),
+        error: null,
+      }),
+    };
+    insertQuery.select.mockImplementation(() => insertQuery);
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return {
+            insert: vi.fn(() => insertQuery),
+          };
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+      rpc: vi.fn().mockResolvedValue({
+        data: [{ competition_id: "competition-1" }],
+        error: null,
+      }),
+    } as never);
+
+    const response = await POST(
+      makeCreateRequest(
+        buildScheduledCreatePayload({
+          selectedProblemIds: ["problem-1"],
+        }),
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.code).toBe("created");
+    expect(body.competition.status).toBe("draft");
+    expect(body.currentDraftRevision).toBe(8);
+    expect(body.selectedProblemCount).toBe(1);
+  });
+
+  test("falls back to inserted competition when post-save readback returns a generic database error", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeServerClient(["problem-1"], {
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: {
+            data: null,
+            error: {
+              code: "XX000",
+              message: "backend readback failure",
+            },
+          },
+        },
+      }) as never,
+    );
+
+    const insertQuery = {
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: buildCompetitionRow({
+          draft_revision: 9,
+          updated_at: "2026-04-04T00:00:00.000Z",
+        }),
+        error: null,
+      }),
+    };
+    insertQuery.select.mockImplementation(() => insertQuery);
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return {
+            insert: vi.fn(() => insertQuery),
+          };
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+      rpc: vi.fn().mockResolvedValue({
+        data: [{ machine_code: "operation_failed", selected_problem_count: 1, current_draft_revision: 9 }],
+        error: null,
+      }),
+    } as never);
+
+    const response = await POST(
+      makeCreateRequest(
+        buildScheduledCreatePayload({
+          selectedProblemIds: ["problem-1"],
+        }),
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.code).toBe("created");
+    expect(body.competition.id).toBe("competition-1");
+    expect(body.selectedProblemCount).toBe(1);
+    expect(body.currentDraftRevision).toBe(9);
+  });
+
+  test("returns database error when save draft returns a generic rpc error", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeServerClient(["problem-1"], {
+        competitionSelectResults: {
+          [COMPETITION_SELECT_COLUMNS]: {
+            data: buildCompetitionRow({
+              draft_revision: 9,
+              updated_at: "2026-04-04T00:00:00.000Z",
+            }),
+            error: null,
+          },
+        },
+      }) as never,
+    );
+
+    const insertQuery = {
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: buildCompetitionRow({
+          draft_revision: 9,
+          updated_at: "2026-04-04T00:00:00.000Z",
+        }),
+        error: null,
+      }),
+    };
+    insertQuery.select.mockImplementation(() => insertQuery);
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return {
+            insert: vi.fn(() => insertQuery),
+          };
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+      rpc: vi.fn().mockResolvedValue({
+        data: null,
+        error: {
+          code: "XX000",
+          message: "generic rpc failure",
+        },
+      }),
+    } as never);
+
+    const response = await POST(
+      makeCreateRequest(
+        buildScheduledCreatePayload({
+          selectedProblemIds: ["problem-1"],
+        }),
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body.code).toBe("operation_failed");
+    expect(body.message).toBe("Operation could not be completed.");
   });
 });

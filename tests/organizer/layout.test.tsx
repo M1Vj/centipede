@@ -68,18 +68,19 @@ describe("organizer layout navigation", () => {
       }),
     );
 
-    const nav = screen.getByRole("navigation");
-    expect(nav).toHaveClass("gap-x-3");
-    expect(nav).toHaveClass("gap-y-1");
+    const [shellNav] = screen.getAllByRole("navigation");
+    const nav = screen.getByRole("navigation", { name: "Organizer navigation" });
+    expect(shellNav).toHaveClass("rounded-full");
+    expect(nav).toHaveClass("gap-10");
+    expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open organizer navigation" })).toBeInTheDocument();
 
-    for (const label of ["Dashboard", "Problem Banks", "Competitions", "Profile", "Settings"]) {
+    for (const label of ["Dashboard", "Competitions", "Problembanks", "History", "Profile", "Settings"]) {
       expect(within(nav).getByRole("link", { name: label })).toBeInTheDocument();
     }
 
-    for (const link of within(nav).getAllByRole("link")) {
-      expect(link).toHaveClass("px-2");
-      expect(link).toHaveClass("py-1");
+    for (const label of ["Dashboard", "Competitions", "Problembanks", "History"]) {
+      expect(within(nav).getByRole("link", { name: label })).toHaveClass("font-semibold");
     }
 
     expect(client.mocks.from).toHaveBeenCalledWith("profiles");
@@ -95,7 +96,7 @@ describe("organizer layout navigation", () => {
       }),
     );
 
-    const nav = screen.getByRole("navigation");
+    const nav = screen.getByRole("navigation", { name: "Organizer navigation" });
     expect(within(nav).getByRole("link", { name: "Apply" })).toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Status" })).toBeInTheDocument();
     expect(within(nav).queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();

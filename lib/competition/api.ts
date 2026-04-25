@@ -50,19 +50,29 @@ export function isLegacyCompetitionSelectError(
   );
 }
 
+function toLegacyScoringMode(value: CompetitionDraftMutationPayload["scoringMode"]) {
+  return value === "custom" ? "custom" : "automatic";
+}
+
+function toLegacyPenaltyMode(value: CompetitionDraftMutationPayload["penaltyMode"]) {
+  return value === "fixed_deduction" ? "deduction" : "none";
+}
+
+function toLegacyTieBreaker(value: CompetitionDraftMutationPayload["tieBreaker"]) {
+  return value === "lowest_total_time" ? "average_time" : "earliest_submission";
+}
+
+export function buildCompetitionDraftRpcPayload(input: CompetitionDraftMutationPayload) {
+  return {
+    ...input,
+    customPoints: input.customPointsByProblemId,
+    scoringMode: toLegacyScoringMode(input.scoringMode),
+    penaltyMode: toLegacyPenaltyMode(input.penaltyMode),
+    tieBreaker: toLegacyTieBreaker(input.tieBreaker),
+  } as const;
+}
+
 export function buildLegacyCompetitionMutationPayload(input: CompetitionDraftMutationPayload) {
-  function toLegacyScoringMode(value: CompetitionDraftMutationPayload["scoringMode"]) {
-    return value === "custom" ? "custom" : "automatic";
-  }
-
-  function toLegacyPenaltyMode(value: CompetitionDraftMutationPayload["penaltyMode"]) {
-    return value === "fixed_deduction" ? "deduction" : "none";
-  }
-
-  function toLegacyTieBreaker(value: CompetitionDraftMutationPayload["tieBreaker"]) {
-    return value === "lowest_total_time" ? "average_time" : "earliest_submission";
-  }
-
   return {
     name: input.name,
     description: input.description,
@@ -159,22 +169,11 @@ function asLifecycleRecord(value: unknown): Record<string, unknown> | null {
     }
   }
 
-  const entries = Object.entries(record);
-  if (entries.length === 1) {
-    const onlyValue = entries[0][1];
-    const wrappedRecord = asRecord(onlyValue);
-    if (wrappedRecord) {
-      return wrappedRecord;
-    }
-
-    if (typeof onlyValue === "string") {
-      return {
-        machine_code: onlyValue,
-      };
-    }
-  }
-
   return record;
+}
+
+function hasExplicitLifecycleMachineCode(record: Record<string, unknown>): boolean {
+  return typeof record.machine_code === "string" || typeof record.machineCode === "string";
 }
 
 function normalizeLifecycleFiniteInt(value: unknown): number | null {
@@ -512,6 +511,10 @@ export function normalizeCompetitionBankRecord(row: unknown): CompetitionBankRec
 export function normalizeCompetitionLifecycleResult(row: unknown): CompetitionLifecycleResult | null {
   const record = asLifecycleRecord(row);
   if (!record) {
+    return null;
+  }
+
+  if (!hasExplicitLifecycleMachineCode(record)) {
     return null;
   }
 

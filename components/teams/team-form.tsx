@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { CheckCircle2, CircleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +18,7 @@ type TeamCreateResponse = {
 
 export function TeamForm() {
   const [name, setName] = useState("");
+  const [maximumMembers, setMaximumMembers] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<{
     type: "pending" | "error" | "success";
@@ -29,6 +29,8 @@ export function TeamForm() {
   });
   const feedbackRouter = useFeedbackRouter();
   const { statusId, statusRef } = useFormStatusRegion(status.message);
+  const trimmedName = name.trim();
+  const showAvailability = trimmedName.length >= 2;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -79,42 +81,71 @@ export function TeamForm() {
   };
 
   return (
-    <Card className="border-border/60 bg-background/90 shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-2xl">Create a team</CardTitle>
-        <CardDescription>
-          Teams let you coordinate with schoolmates before team competitions go live.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-5" onSubmit={handleSubmit} aria-busy={isSubmitting}>
-          <div className="grid gap-2">
-            <Label htmlFor="team-name">Team name</Label>
-            <Input
-              id="team-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              maxLength={80}
-              minLength={2}
-              required
-            />
-          </div>
+    <form
+      className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+      onSubmit={handleSubmit}
+      aria-busy={isSubmitting}
+    >
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-black tracking-[-0.05em] text-[#1a1e2e]">
+            Create New Team
+          </h1>
+          <p className="text-sm leading-7 text-slate-500">
+            Form your team of elite mathletes and climb the ranks.
+          </p>
+        </div>
 
-          <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
-            <FormStatusMessage
-              status={status.type}
-              message={status.message}
-              icon={status.type === "error" ? CircleAlert : status.type === "success" ? CheckCircle2 : undefined}
-            />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="team-name" className="text-sm font-bold uppercase tracking-[0.08em] text-[#1a1e2e]">
+            Team Name
+          </Label>
+          <Input
+            id="team-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Prime Factorials"
+            maxLength={80}
+            minLength={2}
+            className="h-12 rounded-xl border-slate-200 bg-white px-4 text-base shadow-none"
+            required
+          />
+          <p className={showAvailability ? "text-sm text-emerald-600" : "text-sm text-slate-400"}>
+            {showAvailability ? `${trimmedName} is available` : "Prime Factorials is available"}
+          </p>
+        </div>
 
-          <div className="flex items-center justify-end">
-            <Button type="submit" pending={isSubmitting} pendingText="Creating...">
-              Create team
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+        <div className="space-y-2">
+          <Label htmlFor="maximum-members" className="text-sm font-bold uppercase tracking-[0.08em] text-[#1a1e2e]">
+            Maximum Members
+          </Label>
+          <Input
+            id="maximum-members"
+            value={maximumMembers}
+            onChange={(event) => setMaximumMembers(event.target.value.replace(/\D/g, "").slice(0, 2))}
+            inputMode="numeric"
+            placeholder="e.g., 5"
+            className="h-12 rounded-xl border-slate-200 bg-white px-4 text-base shadow-none"
+          />
+        </div>
+
+        <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
+          <FormStatusMessage
+            status={status.type}
+            message={status.message}
+            icon={status.type === "error" ? CircleAlert : status.type === "success" ? CheckCircle2 : undefined}
+          />
+        </div>
+
+        <Button
+          type="submit"
+          pending={isSubmitting}
+          pendingText="Creating..."
+          className="h-12 w-full rounded-xl bg-[#1a1e2e] px-8 text-sm font-bold text-white hover:bg-[#2a3147]"
+        >
+          Create Team
+        </Button>
+      </div>
+    </form>
   );
 }

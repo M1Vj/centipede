@@ -78,6 +78,13 @@ Unblocks: leaderboards, history, notifications, recalculation, organizer dispute
 - answer-key and explanation rendering must use KaTeX from snapshotted LaTeX data (no alternate renderer)
 - dispute submission with explicit handoff state-machine semantics from `open` into organizer-owned `reviewing -> accepted | rejected | resolved` resolution in branch `14`
 
+## Figma UI Provenance
+
+- Source file URL: https://www.figma.com/design/cBQPJi1UVMFzrHlfsNPbsx/Mathwiz?node-id=1-125&t=wi7iD40k8rPMSyLH-1
+- Baseline nodes for migration effort: `1:125`, `45:2`, `62:5`, `164:2488`, `167:3350`.
+- Use baseline nodes as starting anchors; map branch-specific frames/components before implementation.
+- When implementing UI changes in this branch, verify frame coverage first; if no frame exists for page/state, document gap and use current design system tokens without inventing unsupported Figma details.
+
 ## Atomic Steps
 
 1. Build the review page and summary components using deterministic persisted-status counting, including untouched-question blank handling from the submit-lock contract.

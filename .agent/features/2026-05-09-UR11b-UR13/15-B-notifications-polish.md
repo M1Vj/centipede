@@ -114,6 +114,13 @@ Unblocks: `16-participant-monitoring` and release readiness.
 - validate notification deep-link targets against canonical internal-route allowlist; invalid links must degrade to `link_path = null` without dropping inbox delivery
 - apply cross-product UI consistency updates only where notification surfaces are touched
 
+## Figma UI Provenance
+
+- Source file URL: https://www.figma.com/design/cBQPJi1UVMFzrHlfsNPbsx/Mathwiz?node-id=1-125&t=wi7iD40k8rPMSyLH-1
+- Baseline nodes for migration effort: `1:125`, `45:2`, `62:5`, `164:2488`, `167:3350`.
+- Use baseline nodes as starting anchors; map branch-specific frames/components before implementation.
+- When implementing UI changes in this branch, verify frame coverage first; if no frame exists for page/state, document gap and use current design system tokens without inventing unsupported Figma details.
+
 ## Atomic Steps
 
 1. Implement `/notifications` and `/settings/notifications` route shells with deterministic loading, empty, and error states.

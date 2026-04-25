@@ -168,6 +168,54 @@ describe("lifecycle route legacy fallback compatibility", () => {
     });
   });
 
+  test.each([
+    {
+      name: "start",
+      handler: startCompetition,
+      current: makeCompetitionRow("published"),
+      refreshed: makeCompetitionRow("live"),
+      path: "start" as const,
+    },
+    {
+      name: "end",
+      handler: endCompetition,
+      current: makeCompetitionRow("live"),
+      refreshed: makeCompetitionRow("ended"),
+      path: "end" as const,
+    },
+    {
+      name: "archive",
+      handler: archiveCompetition,
+      current: makeCompetitionRow("ended"),
+      refreshed: makeCompetitionRow("archived"),
+      path: "archive" as const,
+    },
+  ])("$name route keeps target status when lifecycle RPC returns unshaped payload", async ({ handler, current, refreshed, path }) => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseClient([current, refreshed]) as never,
+    );
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: { ok: true },
+      error: null,
+    });
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc,
+      from: vi.fn(),
+    } as never);
+
+    const response = await handler(makeMutationRequest(path), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.competition.status).toBe(path === "start" ? "live" : path === "end" ? "ended" : "archived");
+    expect(body.lifecycle.machineCode).toBe("ok");
+  });
+
   test("start route falls back and persists transition when lifecycle RPC is unavailable", async () => {
     vi.mocked(createClient).mockResolvedValue(
       makeSupabaseClient([makeCompetitionRow("published"), makeCompetitionRow("live")]) as never,
@@ -351,6 +399,72 @@ describe("lifecycle route legacy fallback compatibility", () => {
       p_competition_id: COMPETITION_ID,
       p_request_idempotency_token: "idem-token-123",
     });
+  });
+
+  test.each([
+    {
+      name: "start",
+      handler: startCompetition,
+      current: makeCompetitionRow("published"),
+      refreshed: makeCompetitionRow("published"),
+      targetStatus: "live" as const,
+      rpcName: "start_competition",
+      rpcArgs: {
+        p_competition_id: COMPETITION_ID,
+        p_request_idempotency_token: "idem-token-123",
+      },
+    },
+    {
+      name: "end",
+      handler: endCompetition,
+      current: makeCompetitionRow("live"),
+      refreshed: makeCompetitionRow("live"),
+      targetStatus: "ended" as const,
+      rpcName: "end_competition",
+      rpcArgs: {
+        p_competition_id: COMPETITION_ID,
+        p_request_idempotency_token: "idem-token-123",
+        p_reason: "manual",
+        p_transition_source: "trusted_manual_action",
+      },
+    },
+    {
+      name: "archive",
+      handler: archiveCompetition,
+      current: makeCompetitionRow("ended"),
+      refreshed: makeCompetitionRow("ended"),
+      targetStatus: "archived" as const,
+      rpcName: "archive_competition",
+      rpcArgs: {
+        p_competition_id: COMPETITION_ID,
+        p_request_idempotency_token: "idem-token-123",
+      },
+    },
+  ])("$name route keeps target status when refresh returns stale row", async ({ handler, current, refreshed, targetStatus, rpcName, rpcArgs }) => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseClient([current, refreshed]) as never,
+    );
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: ["ok"],
+      error: null,
+    });
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc,
+      from: vi.fn(),
+    } as never);
+
+    const response = await handler(makeMutationRequest(targetStatus === "live" ? "start" : targetStatus === "ended" ? "end" : "archive"), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.competition.status).toBe(targetStatus);
+    expect(body.lifecycle.machineCode).toBe("ok");
+    expect(rpc).toHaveBeenCalledWith(rpcName, rpcArgs);
   });
 
   test("returns service unavailable when fallback cannot persist lifecycle state", async () => {

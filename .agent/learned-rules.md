@@ -37,6 +37,12 @@ If `.agent/` intentionally changes product behavior from earlier requirement ref
 ### 1.11
 External process-flow and schema artifacts are reference context only; resolve implementation text against current `.agent/` docs and current repository boundaries.
 
+### 1.12
+When integrating UI from Figma, document the exact design URL, node IDs, and the implemented pattern mapping in `.agent/PROJECT-OVERVIEW.md` during the same task so design-to-code provenance is auditable.
+
+### 1.13
+When writing PL/pgSQL functions that `RETURNS TABLE` or otherwise expose output parameters, qualify table references inside DML and counts with table aliases whenever output-column names match table columns. Unqualified `where competition_id = ...` style predicates can bind to function output parameters first and trigger 42702 ambiguity.
+
 ## 2. Product Rules
 
 ### 2.1
@@ -106,6 +112,15 @@ Competition create and post-save refresh paths must apply the same legacy-column
 
 ### 3.14
 Competition mutation routes must use the same legacy competition-read fallback as organizer pages, not just create flow. Publish/save/delete can succeed or partially succeed on older schemas while the follow-up modern read fails; compatibility reads and delete fallbacks must turn those cases into deterministic success or explicit `service_unavailable`, never generic `operation_failed`.
+
+### 3.15
+Organizer competition create and save paths must serialize scoring, penalty, and tie-breaker values to database enum tokens before hitting insert/update RPCs. UI/domain tokens remain the API contract, but raw `difficulty`, `fixed_deduction`, and `lowest_total_time` values cannot be sent directly to lifecycle SQL that still casts legacy enum names.
+
+### 3.16
+`save_competition_draft` still reads `customPoints`, so `buildCompetitionDraftRpcPayload` must forward `customPoints: customPointsByProblemId` alongside the existing field shape. Dropping that alias regresses draft save compatibility even when UI state is valid.
+
+### 3.17
+Lifecycle RPC normalization must not invent `operation_failed` when payload lacks explicit `machine_code` / `machineCode`. Treat unshaped objects as unknown so organizer routes can fall back to readback success instead of surfacing false failure states.
 
 ## 4. Workflow Rules
 
