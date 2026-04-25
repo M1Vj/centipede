@@ -123,6 +123,21 @@ describe("CompetitionCardGrid delete flow", () => {
     });
     expect(screen.queryByText("Draft Competition")).not.toBeInTheDocument();
   });
+
+  test("links published competition management to participants UI", () => {
+    render(
+      <CompetitionCardGrid
+        competitions={[
+          buildCompetition("published", { id: "published-competition", name: "Published Competition" }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: /manage/i })).toHaveAttribute(
+      "href",
+      "/organizer/competition/published-competition/participants",
+    );
+  });
 });
 
 describe("CompetitionCardGrid scheduled lifecycle refresh", () => {

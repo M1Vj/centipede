@@ -208,7 +208,7 @@ function CompetitionCard({
         {isUpcoming && (
           <>
             <ProgressLink
-              href={`/organizer/competition/${competition.id}`}
+              href={`/organizer/competition/${competition.id}/participants`}
               className="flex-1 bg-slate-100 hover:bg-slate-200 text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2"
             >
               <Settings className="w-4 h-4" /> Manage

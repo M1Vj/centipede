@@ -64,3 +64,26 @@ export type RegistrationDetail = RegistrationSummary & {
   updated_at: string | null;
   competition: RegistrationCompetitionSummary | null;
 };
+
+export type OrganizerRegistrationRosterMember = {
+  profileId: string | null;
+  fullName: string;
+  school: string | null;
+  gradeLevel: string | null;
+  role: string | null;
+};
+
+export type OrganizerRegistrationDetail = {
+  id: string;
+  competitionId: string;
+  profileId: string | null;
+  teamId: string | null;
+  participantType: "individual" | "team";
+  displayName: string;
+  subtitle: string | null;
+  status: RegistrationStatus;
+  statusReason: string | null;
+  registeredAt: string | null;
+  updatedAt: string | null;
+  roster: OrganizerRegistrationRosterMember[];
+};

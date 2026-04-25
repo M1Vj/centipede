@@ -8,6 +8,7 @@ import {
 import type { CompetitionRecord } from "@/lib/competition/types";
 import type {
   RegistrationDetail,
+  OrganizerRegistrationDetail,
   RegistrationRow,
   RegistrationRpcResult,
   RegistrationStatus,
@@ -15,6 +16,12 @@ import type {
   TeamRegistrationValidationResult,
   WithdrawRegistrationResult,
 } from "@/lib/registrations/types";
+import {
+  ORGANIZER_REGISTRATION_FALLBACK_SELECT_COLUMNS,
+  ORGANIZER_REGISTRATION_SELECT_COLUMNS,
+  normalizeOrganizerRegistrationRow,
+  type OrganizerRegistrationSourceRow,
+} from "@/lib/registrations/organizer";
 
 const REGISTRATION_SELECT_COLUMNS =
   "id, competition_id, profile_id, team_id, status, status_reason, entry_snapshot_json, registered_at, updated_at";
@@ -62,6 +69,21 @@ function isMissingRegistrationTable(error: SupabaseError | null | undefined) {
     error.code === "42P01" ||
     error.code === "42703" ||
     message.includes("competition_registrations")
+  );
+}
+
+function isMissingRegistrationEmbed(error: SupabaseError | null | undefined) {
+  if (!error) {
+    return false;
+  }
+
+  const message = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
+  return (
+    error.code === "PGRST200" ||
+    error.code === "PGRST201" ||
+    message.includes("relationship") ||
+    message.includes("profiles") ||
+    message.includes("teams")
   );
 }
 
@@ -370,6 +392,51 @@ export async function listMyRegistrationDetails(input: {
         : null,
     };
   });
+}
+
+export async function listOrganizerCompetitionRegistrations(input: {
+  competitionId: string;
+}): Promise<OrganizerRegistrationDetail[]> {
+  const supabase = await createClient();
+  const query = supabase
+    .from("competition_registrations")
+    .select(ORGANIZER_REGISTRATION_SELECT_COLUMNS)
+    .eq("competition_id", input.competitionId)
+    .order("registered_at", { ascending: false });
+
+  const { data, error } = await query;
+
+  if (error) {
+    if (isMissingRegistrationEmbed(error as SupabaseError)) {
+      const fallbackResult = await supabase
+        .from("competition_registrations")
+        .select(ORGANIZER_REGISTRATION_FALLBACK_SELECT_COLUMNS)
+        .eq("competition_id", input.competitionId)
+        .order("registered_at", { ascending: false });
+
+      if (fallbackResult.error) {
+        if (isMissingRegistrationTable(fallbackResult.error as SupabaseError)) {
+          return [];
+        }
+
+        throw new Error(fallbackResult.error.message);
+      }
+
+      return ((fallbackResult.data ?? []) as OrganizerRegistrationSourceRow[])
+        .map((row) => normalizeOrganizerRegistrationRow(row))
+        .filter((row): row is OrganizerRegistrationDetail => row !== null);
+    }
+
+    if (isMissingRegistrationTable(error as SupabaseError)) {
+      return [];
+    }
+
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as OrganizerRegistrationSourceRow[])
+    .map((row) => normalizeOrganizerRegistrationRow(row))
+    .filter((row): row is OrganizerRegistrationDetail => row !== null);
 }
 
 export async function fetchTeamRegistrations(input: {
