@@ -126,8 +126,7 @@ async function fetchOrganizerRegistrationCounts(input: {
     return registrationCounts;
   }
 
-  const countClient = hasAdminEnvVars ? createAdminClient() ?? input.supabase : input.supabase;
-  const registrationsResult = await countClient
+  const registrationsResult = await input.supabase
     .from("competition_registrations")
     .select("competition_id, status")
     .in("competition_id", input.competitionIds)

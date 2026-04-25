@@ -370,13 +370,13 @@ export function MathleteDashboardOverview({
                           className="h-11 rounded-full bg-[#f49700] px-5 text-sm font-bold text-white hover:bg-[#e68b00]"
                         >
                           <ProgressLink href={card.href} className="inline-flex items-center gap-2">
-                            Register
+                            View details
                             <ArrowRight className="size-4" />
                           </ProgressLink>
                         </Button>
                       ) : (
                         <div className="inline-flex h-11 items-center justify-center rounded-full bg-[#f49700] px-5 text-sm font-bold text-white">
-                          Register
+                          View details
                           <ArrowRight className="ml-2 size-4" />
                         </div>
                       )}
