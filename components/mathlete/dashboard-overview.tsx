@@ -40,83 +40,24 @@ export type MathleteActivityItem = {
   timestampLabel: string;
 };
 
+export type MathleteRegistrationCard = {
+  id: string;
+  title: string;
+  status: string;
+  format: string;
+  dateLabel: string;
+  registeredLabel: string;
+  href: string;
+};
+
 type MathleteDashboardOverviewProps = {
   displayName: string;
   profileComplete: boolean;
   liveCards: MathleteLiveCard[];
   upcomingCards: MathleteUpcomingCard[];
+  registrationCards: MathleteRegistrationCard[];
   activityItems: MathleteActivityItem[];
 };
-
-const fallbackLiveCards: MathleteLiveCard[] = [
-  {
-    id: "live-1",
-    title: "2024 National Math Olympiad",
-    mode: "Individual",
-    enrolled: "428 enrolled",
-    action: "Enter Arena",
-  },
-  {
-    id: "live-2",
-    title: "2024 National Math Olympiad",
-    mode: "Individual",
-    enrolled: "428 enrolled",
-    action: "Resume",
-  },
-];
-
-const fallbackUpcomingCards: MathleteUpcomingCard[] = [
-  {
-    id: "upcoming-1",
-    title: "Algebraic Geometry Sprint 2026",
-    type: "Team (3-4)",
-    dateLabel: "Oct 24, 2026",
-    timestamp: "2026-10-24T09:00:00.000Z",
-    countdown: { days: "02", hours: "14", minutes: "30" },
-  },
-  {
-    id: "upcoming-2",
-    title: "Combinatorics Clash 2026",
-    type: "Individual",
-    dateLabel: "Nov 02, 2026",
-    timestamp: "2026-11-02T09:00:00.000Z",
-    countdown: { days: "11", hours: "08", minutes: "12" },
-  },
-  {
-    id: "upcoming-3",
-    title: "Euler Marathon",
-    type: "Individual",
-    dateLabel: "Nov 14, 2026",
-    timestamp: "2026-11-14T09:00:00.000Z",
-    countdown: { days: "18", hours: "03", minutes: "42" },
-  },
-  {
-    id: "upcoming-4",
-    title: "Vector Relay",
-    type: "Team (2-5)",
-    dateLabel: "Nov 27, 2026",
-    timestamp: "2026-11-27T09:00:00.000Z",
-    countdown: { days: "29", hours: "21", minutes: "09" },
-  },
-];
-
-const fallbackActivityItems: MathleteActivityItem[] = [
-  {
-    id: "activity-1",
-    message: "Your registration for Algebraic Geometry Sprint was successful.",
-    timestampLabel: "2 minutes ago",
-  },
-  {
-    id: "activity-2",
-    message: "Your team workspace is synced and ready for new invites.",
-    timestampLabel: "Today",
-  },
-  {
-    id: "activity-3",
-    message: "Finish your profile to unlock a cleaner team matchmaking flow.",
-    timestampLabel: "Just now",
-  },
-];
 
 function CountdownCell({
   label,
@@ -215,11 +156,12 @@ export function MathleteDashboardOverview({
   profileComplete,
   liveCards,
   upcomingCards,
+  registrationCards,
   activityItems,
 }: MathleteDashboardOverviewProps) {
-  const resolvedLiveCards = liveCards.length > 0 ? liveCards : fallbackLiveCards;
-  const resolvedUpcomingCards = upcomingCards.length > 0 ? upcomingCards : fallbackUpcomingCards;
-  const resolvedActivityItems = activityItems.length > 0 ? activityItems : fallbackActivityItems;
+  const resolvedLiveCards = liveCards;
+  const resolvedUpcomingCards = upcomingCards;
+  const resolvedActivityItems = activityItems;
   const { monthLabel, rows, selectedDay, accentDays } = buildCalendarRows(resolvedUpcomingCards);
   const nextEvent = resolvedUpcomingCards[0];
 
@@ -248,9 +190,9 @@ export function MathleteDashboardOverview({
             detail="Active competitions in your orbit."
           />
           <MetricCard
-            label="Upcoming"
-            value={String(resolvedUpcomingCards.length).padStart(2, "0")}
-            detail="Published events worth planning for."
+            label="Registered"
+            value={String(registrationCards.length).padStart(2, "0")}
+            detail="Competitions on your roster."
           />
           <MetricCard
             label="Profile"
@@ -270,7 +212,7 @@ export function MathleteDashboardOverview({
               </h2>
             </div>
             <div className="grid gap-5 md:grid-cols-2">
-              {resolvedLiveCards.map((card) => (
+              {resolvedLiveCards.length > 0 ? resolvedLiveCards.map((card) => (
                 <article
                   key={card.id}
                   className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_16px_36px_-28px_rgba(15,23,42,0.2)] transition-all hover:-translate-y-1 hover:shadow-[0_24px_44px_-28px_rgba(15,23,42,0.28)]"
@@ -320,7 +262,66 @@ export function MathleteDashboardOverview({
                     )}
                   </div>
                 </article>
-              ))}
+              )) : (
+                <div className="rounded-[2rem] border border-dashed border-slate-200 bg-white p-6 text-sm font-medium text-slate-500 md:col-span-2">
+                  No registered competitions are live right now.
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section id="registrations" className="scroll-mt-28 space-y-5">
+            <div className="flex items-end justify-between gap-3">
+              <h2 className="text-[22px] font-black uppercase tracking-[0.08em] text-[#1a1e2e]">
+                My registrations
+              </h2>
+              <span className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">
+                {registrationCards.length} tracked
+              </span>
+            </div>
+            <div className="grid gap-5 md:grid-cols-2">
+              {registrationCards.length > 0 ? registrationCards.map((card) => (
+                <article
+                  key={card.id}
+                  className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_16px_36px_-28px_rgba(15,23,42,0.2)]"
+                >
+                  <div className="space-y-3">
+                    <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">
+                      {card.status}
+                    </span>
+                    <h3 className="text-[1.25rem] font-black leading-tight tracking-[-0.03em] text-[#1a1e2e]">
+                      {card.title}
+                    </h3>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap items-center gap-4 text-[12px] font-medium text-slate-500">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Users2 className="size-3.5" />
+                      {card.format}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <CalendarDays className="size-3.5" />
+                      {card.dateLabel}
+                    </span>
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-5">
+                    <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      {card.registeredLabel}
+                    </span>
+                    <Button
+                      asChild
+                      className="h-10 rounded-full bg-[#1a1e2e] px-5 text-sm font-bold text-white hover:bg-[#0f121a]"
+                    >
+                      <ProgressLink href={card.href}>View details</ProgressLink>
+                    </Button>
+                  </div>
+                </article>
+              )) : (
+                <div className="rounded-[2rem] border border-dashed border-slate-200 bg-white p-6 text-sm font-medium text-slate-500 md:col-span-2">
+                  Registered competitions will appear here after you join an event.
+                </div>
+              )}
             </div>
           </section>
 
@@ -334,7 +335,7 @@ export function MathleteDashboardOverview({
               </span>
             </div>
             <div className="grid gap-5 md:grid-cols-2">
-              {resolvedUpcomingCards.map((card) => (
+              {resolvedUpcomingCards.length > 0 ? resolvedUpcomingCards.map((card) => (
                 <article
                   key={card.id}
                   className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_16px_36px_-28px_rgba(15,23,42,0.2)] transition-all hover:-translate-y-1 hover:shadow-[0_24px_44px_-28px_rgba(15,23,42,0.28)]"
@@ -382,7 +383,11 @@ export function MathleteDashboardOverview({
                     </div>
                   </div>
                 </article>
-              ))}
+              )) : (
+                <div className="rounded-[2rem] border border-dashed border-slate-200 bg-white p-6 text-sm font-medium text-slate-500 md:col-span-2">
+                  Registered upcoming competitions will appear here.
+                </div>
+              )}
             </div>
           </section>
         </div>
@@ -462,7 +467,7 @@ export function MathleteDashboardOverview({
             </div>
 
             <div className="mt-6 space-y-5">
-              {resolvedActivityItems.map((item, index) => (
+              {resolvedActivityItems.length > 0 ? resolvedActivityItems.map((item, index) => (
                 <div key={item.id} className="flex gap-4">
                   <div
                     className={[
@@ -486,7 +491,11 @@ export function MathleteDashboardOverview({
                     </p>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <p className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-500">
+                  Your registration history will appear after you join a competition.
+                </p>
+              )}
             </div>
 
             <div className="mt-8 rounded-[1.5rem] bg-[#fafafb] p-4">
