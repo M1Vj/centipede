@@ -8,6 +8,7 @@ import {
   loadArenaPageData,
   saveArenaAnswer,
   startCompetitionAttempt,
+  startOpenCompetitionAttempt,
 } from "@/lib/arena/server";
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -19,6 +20,7 @@ vi.mock("@/lib/arena/server", () => ({
   loadArenaPageData: vi.fn(),
   saveArenaAnswer: vi.fn(),
   startCompetitionAttempt: vi.fn(),
+  startOpenCompetitionAttempt: vi.fn(),
 }));
 
 const MATHLETE_ID = "mathlete-1";
@@ -212,5 +214,53 @@ describe("arena mutation routes", () => {
     expect(response.status).toBe(200);
     expect(body.machineCode).toBe("ok");
     expect(loadArenaPageData).toHaveBeenCalledWith(COMPETITION_ID, MATHLETE_ID);
+  });
+
+  test("start route opens open competitions without a registration id", async () => {
+    vi.mocked(createClient).mockResolvedValue(makeMathleteClient() as never);
+    vi.mocked(startOpenCompetitionAttempt).mockResolvedValue({
+      machine_code: "ok",
+    } as never);
+    vi.mocked(loadArenaPageData).mockResolvedValue({
+      mode: "arena_runtime",
+      competition: {
+        id: COMPETITION_ID,
+        name: "Open Arena",
+        description: "",
+        instructions: "",
+        type: "open",
+        format: "individual",
+        status: "published",
+        registrationStart: null,
+        registrationEnd: null,
+        startTime: null,
+        endTime: null,
+        durationMinutes: 60,
+        attemptsAllowed: 3,
+        participantsPerTeam: null,
+      },
+      registration: null,
+      activeAttempt: null,
+      latestAttempt: null,
+      problems: [],
+      eligibleTeams: [],
+      attemptsRemaining: 2,
+      canRegister: false,
+      canResume: false,
+      nowIso: "2026-04-22T12:00:00.000Z",
+    } as never);
+
+    const response = await startRoute(
+      makeMutationRequest(`/api/mathlete/competition/${COMPETITION_ID}/start`, {}),
+      {
+        params: Promise.resolve({ competitionId: COMPETITION_ID }),
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.machineCode).toBe("ok");
+    expect(startCompetitionAttempt).not.toHaveBeenCalled();
+    expect(startOpenCompetitionAttempt).toHaveBeenCalledWith(COMPETITION_ID, MATHLETE_ID);
   });
 });

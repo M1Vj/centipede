@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import { getWorkspaceContext as getProtectedWorkspaceContext } from "@/lib/auth/workspace";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { hasAdminEnvVars } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
 
@@ -115,6 +117,43 @@ function mapActivityTone(eventType: string | null): OrganizerActivityItem["tone"
   return "default";
 }
 
+async function fetchOrganizerRegistrationCounts(input: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  competitionIds: string[];
+}) {
+  const registrationCounts = new Map<string, number>();
+  if (input.competitionIds.length === 0) {
+    return registrationCounts;
+  }
+
+  const registrationsResult = await input.supabase
+    .from("competition_registrations")
+    .select("competition_id, status")
+    .in("competition_id", input.competitionIds)
+    .eq("status", "registered");
+
+  if (!registrationsResult.error) {
+    ((registrationsResult.data as RegistrationRow[] | null) ?? []).forEach((row) => {
+      if (!row.competition_id) {
+        return;
+      }
+
+      registrationCounts.set(
+        row.competition_id,
+        (registrationCounts.get(row.competition_id) ?? 0) + 1,
+      );
+    });
+
+    return registrationCounts;
+  }
+
+  if (isMissingRegistrationSchema(registrationsResult.error)) {
+    return registrationCounts;
+  }
+
+  throw registrationsResult.error;
+}
+
 async function OrganizerPageContent() {
   const { userEmail, profile } = await getWorkspaceContext();
   const supabase = await createClient();
@@ -183,29 +222,12 @@ async function OrganizerPageContent() {
       ).length;
 
       const competitionIds = competitions.map((competition) => competition.id);
-      const registrationCounts = new Map<string, number>();
+      const registrationCounts = await fetchOrganizerRegistrationCounts({
+        supabase,
+        competitionIds,
+      });
 
       if (competitionIds.length > 0) {
-        const registrationsResult = await supabase
-          .from("competition_registrations")
-          .select("competition_id, status")
-          .in("competition_id", competitionIds);
-
-        if (!registrationsResult.error) {
-          ((registrationsResult.data as RegistrationRow[] | null) ?? []).forEach((row) => {
-            if (!row.competition_id || row.status === "withdrawn" || row.status === "cancelled") {
-              return;
-            }
-
-            registrationCounts.set(
-              row.competition_id,
-              (registrationCounts.get(row.competition_id) ?? 0) + 1,
-            );
-          });
-        } else if (!isMissingRegistrationSchema(registrationsResult.error)) {
-          throw registrationsResult.error;
-        }
-
         totalRegisteredParticipants = Array.from(registrationCounts.values()).reduce(
           (sum, count) => sum + count,
           0,
@@ -214,6 +236,7 @@ async function OrganizerPageContent() {
         const lifecycleResult = await supabase
           .from("competition_events")
           .select("id, event_type, happened_at, competition_id(name)")
+          .in("competition_id", competitionIds)
           .order("happened_at", { ascending: false })
           .limit(4);
 

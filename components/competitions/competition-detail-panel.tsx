@@ -26,12 +26,32 @@ function formatCapacityLabel(competition: DiscoverableCompetition) {
   return competition.maxParticipants ? `${competition.maxParticipants} participants` : "Participant capacity";
 }
 
+function formatRegistrationStartFallback(competition: DiscoverableCompetition) {
+  if (
+    competition.type === "scheduled" &&
+    !competition.registrationStart &&
+    (competition.registrationEnd || competition.startTime)
+  ) {
+    return "Upon publication";
+  }
+
+  return "TBD";
+}
+
+function getEffectiveRegistrationEnd(competition: DiscoverableCompetition) {
+  if (competition.type === "scheduled") {
+    return competition.registrationEnd ?? competition.startTime;
+  }
+
+  return competition.registrationEnd;
+}
+
 export function CompetitionDetailPanel({ competition }: CompetitionDetailPanelProps) {
   return (
     <section className="space-y-6">
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.25)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Overview</p>
-        <h2 className="mt-2 text-2xl font-semibold text-[#1a1e2e]">
+      <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Overview</p>
+        <h2 className="mt-2 text-2xl font-black text-[#0f1c2c]">
           {competition.name || "Untitled competition"}
         </h2>
         <p className="mt-3 text-sm leading-7 text-slate-500">
@@ -67,20 +87,21 @@ export function CompetitionDetailPanel({ competition }: CompetitionDetailPanelPr
         </div>
       </div>
 
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.25)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Rules</p>
+      <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Rules</p>
         <p className="mt-3 text-sm leading-7 text-slate-500">
           {competition.instructions || "Rules and instructions will be shared here."}
         </p>
       </div>
 
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.25)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Schedule</p>
+      <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Schedule</p>
         <div className="mt-3 grid gap-3 text-sm text-slate-500">
           <div className="flex items-center justify-between">
             <span>Registration opens</span>
             <LocalDateTime
               value={competition.registrationStart}
+              fallback={formatRegistrationStartFallback(competition)}
               options={{
                 month: "short",
                 day: "numeric",
@@ -93,7 +114,7 @@ export function CompetitionDetailPanel({ competition }: CompetitionDetailPanelPr
           <div className="flex items-center justify-between">
             <span>Registration closes</span>
             <LocalDateTime
-              value={competition.registrationEnd}
+              value={getEffectiveRegistrationEnd(competition)}
               options={{
                 month: "short",
                 day: "numeric",
