@@ -26,6 +26,11 @@ type LeaderTeam = {
   teamCode: string;
 };
 
+type ActiveMembershipRow = {
+  team_id: string | null;
+  role: string | null;
+};
+
 type RegistrationRow = {
   id: string;
   competition_id: string;
@@ -160,14 +165,23 @@ export default async function CompetitionDetailPage({
         }
       : null;
 
-  const { data: leaderMemberships } = await supabase
+  const { data: activeMemberships } = await supabase
     .from("team_memberships")
-    .select("team_id")
+    .select("team_id, role")
     .eq("profile_id", profile.id)
-    .eq("role", "leader")
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .returns<ActiveMembershipRow[]>();
 
-  const leaderTeamIds = (leaderMemberships ?? [])
+  const activeTeamIds = Array.from(
+    new Set(
+      (activeMemberships ?? [])
+        .map((row) => row.team_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  );
+
+  const leaderTeamIds = (activeMemberships ?? [])
+    .filter((row) => row.role === "leader")
     .map((row) => row.team_id)
     .filter((id): id is string => typeof id === "string" && id.length > 0);
 
@@ -187,12 +201,12 @@ export default async function CompetitionDetailPage({
     : [];
 
   let teamRegistrations: RegistrationSummary[] = [];
-  if (leaderTeamIds.length > 0) {
+  if (activeTeamIds.length > 0) {
     const teamRegResult = await supabase
       .from("competition_registrations")
       .select("id, competition_id, team_id, status, status_reason")
       .eq("competition_id", competition.id)
-      .in("team_id", leaderTeamIds);
+      .in("team_id", activeTeamIds);
 
     if (teamRegResult.error) {
       if (!isMissingRegistrationSchema(teamRegResult.error)) {

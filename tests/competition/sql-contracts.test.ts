@@ -34,6 +34,10 @@ const START_COMPETITION_EFFECTIVE_MIGRATION_PATH = join(
   process.cwd(),
   "supabase/migrations/20260422105000_08_fix_start_competition_status_return.sql",
 );
+const TEAM_REGISTRATION_MEMBERSHIP_INTEGRITY_MIGRATION_PATH = join(
+  process.cwd(),
+  "supabase/migrations/20260429113000_harden_team_registration_membership_integrity.sql",
+);
 
 describe("competition sql contracts", () => {
   test("start_competition qualifies event lookup columns to avoid output-parameter ambiguity", () => {
@@ -136,6 +140,31 @@ describe("competition sql contracts", () => {
     expect(sql).toContain("where tm.team_id = p_team_id");
     expect(sql).toContain("pg_get_functiondef('public.register_for_competition(uuid, uuid, text)'::regprocedure)");
     expect(sql).toContain("v_existing_registration := found");
+  });
+
+  test("validate_team_registration blocks members already registered through another active team", () => {
+    const sql = readFileSync(VALIDATE_TEAM_REGISTRATION_MIGRATION_PATH, "utf8");
+
+    expect(sql).toContain("join public.team_memberships tm_other");
+    expect(sql).toContain("on tm_other.profile_id = tm.profile_id");
+    expect(sql).toContain("and tm_other.is_active = true");
+    expect(sql).toContain("and tm_other.team_id <> p_team_id");
+    expect(sql).toContain("join public.competition_registrations cr");
+    expect(sql).toContain("and cr.competition_id = p_competition_id");
+    expect(sql).toContain("and cr.status = 'registered'::public.registration_status");
+    expect(sql).toContain("return query select 'team_member_conflict'");
+  });
+
+  test("team memberships cannot be deactivated or deleted during an active team registration", () => {
+    const sql = readFileSync(TEAM_REGISTRATION_MEMBERSHIP_INTEGRITY_MIGRATION_PATH, "utf8");
+
+    expect(sql).toContain("create or replace function public.team_has_active_competition_registration");
+    expect(sql).toContain("cr.status = 'registered'::public.registration_status");
+    expect(sql).toContain("c.format = 'team'::public.competition_format");
+    expect(sql).toContain("c.status in (");
+    expect(sql).toContain("create or replace function public.prevent_active_registration_roster_mutation");
+    expect(sql).toContain("before update or delete on public.team_memberships");
+    expect(sql).toContain("active_team_registration_roster_locked");
   });
 
   test("end_competition qualifies event lookup and returning status columns", () => {

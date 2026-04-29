@@ -71,20 +71,46 @@ export function CompetitionRegistrationPanel({
   const { statusId, statusRef } = useFormStatusRegion(status.message);
   const router = useRouter();
 
+  const selectedTeamRegistration = useMemo(() => {
+    if (competition.format !== "team") {
+      return null;
+    }
+
+    return teamRegistrations.find((registration) => registration.team_id === selectedTeamId) ?? null;
+  }, [competition.format, teamRegistrations, selectedTeamId]);
+
+  const existingTeamRegistration = useMemo(() => {
+    if (competition.format !== "team") {
+      return null;
+    }
+
+    return (
+      teamRegistrations.find((registration) => registration.status === "registered") ??
+      selectedTeamRegistration
+    );
+  }, [competition.format, selectedTeamRegistration, teamRegistrations]);
+
   const activeRegistration = useMemo(() => {
     if (competition.format === "individual") {
       return individualRegistration;
     }
 
-    return teamRegistrations.find((registration) => registration.team_id === selectedTeamId) ?? null;
-  }, [competition.format, individualRegistration, teamRegistrations, selectedTeamId]);
+    return selectedTeamRegistration ?? existingTeamRegistration ?? null;
+  }, [competition.format, individualRegistration, selectedTeamRegistration, existingTeamRegistration]);
 
   const registrationStatusMessage = resolveRegistrationStatusMessage(activeRegistration);
-  const canWithdraw = activeRegistration?.status === "registered";
-  const canRegister = !activeRegistration || activeRegistration.status !== "registered";
   const shouldSelectTeam = competition.format === "team";
   const showTeamSelector = shouldSelectTeam && leaderTeams.length > 0;
   const selectedTeam = leaderTeams.find((team) => team.id === selectedTeamId) ?? null;
+  const leaderTeamIds = useMemo(() => new Set(leaderTeams.map((team) => team.id)), [leaderTeams]);
+  const canWithdraw =
+    activeRegistration?.status === "registered" &&
+    (competition.format === "individual" ||
+      (activeRegistration.team_id !== null && leaderTeamIds.has(activeRegistration.team_id)));
+  const canRegister =
+    competition.format === "individual"
+      ? !activeRegistration || activeRegistration.status !== "registered"
+      : existingTeamRegistration?.status !== "registered";
 
   const submitRegister = async () => {
     if (isSubmitting) {

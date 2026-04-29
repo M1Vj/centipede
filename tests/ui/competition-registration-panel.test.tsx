@@ -126,4 +126,33 @@ describe("CompetitionRegistrationPanel", () => {
       teamId: "team-2",
     });
   });
+
+  test("blocks registering another team when already registered through any active team", () => {
+    render(
+      <CompetitionRegistrationPanel
+        competition={buildCompetition("team")}
+        individualRegistration={null}
+        teamRegistrations={[
+          {
+            id: "registration-1",
+            competition_id: "competition-1",
+            team_id: "team-registered",
+            status: "registered",
+            status_reason: null,
+          },
+        ]}
+        leaderTeams={[
+          {
+            id: "team-other",
+            name: "Other Team",
+            teamCode: "OT",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("You are registered for this competition.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Register now" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Withdraw" })).toBeDisabled();
+  });
 });
