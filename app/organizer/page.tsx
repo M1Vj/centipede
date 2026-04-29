@@ -1,9 +1,6 @@
 import { Suspense } from "react";
 import { getWorkspaceContext as getProtectedWorkspaceContext } from "@/lib/auth/workspace";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { hasAdminEnvVars } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
-
 
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { OrganizerKpiGrid } from "@/components/dashboard/organizer-kpi-grid";

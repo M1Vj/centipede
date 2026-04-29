@@ -387,6 +387,7 @@ export async function listMyRegistrationDetails(input: {
             format: competition.format,
             status: competition.status,
             startTime: competition.startTime,
+            endTime: competition.endTime,
             registrationStart: competition.registrationStart,
           }
         : null,

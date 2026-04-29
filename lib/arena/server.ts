@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeCompetitionRecord } from "@/lib/competition/api";
+import { endDueScheduledCompetitionsSafely } from "@/lib/competition/scheduled-start";
 import type { CompetitionRecord } from "@/lib/competition/types";
 import type { ProblemType } from "@/lib/problem-bank/types";
 import {
@@ -632,6 +633,8 @@ export async function submitCompetitionAttempt(attemptId: string, actorUserId: s
 }
 
 export async function syncAttemptStateForClient(competitionId: string, actorUserId: string) {
+  await endDueScheduledCompetitionsSafely();
+
   const pageData = await loadArenaPageData(competitionId, actorUserId);
   if (!pageData) {
     return null;
@@ -643,6 +646,7 @@ export async function syncAttemptStateForClient(competitionId: string, actorUser
     pageData.activeAttempt.status === "in_progress"
   ) {
     await submitCompetitionAttempt(pageData.activeAttempt.id, actorUserId, "auto");
+    await endDueScheduledCompetitionsSafely();
     return loadArenaPageData(competitionId, actorUserId);
   }
 

@@ -56,6 +56,7 @@ export type RegistrationCompetitionSummary = {
   format: "individual" | "team";
   status: string;
   startTime: string | null;
+  endTime: string | null;
   registrationStart: string | null;
 };
 

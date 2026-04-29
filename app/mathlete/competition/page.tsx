@@ -8,7 +8,7 @@ import {
   fetchDiscoverableCompetitions,
   parseCompetitionSearchParams,
 } from "@/lib/competition/discovery";
-import { startDueScheduledCompetitionsSafely } from "@/lib/competition/scheduled-start";
+import { runDueScheduledCompetitionLifecycleSafely } from "@/lib/competition/scheduled-start";
 import { listMyRegistrations } from "@/lib/registrations/api";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,7 +21,7 @@ export default async function CompetitionDiscoveryPage({
   const supabase = await createClient();
   const resolvedSearchParams = await searchParams;
 
-  await startDueScheduledCompetitionsSafely();
+  await runDueScheduledCompetitionLifecycleSafely();
 
   const { filters, page, pageSize } = parseCompetitionSearchParams(resolvedSearchParams ?? {});
   const result = await fetchDiscoverableCompetitions(supabase, filters, page, pageSize);

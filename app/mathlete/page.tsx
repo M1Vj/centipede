@@ -8,6 +8,7 @@ import type {
 } from "@/components/mathlete/dashboard-overview";
 import { listMyRegistrationDetails } from "@/lib/registrations/api";
 import type { RegistrationCompetitionSummary, RegistrationDetail } from "@/lib/registrations/types";
+import { runDueScheduledCompetitionLifecycleSafely } from "@/lib/competition/scheduled-start";
 
 async function getWorkspaceContext() {
   return getProtectedWorkspaceContext({ requireRole: "mathlete" });
@@ -80,6 +81,15 @@ function formatMode(competition: RegistrationCompetitionSummary) {
   return "Individual";
 }
 
+function hasEndedByClock(competition: RegistrationCompetitionSummary, now = Date.now()) {
+  if (!competition.endTime) {
+    return false;
+  }
+
+  const end = new Date(competition.endTime).getTime();
+  return !Number.isNaN(end) && end <= now;
+}
+
 function buildRegistrationCards(
   rows: RegistrationDetail[],
 ): {
@@ -89,7 +99,15 @@ function buildRegistrationCards(
   activityItems: MathleteActivityItem[];
 } {
   const registeredCompetitions = rows
-    .filter((row) => row.status === "registered" && row.competition)
+    .filter(
+      (row) =>
+        row.status === "registered" &&
+        row.competition &&
+        (row.competition.status === "published" ||
+          row.competition.status === "live" ||
+          row.competition.status === "paused") &&
+        !hasEndedByClock(row.competition),
+    )
     .map((row) => ({
       registration: row,
       competition: row.competition as RegistrationCompetitionSummary,
@@ -143,6 +161,9 @@ export default async function MathletePage() {
   const displayName =
     profile?.full_name?.trim()?.split(/\s+/)[0] ||
     fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1);
+
+  await runDueScheduledCompetitionLifecycleSafely();
+
   const registrationCards = buildRegistrationCards(
     await listMyRegistrationDetails({ statuses: ["registered"], limit: 25 }),
   );

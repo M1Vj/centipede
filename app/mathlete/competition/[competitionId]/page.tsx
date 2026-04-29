@@ -15,7 +15,7 @@ import {
 } from "@/lib/competition/api";
 import type { CompetitionRecord } from "@/lib/competition/types";
 import { fetchCompetitionEventNotices } from "@/lib/competition/events";
-import { startDueScheduledCompetitionsSafely } from "@/lib/competition/scheduled-start";
+import { runDueScheduledCompetitionLifecycleSafely } from "@/lib/competition/scheduled-start";
 import type { DiscoverableCompetition } from "@/lib/competition/discovery";
 import type { RegistrationStatus, RegistrationSummary } from "@/lib/registrations/types";
 import { createClient } from "@/lib/supabase/server";
@@ -126,7 +126,7 @@ export default async function CompetitionDetailPage({
   const supabase = await createClient();
   const { competitionId } = await params;
 
-  await startDueScheduledCompetitionsSafely();
+  await runDueScheduledCompetitionLifecycleSafely();
 
   const rawCompetition = await fetchCompetitionById(supabase, competitionId);
   const normalized = rawCompetition ? normalizeCompetitionRecord(rawCompetition) : null;

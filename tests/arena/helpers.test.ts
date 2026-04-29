@@ -21,6 +21,19 @@ describe("arena helpers", () => {
     ).toBe("arena_runtime");
   });
 
+  test("ended competitions never resolve to interactive arena runtime", () => {
+    expect(
+      determineCompetitionPageMode({
+        hasActiveAttempt: true,
+        hasRegistration: true,
+        registrationStatus: "registered",
+        competitionStatus: "ended",
+        competitionType: "scheduled",
+        attemptsRemaining: 1,
+      }),
+    ).toBe("detail_register");
+  });
+
   test("resolves pre-entry only for registered attempt-eligible competitions", () => {
     expect(
       determineCompetitionPageMode({

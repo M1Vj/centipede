@@ -53,6 +53,10 @@ export function determineCompetitionPageMode({
   competitionType,
   attemptsRemaining,
 }: DetermineCompetitionPageModeArgs): ArenaPageMode {
+  if (competitionStatus === "ended" || competitionStatus === "archived") {
+    return "detail_register";
+  }
+
   if (hasActiveAttempt) {
     return "arena_runtime";
   }
