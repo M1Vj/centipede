@@ -1,5 +1,11 @@
-import { CalendarClock, CheckCircle2, CircleSlash, Clock3, UserRound, UsersRound } from "lucide-react";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { CalendarClock, CheckCircle2, CircleSlash, Clock3, Play, UserRound, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ProgressLink } from "@/components/ui/progress-link";
 import type { CompetitionRecord } from "@/lib/competition/types";
 import type { OrganizerRegistrationDetail } from "@/lib/registrations/types";
@@ -59,15 +65,134 @@ function capacityLabel(competition: CompetitionRecord, registeredCount: number) 
   return `${registeredCount} / ${limit}`;
 }
 
+function resolveStartDisabledReason(competition: CompetitionRecord) {
+  if (competition.status !== "published") {
+    return null;
+  }
+
+  if (competition.type === "open") {
+    return null;
+  }
+
+  if (competition.type !== "scheduled") {
+    return "This competition type cannot be started manually.";
+  }
+
+  if (!competition.startTime) {
+    return "Scheduled competitions need a valid start time before the server lifecycle worker can start them.";
+  }
+
+  const start = new Date(competition.startTime);
+  if (Number.isNaN(start.getTime())) {
+    return "Scheduled competitions need a valid start time before the server lifecycle worker can start them.";
+  }
+
+  if (start.getTime() > Date.now()) {
+    return `Scheduled competitions start automatically at ${formatDateTime(competition.startTime)}.`;
+  }
+
+  return "Scheduled competitions are started by the server lifecycle worker at the start boundary. Refresh shortly if it remains published.";
+}
+
+function getResponseErrorMessage(body: Record<string, unknown> | null, fallback: string) {
+  if (typeof body?.message === "string" && body.message.trim()) {
+    return body.message;
+  }
+
+  if (typeof body?.code === "string" && body.code.trim()) {
+    return `${fallback} (${body.code})`;
+  }
+
+  return fallback;
+}
+
+async function readJsonResponse(response: Response) {
+  return (await response.json().catch(() => null)) as Record<string, unknown> | null;
+}
+
+function resolveCompetitionStatusFromResponse(body: Record<string, unknown> | null) {
+  const competitionRecord =
+    typeof body?.competition === "object" && body.competition !== null && !Array.isArray(body.competition)
+      ? (body.competition as Record<string, unknown>)
+      : null;
+
+  if (typeof competitionRecord?.status === "string") {
+    return competitionRecord.status as CompetitionRecord["status"];
+  }
+
+  const lifecycleRecord =
+    typeof body?.lifecycle === "object" && body.lifecycle !== null && !Array.isArray(body.lifecycle)
+      ? (body.lifecycle as Record<string, unknown>)
+      : null;
+
+  if (typeof lifecycleRecord?.status === "string") {
+    return lifecycleRecord.status as CompetitionRecord["status"];
+  }
+
+  return null;
+}
+
 export function CompetitionParticipantsPanel({
   competition,
   registrations,
 }: CompetitionParticipantsPanelProps) {
+  const router = useRouter();
+  const [status, setStatus] = useState(competition.status);
+  const [startConfirmOpen, setStartConfirmOpen] = useState(false);
+  const [startPending, setStartPending] = useState(false);
+  const [startMessage, setStartMessage] = useState<string | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
   const registeredCount = countByStatus(registrations, "registered");
   const withdrawnCount = countByStatus(registrations, "withdrawn");
   const ineligibleCount = countByStatus(registrations, "ineligible");
   const cancelledCount = countByStatus(registrations, "cancelled");
-  const canHaveRegistrations = competition.status !== "draft";
+  const effectiveCompetition = { ...competition, status };
+  const canHaveRegistrations = status !== "draft";
+  const canStart = status === "published" && competition.type === "open";
+  const startDisabledReason = resolveStartDisabledReason(effectiveCompetition);
+
+  useEffect(() => {
+    setStatus(competition.status);
+  }, [competition.status]);
+
+  async function startCompetition() {
+    if (!canStart || startPending) {
+      return;
+    }
+
+    setStartPending(true);
+    setStartMessage(null);
+    setStartError(null);
+
+    try {
+      const response = await fetch(`/api/organizer/competitions/${competition.id}/start`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "x-idempotency-key": crypto.randomUUID(),
+        },
+      });
+      const body = await readJsonResponse(response);
+      const nextStatus = resolveCompetitionStatusFromResponse(body);
+
+      if (nextStatus) {
+        setStatus(nextStatus);
+      }
+
+      if (!response.ok || !body) {
+        throw new Error(getResponseErrorMessage(body, "Competition start failed."));
+      }
+
+      setStartMessage("Competition started.");
+      setStartConfirmOpen(false);
+      router.refresh();
+    } catch (error) {
+      setStartError(error instanceof Error ? error.message : "Competition start failed.");
+      setStartConfirmOpen(false);
+    } finally {
+      setStartPending(false);
+    }
+  }
 
   return (
     <div className="space-y-6 font-['Poppins']">
@@ -91,7 +216,7 @@ export function CompetitionParticipantsPanel({
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="border-[#fed7aa] bg-[#fff7ed] text-[#c2410c] hover:bg-[#fff7ed]">
-                {competition.status}
+                {status}
               </Badge>
               <Badge variant="outline" className="capitalize">
                 {competition.format}
@@ -118,6 +243,41 @@ export function CompetitionParticipantsPanel({
               Registration closes {formatDateTime(competition.registrationEnd)}
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0px_4px_12px_rgba(0,0,0,0.03)]">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-black text-[#10182b]">Lifecycle controls</h2>
+            <p className="mt-1 text-sm font-medium text-slate-500">
+              {status === "published"
+                ? startDisabledReason ?? "This open competition is published and ready to start."
+                : status === "live"
+                  ? "This competition is live."
+                  : "Lifecycle actions are unavailable in the current state."}
+            </p>
+            {startMessage ? (
+              <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+                {startMessage}
+              </p>
+            ) : null}
+            {startError ? (
+              <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                {startError}
+              </p>
+            ) : null}
+          </div>
+          <Button
+            type="button"
+            onClick={() => setStartConfirmOpen(true)}
+            disabled={!canStart || startPending}
+            className="rounded-xl bg-[#10182b] text-white hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400"
+            title={startDisabledReason ?? undefined}
+          >
+            <Play className="size-4" />
+            {startPending ? "Starting..." : "Start competition"}
+          </Button>
         </div>
       </section>
 
@@ -225,6 +385,19 @@ export function CompetitionParticipantsPanel({
           </div>
         )}
       </section>
+
+      <ConfirmDialog
+        open={startConfirmOpen}
+        onOpenChange={setStartConfirmOpen}
+        title="Start competition?"
+        description="Open competitions move from published to live through this trusted organizer action."
+        confirmLabel="Start"
+        confirmVariant="default"
+        confirmDisabled={!canStart || startPending}
+        pending={startPending}
+        pendingLabel="Starting..."
+        onConfirm={startCompetition}
+      />
     </div>
   );
 }

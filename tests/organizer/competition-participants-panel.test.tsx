@@ -1,11 +1,38 @@
 // @vitest-environment jsdom
 
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { CompetitionParticipantsPanel } from "@/components/organizer/competition-participants-panel";
 import type { CompetitionRecord } from "@/lib/competition/types";
 import type { OrganizerRegistrationDetail } from "@/lib/registrations/types";
+
+const routerRefreshMock = vi.fn();
+const fetchMock = vi.fn().mockResolvedValue(
+  new Response(
+    JSON.stringify({
+      code: "ok",
+      competition: {
+        status: "live",
+      },
+      lifecycle: {
+        machineCode: "ok",
+        status: "live",
+      },
+    }),
+    {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    },
+  ),
+);
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh: routerRefreshMock,
+  }),
+}));
 
 vi.mock("@/components/ui/progress-link", () => ({
   ProgressLink: ({ children, href, className }: { children: ReactNode; href: string; className?: string }) => (
@@ -100,6 +127,19 @@ const registrations: OrganizerRegistrationDetail[] = [
 ];
 
 describe("CompetitionParticipantsPanel", () => {
+  beforeEach(() => {
+    routerRefreshMock.mockReset();
+    fetchMock.mockClear();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("crypto", {
+      randomUUID: vi.fn(() => "participants-start-token"),
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   test("renders registration summary and roster snapshots", () => {
     render(
       <CompetitionParticipantsPanel
@@ -115,5 +155,57 @@ describe("CompetitionParticipantsPanel", () => {
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
     expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
     expect(screen.getByText("Reason: team_size_invalid")).toBeInTheDocument();
+  });
+
+  test("starts an open published competition from the management panel", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <CompetitionParticipantsPanel
+        competition={{
+          ...competition,
+          type: "open",
+          format: "individual",
+          startTime: null,
+          endTime: null,
+          maxParticipants: 20,
+          maxTeams: null,
+          participantsPerTeam: null,
+        }}
+        registrations={[]}
+      />,
+    );
+
+    expect(screen.getByText("This open competition is published and ready to start.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Start competition" }));
+    await user.click(await screen.findByRole("button", { name: "Start" }));
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/organizer/competitions/competition-1/start", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "x-idempotency-key": "participants-start-token",
+      },
+    });
+    expect(await screen.findByText("Competition started.")).toBeInTheDocument();
+    expect(screen.getByText("live")).toBeInTheDocument();
+    expect(routerRefreshMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("shows a disabled reason for scheduled published competitions", () => {
+    render(
+      <CompetitionParticipantsPanel
+        competition={{
+          ...competition,
+          startTime: "2099-04-26T00:00:00.000Z",
+        }}
+        registrations={[]}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Start competition" })).toBeDisabled();
+    expect(screen.getByText(/Scheduled competitions start automatically at/i)).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

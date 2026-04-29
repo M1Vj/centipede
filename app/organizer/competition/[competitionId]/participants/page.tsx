@@ -4,6 +4,7 @@ import { getWorkspaceContext } from "@/lib/auth/workspace";
 import {
   loadOrganizerCompetitionForManagement,
 } from "../../_data";
+import { startDueScheduledCompetitionsSafely } from "@/lib/competition/scheduled-start";
 import { listOrganizerCompetitionRegistrations } from "@/lib/registrations/api";
 
 interface PageProps {
@@ -13,6 +14,7 @@ interface PageProps {
 export default async function OrganizerCompetitionParticipantsPage({ params }: PageProps) {
   const { profile } = await getWorkspaceContext({ requireRole: "organizer" });
   const { competitionId } = await params;
+  await startDueScheduledCompetitionsSafely();
   const competition = await loadOrganizerCompetitionForManagement(
     competitionId,
     profile?.id ?? "",
