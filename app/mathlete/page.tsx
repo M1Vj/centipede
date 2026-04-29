@@ -1,5 +1,6 @@
 import { getWorkspaceContext as getProtectedWorkspaceContext } from "@/lib/auth/workspace";
 import { MathleteDashboardOverview } from "@/components/mathlete/dashboard-overview";
+import { UpcomingCompetitionRefresh } from "@/components/mathlete/upcoming-competition-refresh";
 import type {
   MathleteActivityItem,
   MathleteLiveCard,
@@ -55,13 +56,18 @@ function formatRelativeTimestamp(dateValue: string | null) {
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
-function buildCountdown(targetValue: string | null): MathleteUpcomingCard["countdown"] {
+function buildCountdown(targetValue: string | null, now = Date.now()): MathleteUpcomingCard["countdown"] {
   const target = targetValue ? new Date(targetValue).getTime() : Number.NaN;
   if (Number.isNaN(target)) {
     return { days: "00", hours: "00", minutes: "00" };
   }
 
-  const totalMinutes = Math.max(0, Math.floor((target - Date.now()) / 60000));
+  const remainingMs = target - now;
+  if (remainingMs <= 0) {
+    return { days: "00", hours: "00", minutes: "00" };
+  }
+
+  const totalMinutes = Math.max(0, Math.ceil(remainingMs / 60000));
   const days = Math.floor(totalMinutes / 1440);
   const hours = Math.floor((totalMinutes % 1440) / 60);
   const minutes = totalMinutes % 60;
@@ -90,6 +96,19 @@ function hasEndedByClock(competition: RegistrationCompetitionSummary, now = Date
   return !Number.isNaN(end) && end <= now;
 }
 
+function isUpcomingByClock(competition: RegistrationCompetitionSummary, now = Date.now()) {
+  if (!competition.startTime) {
+    return false;
+  }
+
+  const start = new Date(competition.startTime).getTime();
+  if (Number.isNaN(start)) {
+    return false;
+  }
+
+  return start > now;
+}
+
 function buildRegistrationCards(
   rows: RegistrationDetail[],
 ): {
@@ -98,6 +117,7 @@ function buildRegistrationCards(
   registrationCards: MathleteRegistrationCard[];
   activityItems: MathleteActivityItem[];
 } {
+  const now = Date.now();
   const registeredCompetitions = rows
     .filter(
       (row) =>
@@ -106,7 +126,7 @@ function buildRegistrationCards(
         (row.competition.status === "published" ||
           row.competition.status === "live" ||
           row.competition.status === "paused") &&
-        !hasEndedByClock(row.competition),
+        !hasEndedByClock(row.competition, now),
     )
     .map((row) => ({
       registration: row,
@@ -125,14 +145,14 @@ function buildRegistrationCards(
     }));
 
   const upcomingCards = registeredCompetitions
-    .filter(({ competition }) => competition.status === "published")
+    .filter(({ competition }) => competition.status === "published" && isUpcomingByClock(competition, now))
     .map(({ competition }) => ({
       id: competition.id,
       title: competition.name || "Untitled competition",
       type: formatMode(competition),
       dateLabel: formatCompactDate(competition.startTime),
       timestamp: competition.startTime,
-      countdown: buildCountdown(competition.startTime),
+      countdown: buildCountdown(competition.startTime, now),
       href: `/mathlete/competition/${competition.id}`,
     }));
 
@@ -169,13 +189,16 @@ export default async function MathletePage() {
   );
 
   return (
-    <MathleteDashboardOverview
-      displayName={displayName}
-      profileComplete={Boolean(profile?.school && profile?.grade_level)}
-      liveCards={registrationCards.liveCards}
-      upcomingCards={registrationCards.upcomingCards}
-      registrationCards={registrationCards.registrationCards}
-      activityItems={registrationCards.activityItems}
-    />
+    <>
+      <UpcomingCompetitionRefresh upcomingCards={registrationCards.upcomingCards} />
+      <MathleteDashboardOverview
+        displayName={displayName}
+        profileComplete={Boolean(profile?.school && profile?.grade_level)}
+        liveCards={registrationCards.liveCards}
+        upcomingCards={registrationCards.upcomingCards}
+        registrationCards={registrationCards.registrationCards}
+        activityItems={registrationCards.activityItems}
+      />
+    </>
   );
 }

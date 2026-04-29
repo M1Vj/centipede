@@ -151,6 +151,10 @@ function MetricCard({
   );
 }
 
+function hasActiveCountdown(countdown: MathleteUpcomingCard["countdown"]) {
+  return countdown.days !== "00" || countdown.hours !== "00" || countdown.minutes !== "00";
+}
+
 export function MathleteDashboardOverview({
   displayName,
   profileComplete,
@@ -160,7 +164,7 @@ export function MathleteDashboardOverview({
   activityItems,
 }: MathleteDashboardOverviewProps) {
   const resolvedLiveCards = liveCards;
-  const resolvedUpcomingCards = upcomingCards;
+  const resolvedUpcomingCards = upcomingCards.filter((card) => hasActiveCountdown(card.countdown));
   const resolvedActivityItems = activityItems;
   const { monthLabel, rows, selectedDay, accentDays } = buildCalendarRows(resolvedUpcomingCards);
   const nextEvent = resolvedUpcomingCards[0];
