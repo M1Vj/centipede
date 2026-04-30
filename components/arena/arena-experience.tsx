@@ -3,6 +3,8 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Bookmark, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { AntiCheatObserver, PenaltyApplied } from "@/components/anti-cheat/anti-cheat-observer";
+import { WarningOverlay } from "@/components/anti-cheat/warning-overlay";
 import { MathliveField } from "@/components/math-editor/mathlive-field";
 import { KatexPreview } from "@/components/math-editor/katex-preview";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -126,6 +128,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   const [selectedProblemId, setSelectedProblemId] = useState(
     initialData.problems[0]?.competitionProblemId ?? "",
   );
+  const [activePenalty, setActivePenalty] = useState<PenaltyApplied>(null);
   const [requestState, setRequestState] = useState<RequestState>("idle");
   const [requestMessage, setRequestMessage] = useState<string | null>(null);
   const [withdrawPending, setWithdrawPending] = useState(false);
@@ -734,6 +737,27 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
 
   return (
     <div className="min-h-screen bg-[#fafafb] px-4 py-6 font-['Poppins'] text-[#1a1e2e] sm:px-6 lg:px-10">
+      <AntiCheatObserver
+        attemptId={pageData.activeAttempt?.id ?? ""}
+        isActive={!!pageData.activeAttempt && pageData.activeAttempt.status === "in_progress"}
+        onPenalty={(penalty) => {
+          if (penalty && penalty !== "none") {
+            setActivePenalty(penalty);
+            if (penalty === "auto_submit" || penalty === "disqualified") {
+              setPageData((prev) => ({
+                ...prev,
+                activeAttempt: prev.activeAttempt
+                  ? { ...prev.activeAttempt, status: penalty === "auto_submit" ? "auto_submitted" : "disqualified" }
+                  : undefined,
+              }));
+            }
+          }
+        }}
+      />
+      <WarningOverlay
+        penalty={activePenalty}
+        onAcknowledge={() => setActivePenalty(null)}
+      />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
