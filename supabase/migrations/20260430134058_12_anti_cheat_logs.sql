@@ -100,6 +100,8 @@ declare
   v_deduction_value numeric := 0;
   v_auto_submit_threshold integer := 999999;
   v_disqualification_threshold integer := 999999;
+  v_last_log_time timestamptz;
+  v_last_penalty text;
 begin
   if p_attempt_id is null then
     raise exception 'attempt_id_required';
@@ -157,6 +159,18 @@ begin
     exception when others then
       v_client_timestamp := null;
     end;
+  end if;
+
+  -- 5-second deduplication enforcement to prevent spam bypass
+  select logged_at, penalty_applied
+  into v_last_log_time, v_last_penalty
+  from public.tab_switch_logs
+  where attempt_id = p_attempt_id
+  order by logged_at desc
+  limit 1;
+
+  if v_last_log_time is not null and extract(epoch from (now() - v_last_log_time)) < 5 then
+    return v_last_penalty;
   end if;
 
   v_offense_number := v_attempt.offense_count + 1;
