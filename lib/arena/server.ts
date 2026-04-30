@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeCompetitionRecord } from "@/lib/competition/api";
+import { endDueScheduledCompetitionsSafely } from "@/lib/competition/scheduled-start";
 import type { CompetitionRecord } from "@/lib/competition/types";
 import type { ProblemType } from "@/lib/problem-bank/types";
 import {
@@ -497,6 +498,38 @@ export async function registerForCompetition(
   } | null;
 }
 
+async function ensureOpenCompetitionRegistration(competitionId: string, actorUserId: string) {
+  const competition = await fetchCompetition(getAdminOrThrow(), competitionId);
+  if (!competition || competition.isDeleted) {
+    return {
+      machine_code: "competition_not_found",
+      registration_id: null,
+      competition_id: competitionId,
+      status: null,
+    };
+  }
+
+  if (competition.type !== "open") {
+    return {
+      machine_code: "registration_id_required",
+      registration_id: null,
+      competition_id: competitionId,
+      status: null,
+    };
+  }
+
+  if (competition.format !== "individual") {
+    return {
+      machine_code: "individual_registration_required",
+      registration_id: null,
+      competition_id: competitionId,
+      status: null,
+    };
+  }
+
+  return registerForCompetition(competitionId, actorUserId, null);
+}
+
 export async function startCompetitionAttempt(registrationId: string, actorUserId: string) {
   const admin = getAdminOrThrow();
   const { data, error } = await admin.rpc("start_competition_attempt", {
@@ -510,6 +543,22 @@ export async function startCompetitionAttempt(registrationId: string, actorUserI
   }
 
   return ((Array.isArray(data) ? data[0] : data) ?? null) as RpcLifecycleRow | null;
+}
+
+export async function startOpenCompetitionAttempt(competitionId: string, actorUserId: string) {
+  const registration = await ensureOpenCompetitionRegistration(competitionId, actorUserId);
+  if (
+    !registration ||
+    !registration.registration_id ||
+    (registration.machine_code !== "ok" && registration.machine_code !== "already_registered")
+  ) {
+    return {
+      machine_code: registration?.machine_code ?? "registration_failed",
+      competition_id: competitionId,
+    } as RpcLifecycleRow;
+  }
+
+  return startCompetitionAttempt(registration.registration_id, actorUserId);
 }
 
 export async function resumeCompetitionAttempt(attemptId: string, actorUserId: string) {
@@ -584,6 +633,8 @@ export async function submitCompetitionAttempt(attemptId: string, actorUserId: s
 }
 
 export async function syncAttemptStateForClient(competitionId: string, actorUserId: string) {
+  await endDueScheduledCompetitionsSafely();
+
   const pageData = await loadArenaPageData(competitionId, actorUserId);
   if (!pageData) {
     return null;
@@ -595,6 +646,7 @@ export async function syncAttemptStateForClient(competitionId: string, actorUser
     pageData.activeAttempt.status === "in_progress"
   ) {
     await submitCompetitionAttempt(pageData.activeAttempt.id, actorUserId, "auto");
+    await endDueScheduledCompetitionsSafely();
     return loadArenaPageData(competitionId, actorUserId);
   }
 

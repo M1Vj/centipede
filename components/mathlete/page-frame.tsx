@@ -48,7 +48,7 @@ export function MathletePageFrame({
                 </p>
               ) : null}
               <div className="space-y-3">
-                <h1 className="font-display text-4xl font-semibold tracking-[-0.05em] text-white md:text-5xl">
+                <h1 className="font-display text-4xl font-black tracking-normal text-white md:text-5xl">
                   {title}
                 </h1>
                 {description ? (

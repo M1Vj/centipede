@@ -1,7 +1,14 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import {
+  COMPETITION_SELECT_COLUMNS,
+  normalizeCompetitionRecord,
+} from "@/lib/competition/api";
+import type { CompetitionRecord } from "@/lib/competition/types";
 import type {
+  RegistrationDetail,
+  OrganizerRegistrationDetail,
   RegistrationRow,
   RegistrationRpcResult,
   RegistrationStatus,
@@ -9,12 +16,21 @@ import type {
   TeamRegistrationValidationResult,
   WithdrawRegistrationResult,
 } from "@/lib/registrations/types";
+import {
+  ORGANIZER_REGISTRATION_FALLBACK_SELECT_COLUMNS,
+  ORGANIZER_REGISTRATION_SELECT_COLUMNS,
+  normalizeOrganizerRegistrationRow,
+  type OrganizerRegistrationSourceRow,
+} from "@/lib/registrations/organizer";
 
 const REGISTRATION_SELECT_COLUMNS =
   "id, competition_id, profile_id, team_id, status, status_reason, entry_snapshot_json, registered_at, updated_at";
 
 const REGISTRATION_SUMMARY_COLUMNS =
   "id, competition_id, team_id, status, status_reason";
+
+const REGISTRATION_DETAIL_COLUMNS =
+  "id, competition_id, team_id, status, status_reason, registered_at, updated_at";
 
 type SupabaseError = {
   code?: string | null;
@@ -53,6 +69,21 @@ function isMissingRegistrationTable(error: SupabaseError | null | undefined) {
     error.code === "42P01" ||
     error.code === "42703" ||
     message.includes("competition_registrations")
+  );
+}
+
+function isMissingRegistrationEmbed(error: SupabaseError | null | undefined) {
+  if (!error) {
+    return false;
+  }
+
+  const message = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
+  return (
+    error.code === "PGRST200" ||
+    error.code === "PGRST201" ||
+    message.includes("relationship") ||
+    message.includes("profiles") ||
+    message.includes("teams")
   );
 }
 
@@ -268,6 +299,145 @@ export async function listMyRegistrations(input: {
   }
 
   return (data ?? []) as RegistrationSummary[];
+}
+
+export async function listMyRegistrationDetails(input: {
+  statuses?: RegistrationStatus[];
+  limit?: number;
+} = {}): Promise<RegistrationDetail[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const query = supabase
+    .from("competition_registrations")
+    .select(REGISTRATION_DETAIL_COLUMNS)
+    .order("registered_at", { ascending: false });
+
+  if (input.statuses?.length) {
+    query.in("status", input.statuses);
+  }
+
+  if (input.limit && input.limit > 0) {
+    query.limit(input.limit);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    if (isMissingRegistrationTable(error as SupabaseError)) {
+      return [];
+    }
+
+    throw new Error(error.message);
+  }
+
+  const registrations = (data ?? []) as Array<RegistrationSummary & {
+    registered_at?: string | null;
+    updated_at?: string | null;
+  }>;
+  const competitionIds = Array.from(
+    new Set(
+      registrations
+        .map((registration) => registration.competition_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  );
+
+  const competitionsById = new Map<string, CompetitionRecord>();
+  if (competitionIds.length > 0) {
+    const competitionsResult = await supabase
+      .from("competitions")
+      .select(COMPETITION_SELECT_COLUMNS)
+      .in("id", competitionIds);
+
+    if (!competitionsResult.error) {
+      (competitionsResult.data ?? [])
+        .map((row) => normalizeCompetitionRecord(row))
+        .filter((row): row is CompetitionRecord => row !== null)
+        .forEach((competition) => {
+          competitionsById.set(competition.id, competition);
+        });
+    } else if (!isMissingRegistrationTable(competitionsResult.error as SupabaseError)) {
+      throw new Error(competitionsResult.error.message);
+    }
+  }
+
+  return registrations.map((registration) => {
+    const competition = competitionsById.get(registration.competition_id) ?? null;
+
+    return {
+      id: registration.id,
+      competition_id: registration.competition_id,
+      team_id: registration.team_id ?? null,
+      status: registration.status ?? null,
+      status_reason: registration.status_reason ?? null,
+      registered_at: registration.registered_at ?? null,
+      updated_at: registration.updated_at ?? null,
+      competition: competition
+        ? {
+            id: competition.id,
+            name: competition.name,
+            type: competition.type,
+            format: competition.format,
+            status: competition.status,
+            startTime: competition.startTime,
+            endTime: competition.endTime,
+            registrationStart: competition.registrationStart,
+          }
+        : null,
+    };
+  });
+}
+
+export async function listOrganizerCompetitionRegistrations(input: {
+  competitionId: string;
+}): Promise<OrganizerRegistrationDetail[]> {
+  const supabase = await createClient();
+  const query = supabase
+    .from("competition_registrations")
+    .select(ORGANIZER_REGISTRATION_SELECT_COLUMNS)
+    .eq("competition_id", input.competitionId)
+    .order("registered_at", { ascending: false });
+
+  const { data, error } = await query;
+
+  if (error) {
+    if (isMissingRegistrationEmbed(error as SupabaseError)) {
+      const fallbackResult = await supabase
+        .from("competition_registrations")
+        .select(ORGANIZER_REGISTRATION_FALLBACK_SELECT_COLUMNS)
+        .eq("competition_id", input.competitionId)
+        .order("registered_at", { ascending: false });
+
+      if (fallbackResult.error) {
+        if (isMissingRegistrationTable(fallbackResult.error as SupabaseError)) {
+          return [];
+        }
+
+        throw new Error(fallbackResult.error.message);
+      }
+
+      return ((fallbackResult.data ?? []) as OrganizerRegistrationSourceRow[])
+        .map((row) => normalizeOrganizerRegistrationRow(row))
+        .filter((row): row is OrganizerRegistrationDetail => row !== null);
+    }
+
+    if (isMissingRegistrationTable(error as SupabaseError)) {
+      return [];
+    }
+
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as OrganizerRegistrationSourceRow[])
+    .map((row) => normalizeOrganizerRegistrationRow(row))
+    .filter((row): row is OrganizerRegistrationDetail => row !== null);
 }
 
 export async function fetchTeamRegistrations(input: {

@@ -14,16 +14,16 @@ export function CompetitionFilters({ actionPath, filters, total }: CompetitionFi
     <form
       action={actionPath}
       method="get"
-      className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.25)]"
+      className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm"
     >
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-400">Filters</p>
-          <p className="mt-2 text-lg font-semibold text-[#1a1e2e]">{total} competitions</p>
+          <p className="mt-2 text-lg font-black text-[#0f1c2c]">{total} competitions</p>
         </div>
         <Button
           type="submit"
-          className="h-11 rounded-full bg-[#1a1e2e] px-5 text-sm font-semibold text-white hover:bg-[#0f121a]"
+          className="h-11 rounded-xl bg-[#f49700] px-5 text-sm font-black uppercase tracking-[0.14em] text-white shadow-xl shadow-[#f49700]/30 hover:bg-[#e08900]"
         >
           Apply filters
         </Button>
@@ -42,7 +42,7 @@ export function CompetitionFilters({ actionPath, filters, total }: CompetitionFi
             name="q"
             defaultValue={filters.query}
             placeholder="Search by name or description"
-            className="h-11 rounded-xl border-slate-200 bg-white text-sm text-[#1a1e2e] shadow-none"
+            className="h-11 rounded-xl border-slate-200 bg-white text-sm text-[#0f1c2c] shadow-none focus-visible:ring-[#f49700]"
           />
         </div>
         <div className="grid gap-2">
@@ -56,7 +56,7 @@ export function CompetitionFilters({ actionPath, filters, total }: CompetitionFi
             id="competition-type"
             name="type"
             defaultValue={filters.type}
-            className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-[#1a1e2e]"
+            className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-[#0f1c2c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]"
           >
             <option value="all">All</option>
             <option value="scheduled">Scheduled</option>
@@ -74,7 +74,7 @@ export function CompetitionFilters({ actionPath, filters, total }: CompetitionFi
             id="competition-format"
             name="format"
             defaultValue={filters.format}
-            className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-[#1a1e2e]"
+            className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-[#0f1c2c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]"
           >
             <option value="all">All</option>
             <option value="individual">Individual</option>
@@ -92,7 +92,7 @@ export function CompetitionFilters({ actionPath, filters, total }: CompetitionFi
             id="competition-status"
             name="status"
             defaultValue={filters.status}
-            className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-[#1a1e2e]"
+            className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-[#0f1c2c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]"
           >
             <option value="all">All</option>
             <option value="published">Published</option>

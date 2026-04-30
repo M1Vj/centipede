@@ -24,6 +24,7 @@ export default async function OrganizerCompetitionCreatePage() {
         </div>
 
         <CompetitionWizard
+          key="create"
           mode="create"
           initialState={createDefaultCompetitionDraftState()}
           availableProblems={workspaceData.problems}

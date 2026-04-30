@@ -162,10 +162,17 @@ local `.env.local` template.
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
 Optional fallback for older Supabase projects:
 
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+Scheduled competition starts also require:
+
+- `CRON_SECRET`
+
+The app-level cron route at `/api/cron/competitions/start-due` runs every minute in `vercel.json`, requires `Authorization: Bearer $CRON_SECRET`, and uses the Supabase service role key to move due scheduled competitions from `published` to `live`.
 
 ### What Is Included
 

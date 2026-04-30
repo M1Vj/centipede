@@ -35,6 +35,7 @@ export default async function OrganizerCompetitionDetailPage({ params }: PagePro
         </div>
 
         <CompetitionWizard
+          key={competitionId}
           mode="edit"
           competitionId={competitionId}
           initialState={workspaceData.formState}

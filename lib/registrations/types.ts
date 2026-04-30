@@ -48,3 +48,43 @@ export type RegistrationSummary = {
   id: string;
   team_id: string | null;
 };
+
+export type RegistrationCompetitionSummary = {
+  id: string;
+  name: string;
+  type: "open" | "scheduled";
+  format: "individual" | "team";
+  status: string;
+  startTime: string | null;
+  endTime: string | null;
+  registrationStart: string | null;
+};
+
+export type RegistrationDetail = RegistrationSummary & {
+  registered_at: string | null;
+  updated_at: string | null;
+  competition: RegistrationCompetitionSummary | null;
+};
+
+export type OrganizerRegistrationRosterMember = {
+  profileId: string | null;
+  fullName: string;
+  school: string | null;
+  gradeLevel: string | null;
+  role: string | null;
+};
+
+export type OrganizerRegistrationDetail = {
+  id: string;
+  competitionId: string;
+  profileId: string | null;
+  teamId: string | null;
+  participantType: "individual" | "team";
+  displayName: string;
+  subtitle: string | null;
+  status: RegistrationStatus;
+  statusReason: string | null;
+  registeredAt: string | null;
+  updatedAt: string | null;
+  roster: OrganizerRegistrationRosterMember[];
+};

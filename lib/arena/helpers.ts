@@ -53,6 +53,10 @@ export function determineCompetitionPageMode({
   competitionType,
   attemptsRemaining,
 }: DetermineCompetitionPageModeArgs): ArenaPageMode {
+  if (competitionStatus === "ended" || competitionStatus === "archived") {
+    return "detail_register";
+  }
+
   if (hasActiveAttempt) {
     return "arena_runtime";
   }
@@ -61,12 +65,11 @@ export function determineCompetitionPageMode({
   const canAttemptScheduled = competitionStatus === "live";
   const canAttemptOpen = competitionStatus === "published" || competitionStatus === "live";
 
-  if (
-    registered &&
-    attemptsRemaining > 0 &&
-    ((competitionType === "scheduled" && canAttemptScheduled) ||
-      (competitionType === "open" && canAttemptOpen))
-  ) {
+  if (competitionType === "open" && canAttemptOpen && attemptsRemaining > 0) {
+    return "pre_entry";
+  }
+
+  if (registered && attemptsRemaining > 0 && competitionType === "scheduled" && canAttemptScheduled) {
     return "pre_entry";
   }
 

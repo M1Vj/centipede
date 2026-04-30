@@ -71,20 +71,46 @@ export function CompetitionRegistrationPanel({
   const { statusId, statusRef } = useFormStatusRegion(status.message);
   const router = useRouter();
 
+  const selectedTeamRegistration = useMemo(() => {
+    if (competition.format !== "team") {
+      return null;
+    }
+
+    return teamRegistrations.find((registration) => registration.team_id === selectedTeamId) ?? null;
+  }, [competition.format, teamRegistrations, selectedTeamId]);
+
+  const existingTeamRegistration = useMemo(() => {
+    if (competition.format !== "team") {
+      return null;
+    }
+
+    return (
+      teamRegistrations.find((registration) => registration.status === "registered") ??
+      selectedTeamRegistration
+    );
+  }, [competition.format, selectedTeamRegistration, teamRegistrations]);
+
   const activeRegistration = useMemo(() => {
     if (competition.format === "individual") {
       return individualRegistration;
     }
 
-    return teamRegistrations.find((registration) => registration.team_id === selectedTeamId) ?? null;
-  }, [competition.format, individualRegistration, teamRegistrations, selectedTeamId]);
+    return selectedTeamRegistration ?? existingTeamRegistration ?? null;
+  }, [competition.format, individualRegistration, selectedTeamRegistration, existingTeamRegistration]);
 
   const registrationStatusMessage = resolveRegistrationStatusMessage(activeRegistration);
-  const canWithdraw = activeRegistration?.status === "registered";
-  const canRegister = !activeRegistration || activeRegistration.status !== "registered";
   const shouldSelectTeam = competition.format === "team";
   const showTeamSelector = shouldSelectTeam && leaderTeams.length > 0;
   const selectedTeam = leaderTeams.find((team) => team.id === selectedTeamId) ?? null;
+  const leaderTeamIds = useMemo(() => new Set(leaderTeams.map((team) => team.id)), [leaderTeams]);
+  const canWithdraw =
+    activeRegistration?.status === "registered" &&
+    (competition.format === "individual" ||
+      (activeRegistration.team_id !== null && leaderTeamIds.has(activeRegistration.team_id)));
+  const canRegister =
+    competition.format === "individual"
+      ? !activeRegistration || activeRegistration.status !== "registered"
+      : existingTeamRegistration?.status !== "registered";
 
   const submitRegister = async () => {
     if (isSubmitting) {
@@ -202,10 +228,10 @@ export function CompetitionRegistrationPanel({
   };
 
   return (
-    <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.25)]">
+    <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
       <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Registration</p>
-        <h2 className="text-2xl font-semibold text-[#1a1e2e]">Join this competition</h2>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Registration</p>
+        <h2 className="text-2xl font-black text-[#0f1c2c]">Join this competition</h2>
         <p className="text-sm text-slate-500">
           {competition.type === "scheduled"
             ? "Registration windows and start times are enforced by the server."
@@ -228,7 +254,7 @@ export function CompetitionRegistrationPanel({
             id="registration-team"
             value={selectedTeamId}
             onChange={(event) => setSelectedTeamId(event.target.value)}
-            className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-[#1a1e2e]"
+            className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-[#0f1c2c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]"
           >
             {leaderTeams.map((team) => (
               <option key={team.id} value={team.id}>
@@ -266,7 +292,7 @@ export function CompetitionRegistrationPanel({
           disabled={!canRegister || (shouldSelectTeam && !selectedTeam)}
           pending={isSubmitting}
           pendingText="Submitting..."
-          className="h-11 rounded-full bg-[#f49700] px-6 text-sm font-semibold text-white hover:bg-[#e08900]"
+          className="h-11 rounded-xl bg-[#f49700] px-6 text-sm font-black uppercase tracking-[0.14em] text-white shadow-xl shadow-[#f49700]/30 hover:bg-[#e08900]"
         >
           Register now
         </Button>
@@ -275,7 +301,7 @@ export function CompetitionRegistrationPanel({
           variant="ghost"
           onClick={submitWithdraw}
           disabled={!canWithdraw}
-          className="h-11 rounded-full px-5 text-sm font-semibold text-slate-500 hover:bg-slate-100"
+          className="h-11 rounded-xl border-2 border-slate-200 bg-white px-5 text-sm font-bold text-[#0f1c2c] hover:bg-slate-50"
         >
           Withdraw
         </Button>
