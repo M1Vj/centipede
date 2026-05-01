@@ -3,7 +3,13 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { OffenseLog } from "@/lib/anti-cheat/queries"
-import { format } from "date-fns"
+
+const offenseLogTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+})
 
 interface OffenseLogsPanelProps {
   logs: OffenseLog[]
@@ -48,7 +54,7 @@ export function OffenseLogsPanel({ logs }: OffenseLogsPanelProps) {
                 return (
                   <tr key={log.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap font-medium text-foreground">
-                      {format(new Date(log.logged_at), 'HH:mm:ss')}
+                      {offenseLogTimeFormatter.format(new Date(log.logged_at))}
                     </td>
                     <td className="px-4 sm:px-6 py-4 font-medium text-foreground max-w-[200px] sm:max-w-[300px] truncate" title={name}>
                       {name}

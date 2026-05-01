@@ -748,14 +748,14 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                 ...prev,
                 activeAttempt: prev.activeAttempt
                   ? { ...prev.activeAttempt, status: penalty === "auto_submit" ? "auto_submitted" : "disqualified" }
-                  : undefined,
+                  : null,
               }));
             }
           }
         }}
       />
       <WarningOverlay
-        penalty={activePenalty}
+        penalty={activePenalty === "none" ? null : activePenalty}
         onAcknowledge={() => setActivePenalty(null)}
       />
       <div className="flex flex-wrap items-center justify-between gap-3">

@@ -10,7 +10,7 @@ interface WarningOverlayProps {
 }
 
 export function WarningOverlay({ onAcknowledge, penalty }: WarningOverlayProps) {
-  if (!penalty || penalty === 'none') return null;
+  if (!penalty) return null;
 
   return (
     <div 
