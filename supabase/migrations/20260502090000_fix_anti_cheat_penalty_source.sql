@@ -1,81 +1,5 @@
 begin;
 
-alter table public.competitions 
-  add column if not exists offense_penalties_json jsonb;
-
--- Ensure offense_penalties_json is an object if not null
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_constraint
-    where conname = 'competitions_offense_penalties_json_object_chk'
-      and conrelid = 'public.competitions'::regclass
-  ) then
-    alter table public.competitions
-      add constraint competitions_offense_penalties_json_object_chk
-      check (
-        offense_penalties_json is null
-        or jsonb_typeof(offense_penalties_json) = 'object'
-      ) not valid;
-  end if;
-end;
-$$;
-
-alter table public.competitions validate constraint competitions_offense_penalties_json_object_chk;
-
-create table if not exists public.tab_switch_logs (
-  id uuid primary key default gen_random_uuid(),
-  attempt_id uuid not null references public.competition_attempts (id) on delete cascade,
-  offense_number integer not null,
-  penalty_applied text not null,
-  client_timestamp timestamptz,
-  logged_at timestamptz not null default now(),
-  metadata_json jsonb not null
-);
-
-alter table public.tab_switch_logs enable row level security;
-
-drop policy if exists "tab_switch_logs_organizer_select" on public.tab_switch_logs;
-create policy "tab_switch_logs_organizer_select"
-on public.tab_switch_logs for select
-using (
-  exists (
-    select 1
-    from public.competition_attempts ca
-    join public.competitions c on c.id = ca.competition_id
-    where ca.id = attempt_id and c.organizer_id = auth.uid()
-  )
-);
-
-drop policy if exists "tab_switch_logs_admin_select" on public.tab_switch_logs;
-create policy "tab_switch_logs_admin_select"
-on public.tab_switch_logs for select
-using (
-  exists (
-    select 1
-    from public.profiles
-    where id = auth.uid() and role = 'admin'
-  )
-);
-
-drop policy if exists "tab_switch_logs_participant_select" on public.tab_switch_logs;
-create policy "tab_switch_logs_participant_select"
-on public.tab_switch_logs for select
-using (
-  exists (
-    select 1
-    from public.competition_attempts ca
-    join public.competition_registrations cr on cr.id = ca.registration_id
-    where ca.id = attempt_id and (
-      cr.profile_id = auth.uid()
-      or (cr.team_id is not null and public.is_active_team_member(cr.team_id, auth.uid()))
-    )
-  )
-);
-
-drop function if exists public.log_tab_switch_offense(uuid, jsonb);
-
 create or replace function public.log_tab_switch_offense(
   p_attempt_id uuid,
   p_metadata_json jsonb
@@ -95,6 +19,10 @@ declare
   v_client_timestamp_str text;
   v_client_timestamp timestamptz := null;
   v_penalties jsonb;
+  v_penalty_rules jsonb;
+  v_penalty_rule jsonb;
+  v_penalty_kind text;
+  v_penalty_threshold integer;
   v_warning_threshold integer := 999999;
   v_deduction_threshold integer := 999999;
   v_deduction_value numeric := 0;
@@ -102,6 +30,7 @@ declare
   v_disqualification_threshold integer := 999999;
   v_last_log_time timestamptz;
   v_last_penalty text;
+  v_has_rule boolean := false;
 begin
   if p_attempt_id is null then
     raise exception 'attempt_id_required';
@@ -155,13 +84,11 @@ begin
   if v_client_timestamp_str is not null then
     begin
       v_client_timestamp := v_client_timestamp_str::timestamptz;
-      -- ignore if conversion fails
     exception when others then
       v_client_timestamp := null;
     end;
   end if;
 
-  -- 5-second deduplication enforcement to prevent spam bypass
   select logged_at, penalty_applied
   into v_last_log_time, v_last_penalty
   from public.tab_switch_logs
@@ -174,22 +101,69 @@ begin
   end if;
 
   v_offense_number := v_attempt.offense_count + 1;
+  v_penalty_rules := case
+    when jsonb_typeof(coalesce(v_competition.offense_penalties, '[]'::jsonb)) = 'array'
+      then coalesce(v_competition.offense_penalties, '[]'::jsonb)
+    else '[]'::jsonb
+  end;
 
-  v_penalties := coalesce(v_competition.offense_penalties_json, '{}'::jsonb);
-  if v_penalties ? 'warning_threshold' then
-    v_warning_threshold := (v_penalties->>'warning_threshold')::integer;
-  end if;
-  if v_penalties ? 'deduction_threshold' then
-    v_deduction_threshold := (v_penalties->>'deduction_threshold')::integer;
-  end if;
-  if v_penalties ? 'deduction_value' then
-    v_deduction_value := (v_penalties->>'deduction_value')::numeric;
-  end if;
-  if v_penalties ? 'auto_submit_threshold' then
-    v_auto_submit_threshold := (v_penalties->>'auto_submit_threshold')::integer;
-  end if;
-  if v_penalties ? 'disqualification_threshold' then
-    v_disqualification_threshold := (v_penalties->>'disqualification_threshold')::integer;
+  for v_penalty_rule in
+    select value
+    from jsonb_array_elements(v_penalty_rules)
+  loop
+    if jsonb_typeof(v_penalty_rule) <> 'object' then
+      continue;
+    end if;
+
+    begin
+      v_penalty_threshold := nullif(v_penalty_rule ->> 'threshold', '')::integer;
+    exception when others then
+      continue;
+    end;
+
+    if v_penalty_threshold is null or v_penalty_threshold < 1 then
+      continue;
+    end if;
+
+    v_penalty_kind := v_penalty_rule ->> 'penaltyKind';
+
+    if v_penalty_kind = 'warning' and v_penalty_threshold < v_warning_threshold then
+      v_warning_threshold := v_penalty_threshold;
+      v_has_rule := true;
+    elsif v_penalty_kind = 'deduction' and v_penalty_threshold < v_deduction_threshold then
+      v_deduction_threshold := v_penalty_threshold;
+      begin
+        v_deduction_value := coalesce(nullif(v_penalty_rule ->> 'deductionValue', '')::numeric, 0);
+      exception when others then
+        v_deduction_value := 0;
+      end;
+      v_has_rule := true;
+    elsif v_penalty_kind = 'forced_submit' and v_penalty_threshold < v_auto_submit_threshold then
+      v_auto_submit_threshold := v_penalty_threshold;
+      v_has_rule := true;
+    elsif v_penalty_kind = 'disqualification' and v_penalty_threshold < v_disqualification_threshold then
+      v_disqualification_threshold := v_penalty_threshold;
+      v_has_rule := true;
+    end if;
+  end loop;
+
+  if not v_has_rule then
+    v_penalties := coalesce(v_competition.offense_penalties_json, '{}'::jsonb);
+    if v_penalties ? 'warning_threshold' then
+      v_warning_threshold := (v_penalties->>'warning_threshold')::integer;
+    end if;
+    if v_penalties ? 'deduction_threshold' then
+      v_deduction_threshold := (v_penalties->>'deduction_threshold')::integer;
+    end if;
+    if v_penalties ? 'deduction_value' then
+      v_deduction_value := (v_penalties->>'deduction_value')::numeric;
+    end if;
+    if v_penalties ? 'auto_submit_threshold' then
+      v_auto_submit_threshold := (v_penalties->>'auto_submit_threshold')::integer;
+    end if;
+    if v_penalties ? 'disqualification_threshold' then
+      v_disqualification_threshold := (v_penalties->>'disqualification_threshold')::integer;
+    end if;
   end if;
 
   if v_offense_number >= v_disqualification_threshold then
@@ -223,8 +197,6 @@ begin
   where id = p_attempt_id;
 
   if v_penalty_applied = 'deduction' then
-    -- apply deduction score based on deduction value
-    -- we do not close interval nor flag auto submission
     update public.competition_attempts
     set penalty_score = penalty_score + abs(v_deduction_value)
     where id = p_attempt_id;

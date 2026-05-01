@@ -28,7 +28,7 @@ export default async function OrganizerCompetitionParticipantsPage({ params }: P
 
   const [registrations, offenseLogs] = await Promise.all([
     listOrganizerCompetitionRegistrations({ competitionId }),
-    getCompetitionOffenses(competitionId),
+    getCompetitionOffenses(competitionId, profile?.id ?? ""),
   ]);
 
   return (

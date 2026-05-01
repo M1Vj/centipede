@@ -62,6 +62,31 @@ function toLegacyTieBreaker(value: CompetitionDraftMutationPayload["tieBreaker"]
   return value === "lowest_total_time" ? "average_time" : "earliest_submission";
 }
 
+export function buildOffensePenaltiesJson(input: CompetitionDraftMutationPayload["offensePenalties"]) {
+  const payload: Record<string, number> = {};
+
+  for (const rule of [...input].sort((left, right) => left.threshold - right.threshold)) {
+    if (rule.penaltyKind === "warning" && payload.warning_threshold === undefined) {
+      payload.warning_threshold = rule.threshold;
+    }
+
+    if (rule.penaltyKind === "deduction" && payload.deduction_threshold === undefined) {
+      payload.deduction_threshold = rule.threshold;
+      payload.deduction_value = rule.deductionValue;
+    }
+
+    if (rule.penaltyKind === "forced_submit" && payload.auto_submit_threshold === undefined) {
+      payload.auto_submit_threshold = rule.threshold;
+    }
+
+    if (rule.penaltyKind === "disqualification" && payload.disqualification_threshold === undefined) {
+      payload.disqualification_threshold = rule.threshold;
+    }
+  }
+
+  return payload;
+}
+
 export function buildCompetitionDraftRpcPayload(input: CompetitionDraftMutationPayload) {
   return {
     ...input,
@@ -96,6 +121,7 @@ export function buildLegacyCompetitionMutationPayload(input: CompetitionDraftMut
     shuffle_options: input.shuffleOptions,
     log_tab_switch: input.logTabSwitch,
     offense_penalties: input.offensePenalties,
+    offense_penalties_json: buildOffensePenaltiesJson(input.offensePenalties),
     published: false,
     is_paused: false,
   } as const;

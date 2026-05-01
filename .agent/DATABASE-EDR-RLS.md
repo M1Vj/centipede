@@ -303,7 +303,8 @@ Purpose: competition draft, published, live, paused, and archived configuration.
 | `shuffle_questions` | boolean |
 | `shuffle_options` | boolean |
 | `log_tab_switch` | boolean |
-| `offense_penalties_json` | jsonb |
+| `offense_penalties` | jsonb | canonical organizer-authored tab-switch penalty rules array |
+| `offense_penalties_json` | jsonb | compatibility mirror for threshold-shaped anti-cheat rules |
 | `scoring_snapshot_json` | jsonb | immutable publish-time scoring and anti-cheat contract |
 | `leaderboard_published` | boolean |
 | `published_at` | timestamptz nullable |
@@ -536,7 +537,7 @@ Purpose: anti-cheat offense logs.
 | `logged_at` | timestamptz |
 | `metadata_json` | jsonb | required keys: `event_source`, `visibility_state`, `route_path`, `user_agent`, `client_timestamp` (value may be null) |
 
-Canonical anti-cheat metadata contract: client-provided time lives at `metadata_json.client_timestamp` as the canonical location and may be null when unavailable. Trusted `log_tab_switch_offense` must reject malformed metadata (missing required keys or invalid key types), and when `metadata_json.client_timestamp` is present and parseable it should be mirrored into `tab_switch_logs.client_timestamp` for indexed analytics.
+Canonical anti-cheat metadata contract: client-provided time lives at `metadata_json.client_timestamp` as the canonical location and may be null when unavailable. Trusted `log_tab_switch_offense` must reject malformed metadata (missing required keys or invalid key types), and when `metadata_json.client_timestamp` is present and parseable it should be mirrored into `tab_switch_logs.client_timestamp` for indexed analytics. Tab-switch escalation reads the saved `competitions.offense_penalties` rules array first, then falls back to `offense_penalties_json` for compatibility with existing threshold-shaped data.
 
 ### `problem_disputes`
 
@@ -813,7 +814,7 @@ Required trusted functions:
 - `submit_competition_attempt(attempt_id, actor_user_id, request_idempotency_token, submission_kind)` canonical final-submit mutation with deterministic authority and concurrency guards for individual and team registrations; `submission_kind = 'auto'` is the timer-expiry path
 - `create_problem_dispute(competition_problem_id, attempt_id, reason)` enforces post-end timing and ownership scope (branch `13-review-submission` ownership contract)
 - `can_view_answer_key(competition_id, viewer_profile_id)` enforces `answer_key_visibility` (`after_end` requires ended competition plus owned registration/attempt context; `hidden` always denies participant access)
-- `log_tab_switch_offense(attempt_id, metadata_json)` validates required anti-cheat metadata keys and mirrors parseable `metadata_json.client_timestamp` into `tab_switch_logs.client_timestamp`
+- `log_tab_switch_offense(attempt_id, metadata_json)` validates required anti-cheat metadata keys, mirrors parseable `metadata_json.client_timestamp` into `tab_switch_logs.client_timestamp`, and resolves escalation from `competitions.offense_penalties` with `offense_penalties_json` fallback
 - `grade_attempt(attempt_id)` (branch `07-scoring-system` scoring RPC contract ownership)
 - `recalculate_competition_scores(competition_id, request_idempotency_token)` computes effective grading inputs as immutable snapshots plus active `competition_problem_corrections` overlays, with canonical points precedence (`active points_override.corrected_points` else `competition_problems.points`) (branch `07-scoring-system` scoring RPC contract ownership)
 - `refresh_leaderboard_entries(competition_id)` (branch `07-scoring-system` scoring RPC contract ownership)

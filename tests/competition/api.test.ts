@@ -123,15 +123,27 @@ describe("competition api helpers", () => {
       shuffleQuestions: false,
       shuffleOptions: false,
       logTabSwitch: false,
-      offensePenalties: [],
       answerKeyVisibility: "after_end",
       selectedProblemIds: [],
+      offensePenalties: [
+        { threshold: 1, penaltyKind: "warning", deductionValue: 0 },
+        { threshold: 2, penaltyKind: "deduction", deductionValue: 3 },
+        { threshold: 4, penaltyKind: "forced_submit", deductionValue: 0 },
+        { threshold: 6, penaltyKind: "disqualification", deductionValue: 0 },
+      ],
     });
 
     expect(payload.scoring_mode).toBe("automatic");
     expect(payload.penalty_mode).toBe("deduction");
     expect(payload.tie_breaker).toBe("average_time");
     expect(payload.start_time).toBe("2026-05-01T03:00:00.000Z");
+    expect(payload.offense_penalties_json).toEqual({
+      warning_threshold: 1,
+      deduction_threshold: 2,
+      deduction_value: 3,
+      auto_submit_threshold: 4,
+      disqualification_threshold: 6,
+    });
     expect(payload).not.toHaveProperty("end_time");
   });
 
