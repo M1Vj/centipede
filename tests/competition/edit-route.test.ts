@@ -225,6 +225,8 @@ describe("competition edit route legacy compatibility", () => {
   });
 
   test("patch falls back to legacy competition select columns when save RPC is unavailable", async () => {
+    const offensePenalties = [{ threshold: 2, penaltyKind: "warning", deductionValue: 0 }];
+
     vi.mocked(createClient).mockResolvedValue(
       makeServerClient({
         competitionSelectResults: {
@@ -244,10 +246,14 @@ describe("competition edit route legacy compatibility", () => {
     updateQuery.eq.mockImplementation(() => updateQuery);
     updateQuery.select.mockImplementation(() => updateQuery);
 
+    let updatePayload: Record<string, unknown> | null = null;
     const adminFrom = vi.fn((table: string) => {
       if (table === "competitions") {
         return {
-          update: vi.fn(() => updateQuery),
+          update: vi.fn((payload: Record<string, unknown>) => {
+            updatePayload = payload;
+            return updateQuery;
+          }),
         };
       }
 
@@ -286,6 +292,8 @@ describe("competition edit route legacy compatibility", () => {
         registrationEnd: null,
         startTime: "2026-06-01T09:00:00.000Z",
         endTime: null,
+        logTabSwitch: true,
+        offensePenalties,
         selectedProblemIds: [],
       }),
       { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
@@ -296,6 +304,13 @@ describe("competition edit route legacy compatibility", () => {
     expect(body.code).toBe("ok");
     expect(body.competition.name).toBe("Legacy Draft Updated");
     expect(updateQuery.select).toHaveBeenCalledWith(LEGACY_COMPETITION_SELECT_COLUMNS);
+    expect(updatePayload).not.toHaveProperty("offense_penalties_json");
+    expect(updatePayload).toEqual(
+      expect.objectContaining({
+        log_tab_switch: true,
+        offense_penalties: offensePenalties,
+      }),
+    );
   });
 
   test("patch serializes modern scoring tokens before save", async () => {

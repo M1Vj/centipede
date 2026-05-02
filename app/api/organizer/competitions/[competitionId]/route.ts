@@ -9,7 +9,7 @@ import {
 import { validateCompetitionDraftInput } from "@/lib/competition/validation";
 import {
   buildCompetitionDraftRpcPayload,
-  buildLegacyCompetitionMutationPayload,
+  buildLegacySchemaCompetitionMutationPayload,
   fetchCompetition,
   jsonDatabaseError,
   jsonError,
@@ -209,7 +209,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ compe
     const legacyUpdateResult = await adminClient
       .from("competitions")
       .update({
-        ...buildLegacyCompetitionMutationPayload(validation.value),
+        ...buildLegacySchemaCompetitionMutationPayload(validation.value),
       })
       .eq("id", competitionId)
       .select(LEGACY_COMPETITION_SELECT_COLUMNS)

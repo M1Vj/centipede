@@ -8,6 +8,7 @@ import {
 import type { CompetitionDraftFormState, CompetitionDraftInput, CompetitionRecord } from "@/lib/competition/types";
 import {
   buildCompetitionDraftRpcPayload,
+  buildLegacySchemaCompetitionMutationPayload,
   buildLegacyCompetitionMutationPayload,
   competitionLifecycleErrorMessage,
   competitionLifecycleErrorStatus,
@@ -225,7 +226,7 @@ export async function POST(request: Request) {
 
   const legacyInsertPayload = {
     organizer_id: actor.userId,
-    ...buildLegacyCompetitionMutationPayload(validation.value),
+    ...buildLegacySchemaCompetitionMutationPayload(validation.value),
   };
 
   let createdCompetitionResult = await adminClient
