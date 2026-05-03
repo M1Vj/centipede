@@ -21,6 +21,8 @@ describe("scoring snapshot", () => {
         { threshold: 3, penaltyKind: "deduction", deductionValue: 2 },
         { threshold: 1, penaltyKind: "warning", deductionValue: 0 },
       ],
+      safeExamBrowserMode: "required",
+      safeExamBrowserConfigKeyHashes: ["b".repeat(64), "a".repeat(64)],
       customPointsByProblemId: {
         problem_b: 2,
         problem_a: 5,
@@ -29,6 +31,7 @@ describe("scoring snapshot", () => {
 
     expect(assertSnapshotIsImmutable(snapshot)).toBe(true);
     expect(snapshot.offensePenalties.map((rule) => rule.threshold)).toEqual([1, 3]);
+    expect(snapshot.safeExamBrowserConfigKeyHashes).toEqual(["a".repeat(64), "b".repeat(64)]);
     expect(Object.keys(snapshot.customPointsByProblemId)).toEqual(["problem_a", "problem_b"]);
   });
 
@@ -44,6 +47,8 @@ describe("scoring snapshot", () => {
       shuffleOptions: true,
       logTabSwitch: false,
       offensePenalties: [{ threshold: 2, penaltyKind: "deduction", deductionValue: 1 }],
+      safeExamBrowserMode: "off",
+      safeExamBrowserConfigKeyHashes: [],
       customPointsByProblemId: {},
     });
 
@@ -87,6 +92,8 @@ describe("scoring snapshot", () => {
       offensePenalties: Object.freeze([
         { threshold: 1, penaltyKind: "warning", deductionValue: 0 },
       ]),
+      safeExamBrowserMode: "off",
+      safeExamBrowserConfigKeyHashes: Object.freeze([]),
       customPointsByProblemId: Object.freeze({}),
     });
 

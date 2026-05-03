@@ -38,6 +38,8 @@ describe("competition api helpers", () => {
       shuffle_questions: true,
       shuffle_options: false,
       log_tab_switch: true,
+      safe_exam_browser_mode: "required",
+      safe_exam_browser_config_key_hashes: ["a".repeat(64)],
       offense_penalties: [{ threshold: 2, penaltyKind: "warning", deductionValue: 0 }],
       scoring_snapshot_json: { scoringMode: "custom" },
       draft_revision: 4,
@@ -51,6 +53,8 @@ describe("competition api helpers", () => {
     expect(record).not.toBeNull();
     expect(record?.status).toBe("published");
     expect(record?.multiAttemptGradingMode).toBe("latest_score");
+    expect(record?.safeExamBrowserMode).toBe("required");
+    expect(record?.safeExamBrowserConfigKeyHashes).toEqual(["a".repeat(64)]);
     expect(record?.scoringSnapshotJson).toEqual({ scoringMode: "custom" });
     expect(record?.publishedAt).toBe("2026-04-10T12:00:00.000Z");
   });
@@ -123,6 +127,8 @@ describe("competition api helpers", () => {
       shuffleQuestions: false,
       shuffleOptions: false,
       logTabSwitch: false,
+      safeExamBrowserMode: "required",
+      safeExamBrowserConfigKeyHashes: ["b".repeat(64)],
       answerKeyVisibility: "after_end",
       selectedProblemIds: [],
       offensePenalties: [
@@ -144,6 +150,8 @@ describe("competition api helpers", () => {
       auto_submit_threshold: 4,
       disqualification_threshold: 6,
     });
+    expect(payload.safe_exam_browser_mode).toBe("required");
+    expect(payload.safe_exam_browser_config_key_hashes).toEqual(["b".repeat(64)]);
     expect(payload).not.toHaveProperty("end_time");
   });
 
@@ -173,6 +181,8 @@ describe("competition api helpers", () => {
       shuffleQuestions: false,
       shuffleOptions: false,
       logTabSwitch: false,
+      safeExamBrowserMode: "required",
+      safeExamBrowserConfigKeyHashes: ["c".repeat(64)],
       offensePenalties: [],
       answerKeyVisibility: "after_end",
       selectedProblemIds: [],
@@ -183,6 +193,8 @@ describe("competition api helpers", () => {
     expect(payload.tieBreaker).toBe("average_time");
     expect(payload.startTime).toBe("2026-05-01T03:00:00.000Z");
     expect(payload.selectedProblemIds).toEqual([]);
+    expect(payload.safeExamBrowserMode).toBe("required");
+    expect(payload.safeExamBrowserConfigKeyHashes).toEqual(["c".repeat(64)]);
     expect(payload.customPoints).toEqual({});
     expect(payload.customPointsByProblemId).toEqual({});
   });

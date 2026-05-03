@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { Bookmark, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { flushSync } from "react-dom";
+import { Bookmark, ChevronLeft, ChevronRight, Clock, Download, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { AntiCheatObserver, PenaltyApplied } from "@/components/anti-cheat/anti-cheat-observer";
+import {
+  AntiCheatObserver,
+  type AntiCheatSignal,
+  type PenaltyApplied,
+} from "@/components/anti-cheat/anti-cheat-observer";
 import { WarningOverlay } from "@/components/anti-cheat/warning-overlay";
 import { MathliveField } from "@/components/math-editor/mathlive-field";
 import { KatexPreview } from "@/components/math-editor/katex-preview";
@@ -31,6 +36,16 @@ type ArenaExperienceProps = {
 };
 
 type RequestState = "idle" | "pending" | "error";
+type AntiCheatStatus = {
+  eventSource: string;
+  visibilityState: string;
+  status: "active" | "detected" | "sent" | "queued" | "error";
+  penalty: PenaltyApplied;
+  happenedAt: string | null;
+};
+type AntiCheatSignalState = AntiCheatSignal & {
+  counts: Record<string, number>;
+};
 
 type PendingSave = {
   clientUpdatedAt: string;
@@ -106,6 +121,33 @@ function formatCompetitionWindow(label: string, value: string | null) {
   return `${label}: ${date.toLocaleString()}`;
 }
 
+function getAttemptTerminalNotice(status: string | null | undefined) {
+  switch (status) {
+    case "auto_submitted":
+      return {
+        tone: "warning" as const,
+        title: "Attempt auto-submitted",
+        message:
+          "Anti-cheat policy auto-submitted this attempt after repeated focus-loss offenses were logged.",
+      };
+    case "disqualified":
+      return {
+        tone: "destructive" as const,
+        title: "Attempt disqualified",
+        message:
+          "Anti-cheat policy disqualified this attempt after repeated focus-loss offenses were logged.",
+      };
+    case "submitted":
+      return {
+        tone: "default" as const,
+        title: "Attempt submitted",
+        message: "This attempt has already been submitted and is no longer editable.",
+      };
+    default:
+      return null;
+  }
+}
+
 function getInitialAnswerValue(problem: ArenaProblem, answer: ArenaAttemptAnswer | undefined) {
   if (!answer) {
     return "";
@@ -146,6 +188,21 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   const [remainingSeconds, setRemainingSeconds] = useState(
     initialData.activeAttempt?.remainingSeconds ?? 0,
   );
+  const [antiCheatStatus, setAntiCheatStatus] = useState<AntiCheatStatus>({
+    eventSource: "ready",
+    visibilityState: "visible",
+    status: "active",
+    penalty: null,
+    happenedAt: null,
+  });
+  const [antiCheatSignal, setAntiCheatSignal] = useState<AntiCheatSignalState>({
+    eventSource: "ready",
+    visibilityState: "visible",
+    hidden: false,
+    hasFocus: true,
+    checkedAt: "",
+    counts: {},
+  });
   const [connectionState, setConnectionState] = useState<"live" | "syncing" | "offline">("live");
   const [timerAnnouncement, setTimerAnnouncement] = useState("");
   const expiryHandledAttemptRef = useRef<string | null>(null);
@@ -708,6 +765,8 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
       ((pageData.registration?.status === "registered" && pageData.registration.actorCanStart) ||
         (pageData.competition.type === "open" && !pageData.registration)),
   );
+  const safeExamBrowserRequired = pageData.competition.safeExamBrowserMode === "required";
+  const safeExamBrowserConfigHref = `/api/mathlete/competition/${pageData.competition.id}/safe-exam-browser-config`;
   const canWrite = Boolean(pageData.registration?.actorCanWrite && pageData.activeAttempt);
   const canWithdraw = Boolean(
     pageData.registration?.status === "registered" && !pageData.activeAttempt && !pageData.latestAttempt,
@@ -726,6 +785,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
     (problem) => (answers.get(problem.competitionProblemId)?.statusFlag ?? "blank") === "solved",
   ).length;
   const selectedStatus = selectedAnswer?.statusFlag ?? "blank";
+  const terminalAttemptNotice = getAttemptTerminalNotice(pageData.latestAttempt?.status);
   const selectedProblemTitle = selectedProblem
     ? `Problem #${selectedProblem.orderIndex}`
     : "Problem";
@@ -739,18 +799,57 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
     <div className="min-h-screen bg-[#fafafb] px-4 py-6 font-['Poppins'] text-[#1a1e2e] sm:px-6 lg:px-10">
       <AntiCheatObserver
         attemptId={pageData.activeAttempt?.id ?? ""}
-        isActive={!!pageData.activeAttempt && pageData.activeAttempt.status === "in_progress"}
+        isActive={
+          pageData.competition.logTabSwitch &&
+          !!pageData.activeAttempt &&
+          pageData.activeAttempt.status === "in_progress"
+        }
         onPenalty={(penalty) => {
           if (penalty && penalty !== "none") {
-            setActivePenalty(penalty);
-            if (penalty === "auto_submit" || penalty === "disqualified") {
-              setPageData((prev) => ({
+            flushSync(() => {
+              setActivePenalty(penalty);
+              setAntiCheatStatus((prev) => ({
                 ...prev,
-                activeAttempt: prev.activeAttempt
-                  ? { ...prev.activeAttempt, status: penalty === "auto_submit" ? "auto_submitted" : "disqualified" }
-                  : null,
+                penalty,
+                happenedAt: prev.happenedAt ?? new Date().toISOString(),
               }));
-            }
+              if (penalty === "auto_submit" || penalty === "disqualified") {
+                setPageData((prev) => ({
+                  ...prev,
+                  activeAttempt: prev.activeAttempt
+                    ? { ...prev.activeAttempt, status: penalty === "auto_submit" ? "auto_submitted" : "disqualified" }
+                    : null,
+                }));
+              }
+            });
+          }
+        }}
+        onSignal={(signal) => {
+          setAntiCheatSignal((prev) => ({
+            ...signal,
+            counts:
+              signal.eventSource === "poll"
+                ? prev.counts
+                : {
+                    ...prev.counts,
+                    [signal.eventSource]: (prev.counts[signal.eventSource] ?? 0) + 1,
+                  },
+          }));
+        }}
+        onEvent={({ eventSource, visibilityState, status, penalty }) => {
+          setAntiCheatStatus({
+            eventSource,
+            visibilityState,
+            status,
+            penalty: penalty ?? null,
+            happenedAt: new Date().toISOString(),
+          });
+          if (status === "queued" || penalty === "auto_submit" || penalty === "disqualified") {
+            window.setTimeout(() => {
+              void refreshState({
+                preservePending: false,
+              });
+            }, status === "queued" ? 1200 : 0);
           }
         }}
       />
@@ -796,12 +895,68 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
         ) : null}
       </div>
 
+      {pageData.activeAttempt ? (
+        <div
+          className={cn(
+            "mt-4 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm",
+            pageData.competition.logTabSwitch
+              ? antiCheatStatus.status === "active"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                : antiCheatStatus.status === "error"
+                  ? "border-red-200 bg-red-50 text-red-900"
+                  : "border-amber-200 bg-amber-50 text-amber-950"
+              : "border-slate-200 bg-slate-50 text-slate-500",
+          )}
+          role="status"
+          aria-live="polite"
+        >
+          {pageData.competition.logTabSwitch ? (
+            <div className="space-y-1">
+              <p>
+                {antiCheatStatus.status === "active"
+                  ? "Anti-cheat active. Switch tabs or apps to test focus-loss detection."
+                  : `Anti-cheat event detected: ${antiCheatStatus.eventSource} (${antiCheatStatus.visibilityState}). Log status: ${antiCheatStatus.status}.`}
+              </p>
+              <p className="text-xs font-medium">
+                Browser signal: {antiCheatSignal.visibilityState}
+                {antiCheatSignal.hidden ? " / hidden" : " / visible"}
+                {antiCheatSignal.hasFocus ? " / focused" : " / not focused"}
+                {antiCheatSignal.eventSource ? ` / last: ${antiCheatSignal.eventSource}` : ""}
+              </p>
+              <p className="text-xs font-medium">
+                Browser signal counters: visibilitychange {antiCheatSignal.counts.visibilitychange ?? 0}, blur{" "}
+                {antiCheatSignal.counts.blur ?? 0}, focus {antiCheatSignal.counts.focus ?? 0},
+                pagehide {antiCheatSignal.counts.pagehide ?? 0}
+              </p>
+            </div>
+          ) : (
+            "Anti-cheat tab-switch logging disabled for this competition."
+          )}
+        </div>
+      ) : null}
+
       {requestMessage ? (
         <Alert variant={requestState === "error" ? "destructive" : "default"}>
           <p className="mb-2 text-sm font-semibold text-foreground">
             {requestState === "error" ? "Action blocked" : "Arena update"}
           </p>
           <AlertDescription>{requestMessage}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {terminalAttemptNotice ? (
+        <Alert
+          variant={terminalAttemptNotice.tone === "destructive" ? "destructive" : "default"}
+          className={cn(
+            "mt-4 border-2",
+            terminalAttemptNotice.tone === "warning"
+              ? "border-amber-300 bg-amber-50 text-amber-950"
+              : "",
+          )}
+          role="alert"
+        >
+          <p className="mb-2 text-sm font-black">{terminalAttemptNotice.title}</p>
+          <AlertDescription>{terminalAttemptNotice.message}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -889,6 +1044,27 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
             </p>
 
             <div className="mt-8 space-y-4">
+              {safeExamBrowserRequired ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950">
+                  <div className="flex items-start gap-3">
+                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
+                    <div className="space-y-2">
+                      <p className="text-sm font-black">Safe Exam Browser required</p>
+                      <p className="text-sm font-medium leading-6">
+                        Download the quiz config, open it with Safe Exam Browser, then start the competition from inside SEB.
+                      </p>
+                      <a
+                        href={safeExamBrowserConfigHref}
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#10182b] px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-white hover:bg-[#1f2a44]"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download SEB config
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-5 transition hover:border-slate-200">
                 <Checkbox
                   checked={acknowledgements.rules}

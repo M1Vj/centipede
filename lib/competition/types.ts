@@ -3,6 +3,7 @@ import type {
   CompetitionType,
   OffensePenaltyRule,
   PenaltyMode,
+  SafeExamBrowserMode,
   ScoringMode,
   ScoringRuleConfig,
   TieBreaker,
@@ -75,6 +76,8 @@ export interface CompetitionDraftFormState {
   shuffleOptions: boolean;
   logTabSwitch: boolean;
   offensePenalties: OffensePenaltyRule[];
+  safeExamBrowserMode: SafeExamBrowserMode;
+  safeExamBrowserConfigKeyHashes: string[];
   answerKeyVisibility: CompetitionAnswerKeyVisibility;
   selectedProblemIds: string[];
 }
@@ -107,6 +110,8 @@ export interface CompetitionDraftMutationPayload {
   shuffleOptions: boolean;
   logTabSwitch: boolean;
   offensePenalties: OffensePenaltyRule[];
+  safeExamBrowserMode: SafeExamBrowserMode;
+  safeExamBrowserConfigKeyHashes: string[];
   answerKeyVisibility: CompetitionAnswerKeyVisibility;
   selectedProblemIds: string[];
 }
@@ -140,6 +145,8 @@ export interface CompetitionRecord {
   shuffleOptions: boolean;
   logTabSwitch: boolean;
   offensePenalties: OffensePenaltyRule[];
+  safeExamBrowserMode: SafeExamBrowserMode;
+  safeExamBrowserConfigKeyHashes: string[];
   scoringSnapshotJson: Record<string, unknown> | null;
   draftRevision: number;
   draftVersion: number;

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { ArenaExperience } from "@/components/arena/arena-experience";
 import type { ArenaPageData } from "@/lib/arena/types";
@@ -85,6 +85,8 @@ function buildPageData(mode: ArenaPageData["mode"]): ArenaPageData {
       durationMinutes: 60,
       attemptsAllowed: 1,
       participantsPerTeam: null,
+      logTabSwitch: true,
+      safeExamBrowserMode: "off",
     },
     registration:
       mode === "detail_register"
@@ -161,6 +163,153 @@ describe("ArenaExperience", () => {
     }
 
     expect(startButton).toBeEnabled();
+  });
+
+  test("does not activate anti-cheat observer when tab-switch logging is disabled", () => {
+    const data = buildPageData("arena_runtime");
+    data.competition.logTabSwitch = false;
+    data.activeAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "in_progress",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: null,
+      totalTimeSeconds: 0,
+      remainingSeconds: 3600,
+      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [],
+    };
+
+    render(<ArenaExperience initialData={data} />);
+
+    window.dispatchEvent(new Event("blur"));
+
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/anti-cheat/offense",
+      expect.anything(),
+    );
+    expect(screen.queryByText("Warning: Focus Lost")).not.toBeInTheDocument();
+    expect(screen.getByText("Anti-cheat tab-switch logging disabled for this competition.")).toBeInTheDocument();
+  });
+
+  test("shows visible anti-cheat status after sustained focus loss is detected", async () => {
+    vi.useFakeTimers();
+    const data = buildPageData("arena_runtime");
+    data.activeAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "in_progress",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: null,
+      totalTimeSeconds: 0,
+      remainingSeconds: 3600,
+      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [],
+    };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ penaltyApplied: "warning" }), { status: 200 }),
+    );
+
+    render(<ArenaExperience initialData={data} />);
+
+    expect(screen.getByText(/Anti-cheat active/i)).toBeInTheDocument();
+    expect(screen.getByText(/Browser signal:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Browser signal counters: visibilitychange 0, blur 0/i)).toBeInTheDocument();
+    window.dispatchEvent(new Event("blur"));
+
+    expect(screen.queryByText(/Anti-cheat event detected: blur/i)).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+
+    expect(screen.getByText(/Anti-cheat event detected: blur/i)).toBeInTheDocument();
+    expect(screen.getByText(/Browser signal counters: visibilitychange 0, blur 1/i)).toBeInTheDocument();
+  });
+
+  test("shows warning overlay after sustained focus loss before offense request resolves", async () => {
+    vi.useFakeTimers();
+    const data = buildPageData("arena_runtime");
+    data.activeAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "in_progress",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: null,
+      totalTimeSeconds: 0,
+      remainingSeconds: 3600,
+      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [],
+    };
+    fetchMock.mockReturnValue(new Promise(() => {}));
+
+    render(<ArenaExperience initialData={data} />);
+
+    window.dispatchEvent(new Event("blur"));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Warning: Focus Lost");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/anti-cheat/offense",
+      expect.objectContaining({
+        keepalive: true,
+      }),
+    );
+  });
+
+  test("shows a prominent notice when anti-cheat auto-submitted the latest attempt", () => {
+    const data = buildPageData("detail_register");
+    data.registration = {
+      id: "registration-1",
+      competitionId: "competition-1",
+      profileId: "profile-1",
+      teamId: null,
+      status: "registered",
+      statusReason: null,
+      registeredAt: "2026-04-22T11:00:00.000Z",
+      updatedAt: "2026-04-22T11:00:00.000Z",
+      actorIsLeader: false,
+      actorCanStart: true,
+      actorCanWrite: true,
+      teamName: null,
+    };
+    data.latestAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "auto_submitted",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: "2026-04-22T12:15:00.000Z",
+      totalTimeSeconds: 900,
+      remainingSeconds: 0,
+      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [],
+    };
+
+    render(<ArenaExperience initialData={data} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Attempt auto-submitted");
+    expect(screen.getByText(/repeated focus-loss offenses were logged/i)).toBeInTheDocument();
   });
 
   test("open competitions can start from pre-entry without a registration id", async () => {

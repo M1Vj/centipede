@@ -58,6 +58,8 @@ function buildCreationDraftState(payload: Record<string, unknown> | null): Compe
     shuffleOptions: false,
     logTabSwitch: false,
     offensePenalties: [],
+    safeExamBrowserMode: "off",
+    safeExamBrowserConfigKeyHashes: [],
     answerKeyVisibility: baseState.answerKeyVisibility,
     selectedProblemIds,
   };

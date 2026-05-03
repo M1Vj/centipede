@@ -1,4 +1,5 @@
 import { jsonError, jsonOk, requireMathleteActor, requireSameOriginMutation } from "@/lib/arena/api";
+import { requireSafeExamBrowserForAttemptStart } from "@/lib/safe-exam-browser";
 import { loadArenaPageData, startCompetitionAttempt, startOpenCompetitionAttempt } from "@/lib/arena/server";
 
 export async function POST(
@@ -18,6 +19,11 @@ export async function POST(
 
   if (!actorId) {
     return jsonError("unauthorized", "Sign in required.", 401);
+  }
+
+  const safeExamBrowserGate = await requireSafeExamBrowserForAttemptStart(request, competitionId);
+  if (!safeExamBrowserGate.ok) {
+    return jsonError(safeExamBrowserGate.code, safeExamBrowserGate.message, 403);
   }
 
   const payload = (await request.json().catch(() => ({}))) as { registrationId?: string | null };

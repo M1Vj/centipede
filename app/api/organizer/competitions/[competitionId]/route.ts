@@ -258,6 +258,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ compe
     return jsonDatabaseError(saveError);
   }
 
+  try {
+    const safeExamBrowserUpdate = await adminClient
+      .from("competitions")
+      .update({
+        safe_exam_browser_mode: validation.value.safeExamBrowserMode,
+        safe_exam_browser_config_key_hashes: validation.value.safeExamBrowserConfigKeyHashes,
+      })
+      .eq("id", competitionId);
+
+    if (safeExamBrowserUpdate.error && !isLegacyCompetitionSchemaError(safeExamBrowserUpdate.error)) {
+      return jsonDatabaseError(safeExamBrowserUpdate.error);
+    }
+  } catch (error) {
+    if (!isLegacyCompetitionSchemaError(error as { code?: string | null; message?: string | null })) {
+      return jsonDatabaseError(error);
+    }
+  }
+
   const lifecycleResult = normalizeCompetitionLifecycleResult(savedResult);
   if (!lifecycleResult) {
     const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);

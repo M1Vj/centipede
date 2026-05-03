@@ -214,6 +214,8 @@ export function buildLegacySchemaCompetitionMutationPayload(
 ) {
   const payload: Record<string, unknown> = { ...buildLegacyCompetitionMutationPayload(input) };
   delete payload.offense_penalties_json;
+  delete payload.safe_exam_browser_mode;
+  delete payload.safe_exam_browser_config_key_hashes;
   return payload;
 }
 

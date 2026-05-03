@@ -38,6 +38,10 @@ const TEAM_REGISTRATION_MEMBERSHIP_INTEGRITY_MIGRATION_PATH = join(
   process.cwd(),
   "supabase/migrations/20260429113000_harden_team_registration_membership_integrity.sql",
 );
+const ATTEMPT_POLICY_AMBIGUITY_MIGRATION_PATH = join(
+  process.cwd(),
+  "supabase/migrations/20260503190000_fix_attempt_policy_column_ambiguity.sql",
+);
 
 describe("competition sql contracts", () => {
   test("start_competition qualifies event lookup columns to avoid output-parameter ambiguity", () => {
@@ -106,6 +110,15 @@ describe("competition sql contracts", () => {
     expect(sql).toContain("from public.validate_team_registration(p_team_id, p_competition_id) vtr");
     expect(sql).toContain("v_existing_registration := found;");
     expect(sql).toContain("if v_existing_registration then");
+  });
+
+  test("attempt policies qualify attempt_id columns to avoid RPC ambiguity", () => {
+    const sql = readFileSync(ATTEMPT_POLICY_AMBIGUITY_MIGRATION_PATH, "utf8");
+
+    expect(sql).toContain("where ca.id = public.attempt_intervals.attempt_id");
+    expect(sql).toContain("where ca.id = public.attempt_answers.attempt_id");
+    expect(sql).toContain("where ca.id = public.anti_cheat_logs.attempt_id");
+    expect(sql).not.toContain("where ca.id = attempt_id");
   });
 
   test("register_for_competition compares registration windows against unshifted timestamptz now", () => {

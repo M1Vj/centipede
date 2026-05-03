@@ -187,6 +187,8 @@ export function createDefaultCompetitionDraftState(): CompetitionDraftFormState 
     shuffleOptions: false,
     logTabSwitch: false,
     offensePenalties: [],
+    safeExamBrowserMode: "off",
+    safeExamBrowserConfigKeyHashes: [],
     answerKeyVisibility: "after_end",
     selectedProblemIds: [],
   };
@@ -381,6 +383,8 @@ export function validateCompetitionDraftInput(
     shuffleOptions: input.shuffleOptions,
     logTabSwitch: input.logTabSwitch,
     offensePenalties: input.offensePenalties,
+    safeExamBrowserMode: input.safeExamBrowserMode,
+    safeExamBrowserConfigKeyHashes: input.safeExamBrowserConfigKeyHashes,
     customPointsByProblemId: input.customPointsByProblemId,
   });
 
@@ -438,6 +442,8 @@ export function validateCompetitionDraftInput(
     shuffleOptions: scoringValidation.value.shuffleOptions,
     logTabSwitch: scoringValidation.value.logTabSwitch,
     offensePenalties: scoringValidation.value.offensePenalties,
+    safeExamBrowserMode: scoringValidation.value.safeExamBrowserMode,
+    safeExamBrowserConfigKeyHashes: [...scoringValidation.value.safeExamBrowserConfigKeyHashes],
     answerKeyVisibility,
     selectedProblemIds,
   });
@@ -485,6 +491,8 @@ export function buildCompetitionScoringSnapshot(
     shuffleOptions: payload.shuffleOptions,
     logTabSwitch: payload.logTabSwitch,
     offensePenalties: payload.offensePenalties,
+    safeExamBrowserMode: payload.safeExamBrowserMode,
+    safeExamBrowserConfigKeyHashes: payload.safeExamBrowserConfigKeyHashes,
     customPointsByProblemId: payload.customPointsByProblemId,
   });
 

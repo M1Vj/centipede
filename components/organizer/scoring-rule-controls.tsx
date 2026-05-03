@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Check, Edit3, Info, ShieldAlert, Zap } from "lucide-react";
+import { AlertCircle, Check, Edit3, ExternalLink, Info, ShieldAlert, Zap } from "lucide-react";
 import type { CompetitionType, ScoringRuleConfig } from "@/lib/scoring/types";
 import type { ScoringValidationError } from "@/lib/scoring/validation";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ interface OrganizerScoringRuleControlsProps {
   onChange: (nextValue: ScoringRuleConfig) => void;
   validationErrors?: ScoringValidationError[];
   disabled?: boolean;
+  safeExamBrowserConfigHref?: string | null;
 }
 
 function fieldError(
@@ -79,6 +80,7 @@ export function OrganizerScoringRuleControls({
   onChange,
   validationErrors,
   disabled = false,
+  safeExamBrowserConfigHref = null,
 }: OrganizerScoringRuleControlsProps) {
   const scoringModeError = fieldError(validationErrors, "scoringMode");
   const penaltyModeError = fieldError(validationErrors, "penaltyMode");
@@ -87,6 +89,8 @@ export function OrganizerScoringRuleControls({
   const attemptModeError = fieldError(validationErrors, "multiAttemptGradingMode");
   const customPointsError = fieldError(validationErrors, "customPointsByProblemId");
   const offensePenaltiesError = fieldError(validationErrors, "offensePenalties");
+  const safeExamBrowserModeError = fieldError(validationErrors, "safeExamBrowserMode");
+  const safeExamBrowserHashesError = fieldError(validationErrors, "safeExamBrowserConfigKeyHashes");
 
   const scoringModeErrorId = scoringModeError ? "scoring-mode-error" : undefined;
   const tieBreakerErrorId = tieBreakerError ? "tie-breaker-error" : undefined;
@@ -95,10 +99,12 @@ export function OrganizerScoringRuleControls({
   const attemptModeErrorId = attemptModeError ? "attempt-mode-error" : undefined;
   const customPointsErrorId = customPointsError ? "custom-points-error" : undefined;
   const offensePenaltiesErrorId = offensePenaltiesError ? "offense-penalties-error" : undefined;
+  const safeExamBrowserModeErrorId = safeExamBrowserModeError ? "safe-exam-browser-mode-error" : undefined;
   const offensePenaltiesHintId = "offense-penalties-hint";
   const offensePenaltiesDescribedBy = [offensePenaltiesHintId, offensePenaltiesErrorId]
     .filter(Boolean)
     .join(" ") || undefined;
+  const safeExamBrowserHashesText = value.safeExamBrowserConfigKeyHashes.join("\n");
   const customPointsHintId = "custom-points-hint";
   const customPointsDescribedBy = [customPointsHintId, customPointsErrorId].filter(Boolean).join(" ") || undefined;
 
@@ -618,6 +624,90 @@ export function OrganizerScoringRuleControls({
               </div>
             </div>
           </div>
+
+          <fieldset className="space-y-4 rounded-[24px] border border-slate-200 bg-white p-5">
+            <div>
+              <legend className="text-sm font-bold text-[#10182b]">Safe Exam Browser</legend>
+              <p className="mt-1 text-xs font-medium leading-5 text-slate-500">
+                Recommended for high-stakes quizzes. When enabled, participants must open this competition through SEB.
+              </p>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+              <div className="space-y-2">
+                <Label htmlFor="safe-exam-browser-mode" className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                  SEB enforcement
+                </Label>
+                <select
+                  id="safe-exam-browser-mode"
+                  value={value.safeExamBrowserMode}
+                  disabled={disabled}
+                  aria-invalid={Boolean(safeExamBrowserModeError)}
+                  aria-describedby={safeExamBrowserModeErrorId}
+                  onChange={(event) => {
+                    const nextMode = event.target.value === "required" ? "required" : "off";
+                    onChange({
+                      ...value,
+                      safeExamBrowserMode: nextMode,
+                    });
+                  }}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-[#10182b] outline-none transition focus:border-[#f49700] focus:ring-2 focus:ring-[#f49700]/20"
+                >
+                  <option value="off">Off</option>
+                  <option value="required">Required for this quiz</option>
+                </select>
+                {safeExamBrowserModeError ? (
+                  <p id={safeExamBrowserModeErrorId} className="text-xs font-bold text-red-500">{safeExamBrowserModeError}</p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="safe-exam-browser-config-key-hashes" className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                  Allowed Config Key hashes
+                </Label>
+                <textarea
+                  id="safe-exam-browser-config-key-hashes"
+                  value={safeExamBrowserHashesText}
+                  disabled={disabled || value.safeExamBrowserMode !== "required"}
+                  aria-invalid={Boolean(safeExamBrowserHashesError)}
+                  onChange={(event) =>
+                    onChange({
+                      ...value,
+                      safeExamBrowserConfigKeyHashes: event.target.value
+                        .split(/[\s,]+/)
+                        .map((entry) => entry.trim().toLowerCase())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="Paste one 64-character SEB Config Key hash per line"
+                  className="min-h-24 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-[#10182b] outline-none transition placeholder:text-slate-400 focus:border-[#f49700] focus:ring-2 focus:ring-[#f49700]/20 disabled:bg-slate-100"
+                />
+                {safeExamBrowserHashesError ? (
+                  <p className="text-xs font-bold text-red-500">{safeExamBrowserHashesError}</p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm font-medium leading-6 text-amber-950">
+              Download the quiz SEB config after creating this draft, open it in SEB Config Tool, copy the Config Key hash, then paste it here before publishing.
+              {safeExamBrowserConfigHref ? (
+                <a
+                  href={safeExamBrowserConfigHref}
+                  className="ml-2 inline-flex items-center gap-1 font-black text-[#10182b] underline-offset-4 hover:underline"
+                >
+                  Download quiz config
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              ) : null}
+              <a
+                href="/organizer/safe-exam-browser"
+                className="ml-2 inline-flex items-center gap-1 font-black text-[#10182b] underline-offset-4 hover:underline"
+              >
+                View Mathwiz SEB tutorial
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          </fieldset>
         </section>
       </CardContent>
     </Card>

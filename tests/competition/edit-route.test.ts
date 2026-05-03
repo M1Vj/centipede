@@ -336,6 +336,14 @@ describe("competition edit route legacy compatibility", () => {
         };
       }),
       from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return {
+            update: vi.fn(() => ({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            })),
+          };
+        }
+
         throw new Error(`Unexpected table in admin client: ${table}`);
       }),
     } as never);
@@ -408,7 +416,9 @@ describe("competition edit route legacy compatibility", () => {
       from: vi.fn((table: string) => {
         if (table === "competitions") {
           return {
-            update: vi.fn(),
+            update: vi.fn(() => ({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            })),
           };
         }
 
