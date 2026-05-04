@@ -62,6 +62,16 @@ function exportStatusBadgeClass(status: ExportJob["status"]) {
   }
 }
 
+function isExportJobStatus(value: unknown): value is ExportJob["status"] {
+  return (
+    value === "queued" ||
+    value === "processing" ||
+    value === "completed" ||
+    value === "failed" ||
+    value === "cancelled"
+  );
+}
+
 export function LeaderboardManagementPanel({
   competitionId,
   leaderboardPublished,
@@ -164,20 +174,30 @@ export function LeaderboardManagementPanel({
         return;
       }
 
-      if (payload?.exportJobId && payload.format && payload.status) {
+      const exportJobId = payload?.exportJobId;
+      const exportFormat = payload?.format;
+      const exportStatus = payload?.status;
+      const requestedBy = payload?.requestedBy ?? "";
+      const createdAt = payload?.createdAt ?? new Date().toISOString();
+
+      if (
+        typeof exportJobId === "string" &&
+        (exportFormat === "csv" || exportFormat === "xlsx") &&
+        isExportJobStatus(exportStatus)
+      ) {
         setJobRows((current) => [
           {
-            id: payload.exportJobId,
+            id: exportJobId,
             competitionId,
-            requestedBy: payload.requestedBy ?? "",
-            format: payload.format,
+            requestedBy,
+            format: exportFormat,
             scope: "leaderboard_history",
-            status: payload.status,
+            status: exportStatus,
             downloadUrl: null,
             errorMessage: null,
             requestIdempotencyToken: "",
-            createdAt: payload.createdAt ?? new Date().toISOString(),
-            updatedAt: payload.createdAt ?? new Date().toISOString(),
+            createdAt,
+            updatedAt: createdAt,
             completedAt: null,
           },
           ...current,

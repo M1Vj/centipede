@@ -1,5 +1,3 @@
-"use server";
-
 import {
   COMPETITION_SELECT_COLUMNS,
   isLegacyCompetitionSelectError,
