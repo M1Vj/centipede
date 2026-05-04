@@ -60,6 +60,12 @@ Organizer and admin workspaces are data-heavy and must be planned for mobile res
 ### 2.5
 Answer-key visibility initializes as `after_end` default-on. Participant visibility requires trusted server end-time and context ownership checks. The `hidden` state is an explicit organizer override, and `leaderboard_published` must not control answer-key access.
 
+### 2.6
+Safe Exam Browser may be recommended as an optional high-security competition mode, but it must not be required for the baseline anti-cheat flow unless the user explicitly changes that product requirement.
+
+### 2.7
+Safe Exam Browser is optional at the platform level, but when an organizer enables it for a specific quiz or competition it becomes mandatory for every participant attempting that quiz.
+
 ## 3. Technical Rules
 
 ### 3.1

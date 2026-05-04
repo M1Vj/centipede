@@ -209,6 +209,16 @@ export function isLegacyCompetitionSchemaError(error: { code?: string | null; me
   );
 }
 
+export function buildLegacySchemaCompetitionMutationPayload(
+  input: Parameters<typeof buildLegacyCompetitionMutationPayload>[0],
+) {
+  const payload: Record<string, unknown> = { ...buildLegacyCompetitionMutationPayload(input) };
+  delete payload.offense_penalties_json;
+  delete payload.safe_exam_browser_mode;
+  delete payload.safe_exam_browser_config_key_hashes;
+  return payload;
+}
+
 export async function replaceCompetitionProblemsLegacy(
   adminClient: AdminSupabaseClient,
   competitionId: string,

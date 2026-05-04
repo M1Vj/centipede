@@ -370,6 +370,8 @@ function buildScoringConfig(state: CompetitionDraftFormState): ScoringRuleConfig
     shuffleOptions: state.shuffleOptions,
     logTabSwitch: state.logTabSwitch,
     offensePenalties: state.offensePenalties,
+    safeExamBrowserMode: state.safeExamBrowserMode,
+    safeExamBrowserConfigKeyHashes: state.safeExamBrowserConfigKeyHashes,
     customPointsByProblemId: state.customPointsByProblemId,
   };
 }
@@ -2248,10 +2250,17 @@ export function CompetitionWizard({
                           "multiAttemptGradingMode",
                           "customPointsByProblemId",
                           "offensePenalties",
+                          "safeExamBrowserMode",
+                          "safeExamBrowserConfigKeyHashes",
                         ].includes(error.field),
                       )
                 }
                 disabled={!isEditable && mode === "edit"}
+                safeExamBrowserConfigHref={
+                  competitionId
+                    ? `/api/organizer/competitions/${competitionId}/safe-exam-browser-config`
+                    : null
+                }
               />
 
               <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">

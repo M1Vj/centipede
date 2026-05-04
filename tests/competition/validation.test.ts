@@ -72,6 +72,43 @@ describe("competition draft validation", () => {
     expect(createDefaultCompetitionDraftState().answerKeyVisibility).toBe("after_end");
   });
 
+  test("default draft keeps Safe Exam Browser off until organizer enables it", () => {
+    const draft = createDefaultCompetitionDraftState();
+
+    expect(draft.safeExamBrowserMode).toBe("off");
+    expect(draft.safeExamBrowserConfigKeyHashes).toEqual([]);
+  });
+
+  test("requires a 64-character Safe Exam Browser Config Key when strict mode is enabled", () => {
+    const result = validateCompetitionDraftInput({
+      ...buildScheduledTeamDraft(),
+      safeExamBrowserMode: "required",
+      safeExamBrowserConfigKeyHashes: [],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: "safeExamBrowserConfigKeyHashes",
+        }),
+      ]),
+    );
+  });
+
+  test("accepts strict Safe Exam Browser mode with a valid Config Key", () => {
+    const configKey = "a".repeat(64);
+    const result = validateCompetitionDraftInput({
+      ...buildScheduledTeamDraft(),
+      safeExamBrowserMode: "required",
+      safeExamBrowserConfigKeyHashes: [configKey],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.value?.safeExamBrowserMode).toBe("required");
+    expect(result.value?.safeExamBrowserConfigKeyHashes).toEqual([configKey]);
+  });
+
   test("default draft state uses scheduled default registration timing mode", () => {
     expect(createDefaultCompetitionDraftState().registrationTimingMode).toBe("default");
   });

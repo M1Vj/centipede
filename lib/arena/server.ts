@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normalizeCompetitionRecord } from "@/lib/competition/api";
+import {
+  LEGACY_COMPETITION_SELECT_COLUMNS,
+  isLegacyCompetitionSelectError,
+  normalizeCompetitionRecord,
+} from "@/lib/competition/api";
 import { endDueScheduledCompetitionsSafely } from "@/lib/competition/scheduled-start";
 import type { CompetitionRecord } from "@/lib/competition/types";
 import type { ProblemType } from "@/lib/problem-bank/types";
@@ -10,6 +14,7 @@ import {
   normalizeArenaAnswerValue,
   parseArenaOptions,
   resolvePersistedAnswerStatusFlag,
+  resolveEffectiveCompetitionStatus,
 } from "@/lib/arena/helpers";
 import type {
   AnswerStatusFlag,
@@ -98,7 +103,7 @@ type RpcLifecycleRow = {
 };
 
 const COMPETITION_DETAIL_SELECT =
-  "id, organizer_id, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
+  "id, organizer_id, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, safe_exam_browser_mode, safe_exam_browser_config_key_hashes, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
 
 function getAdminOrThrow() {
   const admin = createAdminClient();
@@ -131,6 +136,20 @@ function mapCompetitionSummary(record: CompetitionRecord): ArenaCompetitionSumma
     durationMinutes: record.durationMinutes,
     attemptsAllowed: record.attemptsAllowed,
     participantsPerTeam: record.participantsPerTeam,
+    logTabSwitch: record.logTabSwitch,
+    safeExamBrowserMode: record.safeExamBrowserMode,
+  };
+}
+
+export async function loadCompetitionSafeExamBrowserSettings(competitionId: string) {
+  const competition = await fetchCompetition(getAdminOrThrow(), competitionId);
+  if (!competition || competition.isDeleted) {
+    return null;
+  }
+
+  return {
+    mode: competition.safeExamBrowserMode,
+    configKeyHashes: competition.safeExamBrowserConfigKeyHashes,
   };
 }
 
@@ -142,6 +161,20 @@ async function fetchCompetition(admin: AdminClient, competitionId: string) {
     .maybeSingle<CompetitionRow>();
 
   if (error) {
+    if (isLegacyCompetitionSelectError(error)) {
+      const fallback = await admin
+        .from("competitions")
+        .select(LEGACY_COMPETITION_SELECT_COLUMNS)
+        .eq("id", competitionId)
+        .maybeSingle<CompetitionRow>();
+
+      if (fallback.error) {
+        throw fallback.error;
+      }
+
+      return fallback.data ? normalizeCompetitionRecord(fallback.data) : null;
+    }
+
     throw error;
   }
 
@@ -402,6 +435,7 @@ export async function loadArenaPageData(competitionId: string, actorUserId: stri
   const attempts = registration ? await fetchAttempts(admin, registration.id) : [];
   const activeAttemptRow = attempts.find((attempt) => attempt.status === "in_progress") ?? null;
   const latestAttemptRow = attempts[0] ?? null;
+  const hasDisqualifiedAttempt = attempts.some((attempt) => attempt.status === "disqualified");
   const problems = await fetchCompetitionProblems(admin, competitionId);
 
   let activeAttemptAnswers: ArenaAttemptAnswer[] = [];
@@ -411,28 +445,42 @@ export async function loadArenaPageData(competitionId: string, actorUserId: stri
   }
 
   const now = new Date();
-  const attemptsRemaining = registration
-    ? Math.max(0, competition.attemptsAllowed - attempts.length)
-    : competition.attemptsAllowed;
+  const effectiveCompetitionStatus = resolveEffectiveCompetitionStatus({
+    status: competition.status,
+    type: competition.type,
+    startTime: competition.startTime,
+    endTime: competition.endTime,
+    durationMinutes: competition.durationMinutes,
+    now,
+  });
+  const attemptsRemaining =
+    registration && hasDisqualifiedAttempt
+      ? 0
+      : registration
+        ? Math.max(0, competition.attemptsAllowed - attempts.length)
+        : competition.attemptsAllowed;
   const mode = determineCompetitionPageMode({
     hasActiveAttempt: Boolean(activeAttemptRow),
     hasRegistration: Boolean(registration),
     registrationStatus: registration?.status ?? null,
-    competitionStatus: competition.status,
+    competitionStatus: effectiveCompetitionStatus,
     competitionType: competition.type,
     attemptsRemaining,
   });
 
   return {
     mode,
-    competition,
+    competition: {
+      ...competition,
+      status: effectiveCompetitionStatus,
+    },
     registration,
     activeAttempt: buildAttemptSummary(activeAttemptRow, activeAttemptAnswers, now),
     latestAttempt: buildAttemptSummary(latestAttemptRow, activeAttemptRow ? activeAttemptAnswers : [], now),
     problems,
     eligibleTeams,
     attemptsRemaining,
-    canRegister: !registration && (competition.status === "published" || competition.status === "live"),
+    canRegister: !registration && (effectiveCompetitionStatus === "published" || effectiveCompetitionStatus === "live"),
     canResume: Boolean(activeAttemptRow),
     nowIso: now.toISOString(),
   };

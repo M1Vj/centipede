@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import {
   COMPETITION_SELECT_COLUMNS,
+  LEGACY_COMPETITION_SELECT_COLUMNS,
+  isLegacyCompetitionSelectError,
   normalizeCompetitionRecord,
 } from "@/lib/competition/api";
 import type { CompetitionRecord } from "@/lib/competition/types";
@@ -356,16 +358,31 @@ export async function listMyRegistrationDetails(input: {
       .select(COMPETITION_SELECT_COLUMNS)
       .in("id", competitionIds);
 
+    let competitionRows: unknown[] = [];
+
     if (!competitionsResult.error) {
-      (competitionsResult.data ?? [])
-        .map((row) => normalizeCompetitionRecord(row))
-        .filter((row): row is CompetitionRecord => row !== null)
-        .forEach((competition) => {
-          competitionsById.set(competition.id, competition);
-        });
+      competitionRows = competitionsResult.data ?? [];
+    } else if (isLegacyCompetitionSelectError(competitionsResult.error as SupabaseError)) {
+      const legacyCompetitionsResult = await supabase
+        .from("competitions")
+        .select(LEGACY_COMPETITION_SELECT_COLUMNS)
+        .in("id", competitionIds);
+
+      if (legacyCompetitionsResult.error) {
+        throw new Error(legacyCompetitionsResult.error.message);
+      }
+
+      competitionRows = legacyCompetitionsResult.data ?? [];
     } else if (!isMissingRegistrationTable(competitionsResult.error as SupabaseError)) {
       throw new Error(competitionsResult.error.message);
     }
+
+    competitionRows
+      .map((row) => normalizeCompetitionRecord(row))
+      .filter((row): row is CompetitionRecord => row !== null)
+      .forEach((competition) => {
+        competitionsById.set(competition.id, competition);
+      });
   }
 
   return registrations.map((registration) => {
@@ -388,6 +405,7 @@ export async function listMyRegistrationDetails(input: {
             status: competition.status,
             startTime: competition.startTime,
             endTime: competition.endTime,
+            durationMinutes: competition.durationMinutes,
             registrationStart: competition.registrationStart,
           }
         : null,

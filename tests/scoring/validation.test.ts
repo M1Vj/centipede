@@ -20,6 +20,8 @@ describe("scoring validation", () => {
       shuffleOptions: false,
       logTabSwitch: false,
       offensePenalties: [],
+      safeExamBrowserMode: "off",
+      safeExamBrowserConfigKeyHashes: [],
       customPointsByProblemId: {},
     });
   });
@@ -66,6 +68,8 @@ describe("scoring validation", () => {
         { threshold: 1, penaltyKind: "warning", deductionValue: 0 },
         { threshold: 2, penaltyKind: "deduction", deductionValue: 1 },
       ],
+      safeExamBrowserMode: "off",
+      safeExamBrowserConfigKeyHashes: [],
       customPointsByProblemId: {
         cp1: 4,
         cp2: 8,
