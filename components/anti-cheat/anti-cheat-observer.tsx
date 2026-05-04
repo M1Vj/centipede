@@ -153,6 +153,11 @@ export function AntiCheatObserver({ attemptId, isActive, onPenalty, onSignal, on
         })
 
         if (!res.ok) {
+          emitEvent({
+            eventSource,
+            visibilityState,
+            status: "error",
+          })
           console.error('Failed to log anti-cheat offense:', res.status)
           return
         }
@@ -202,7 +207,7 @@ export function AntiCheatObserver({ attemptId, isActive, onPenalty, onSignal, on
     const onVisibilityChange = () => {
       const signal = publishSignal('visibilitychange', { force: true })
       if (signal.hidden) {
-        void handleFocusLoss('visibilitychange', signal.visibilityState, { useBeacon: true })
+        void handleFocusLoss('visibilitychange', signal.visibilityState)
       } else {
         cancelVisibleBlurTimer()
         awayTransitionLogged.current = false
@@ -212,7 +217,7 @@ export function AntiCheatObserver({ attemptId, isActive, onPenalty, onSignal, on
     const onBlur = () => {
       const signal = publishSignal('blur', { force: true })
       if (signal.hidden) {
-        void handleFocusLoss('blur', signal.visibilityState, { useBeacon: true })
+        void handleFocusLoss('blur', signal.visibilityState)
         return
       }
 
@@ -235,9 +240,7 @@ export function AntiCheatObserver({ attemptId, isActive, onPenalty, onSignal, on
     const signalPollId = window.setInterval(() => {
       const signal = publishSignal('poll')
       if (signal.hidden) {
-        void handleFocusLoss('visibility-poll', signal.visibilityState, {
-          useBeacon: true,
-        })
+        void handleFocusLoss('visibility-poll', signal.visibilityState)
       } else if (signal.hasFocus || hasObservedFocus.current) {
         if (signal.hasFocus) {
           cancelVisibleBlurTimer()

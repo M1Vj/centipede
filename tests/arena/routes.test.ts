@@ -11,6 +11,7 @@ import {
   startOpenCompetitionAttempt,
 } from "@/lib/arena/server";
 import { requireSafeExamBrowserForAttemptStart } from "@/lib/safe-exam-browser";
+import { runDueScheduledCompetitionLifecycleSafely } from "@/lib/competition/scheduled-start";
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
@@ -26,6 +27,10 @@ vi.mock("@/lib/arena/server", () => ({
 
 vi.mock("@/lib/safe-exam-browser", () => ({
   requireSafeExamBrowserForAttemptStart: vi.fn(),
+}));
+
+vi.mock("@/lib/competition/scheduled-start", () => ({
+  runDueScheduledCompetitionLifecycleSafely: vi.fn(),
 }));
 
 const MATHLETE_ID = "mathlete-1";
@@ -244,6 +249,7 @@ describe("arena mutation routes", () => {
 
     expect(response.status).toBe(200);
     expect(body.machineCode).toBe("ok");
+    expect(runDueScheduledCompetitionLifecycleSafely).toHaveBeenCalledOnce();
     expect(loadArenaPageData).toHaveBeenCalledWith(COMPETITION_ID, MATHLETE_ID);
   });
 

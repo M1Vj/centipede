@@ -14,6 +14,7 @@ type AntiCheatRpcClient = {
     args: {
       p_attempt_id: string;
       p_metadata_json: Record<string, unknown>;
+      p_actor_user_id?: string;
     },
   ) => PromiseLike<{
     data: unknown;
@@ -37,10 +38,12 @@ export async function logTabSwitchOffense(
   supabase: AntiCheatRpcClient,
   attemptId: string,
   metadata: Partial<AntiCheatMetadata> | null | undefined,
+  actorUserId?: string,
 ) {
   const { data, error } = await supabase.rpc("log_tab_switch_offense", {
     p_attempt_id: attemptId,
     p_metadata_json: sanitizeAntiCheatMetadata(metadata),
+    ...(actorUserId ? { p_actor_user_id: actorUserId } : {}),
   });
 
   if (error) {

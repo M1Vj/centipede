@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { POST } from "@/app/api/anti-cheat/offense/route";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
+}));
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(),
 }));
 
 function makeMathleteClient(options?: { userId?: string | null; rpcResult?: string; rpcError?: string }) {
@@ -131,6 +136,7 @@ describe("anti-cheat offense route", () => {
   test("logs sanitized offense metadata through RPC", async () => {
     const client = makeMathleteClient({ rpcResult: "auto_submit" });
     vi.mocked(createClient).mockResolvedValue(client as never);
+    vi.mocked(createAdminClient).mockReturnValue(client as never);
 
     const response = await POST(
       makeRequest({
@@ -150,6 +156,7 @@ describe("anti-cheat offense route", () => {
     expect(body.penaltyApplied).toBe("auto_submit");
     expect(client.rpc).toHaveBeenCalledWith("log_tab_switch_offense", {
       p_attempt_id: "attempt-1",
+      p_actor_user_id: "mathlete-1",
       p_metadata_json: expect.objectContaining({
         event_source: expect.stringMatching(/^blur/),
       }),
@@ -160,6 +167,7 @@ describe("anti-cheat offense route", () => {
   test("accepts beacon-style JSON text bodies", async () => {
     const client = makeMathleteClient({ rpcResult: "warning" });
     vi.mocked(createClient).mockResolvedValue(client as never);
+    vi.mocked(createAdminClient).mockReturnValue(client as never);
 
     const response = await POST(
       makeBeaconLikeRequest({
@@ -174,6 +182,7 @@ describe("anti-cheat offense route", () => {
     expect(response.status).toBe(200);
     expect(client.rpc).toHaveBeenCalledWith("log_tab_switch_offense", {
       p_attempt_id: "attempt-1",
+      p_actor_user_id: "mathlete-1",
       p_metadata_json: expect.objectContaining({
         event_source: "visibilitychange",
         visibility_state: "hidden",
@@ -184,6 +193,7 @@ describe("anti-cheat offense route", () => {
   test("accepts same-origin beacon requests when Origin is missing", async () => {
     const client = makeMathleteClient({ rpcResult: "warning" });
     vi.mocked(createClient).mockResolvedValue(client as never);
+    vi.mocked(createAdminClient).mockReturnValue(client as never);
 
     const response = await POST(
       makeBeaconRequestWithoutOrigin({
@@ -197,5 +207,38 @@ describe("anti-cheat offense route", () => {
 
     expect(response.status).toBe(200);
     expect(client.rpc).toHaveBeenCalled();
+  });
+
+  test("maps expected inactive attempt races without returning a server error", async () => {
+    const client = makeMathleteClient({ rpcError: "attempt_not_active" });
+    vi.mocked(createClient).mockResolvedValue(client as never);
+    vi.mocked(createAdminClient).mockReturnValue(client as never);
+
+    const response = await POST(
+      makeRequest({
+        attemptId: "attempt-1",
+        metadata: { event_source: "pagehide" },
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.code).toBe("attempt_not_active");
+  });
+
+  test("reports anti-cheat service unavailable when service role client is missing", async () => {
+    vi.mocked(createClient).mockResolvedValue(makeMathleteClient() as never);
+    vi.mocked(createAdminClient).mockReturnValue(null);
+
+    const response = await POST(
+      makeRequest({
+        attemptId: "attempt-1",
+        metadata: { event_source: "blur" },
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.code).toBe("service_unavailable");
   });
 });

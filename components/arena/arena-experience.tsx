@@ -814,11 +814,28 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                 happenedAt: prev.happenedAt ?? new Date().toISOString(),
               }));
               if (penalty === "auto_submit" || penalty === "disqualified") {
+                const terminalStatus = penalty === "auto_submit" ? "auto_submitted" : "disqualified";
                 setPageData((prev) => ({
                   ...prev,
-                  activeAttempt: prev.activeAttempt
-                    ? { ...prev.activeAttempt, status: penalty === "auto_submit" ? "auto_submitted" : "disqualified" }
-                    : null,
+                  mode: "detail_register",
+                  activeAttempt: null,
+                  latestAttempt: prev.activeAttempt
+                    ? {
+                        ...prev.activeAttempt,
+                        status: terminalStatus,
+                        submittedAt: prev.activeAttempt.submittedAt ?? new Date().toISOString(),
+                        remainingSeconds: 0,
+                      }
+                    : prev.latestAttempt
+                      ? {
+                          ...prev.latestAttempt,
+                          status: terminalStatus,
+                          submittedAt: prev.latestAttempt.submittedAt ?? new Date().toISOString(),
+                          remainingSeconds: 0,
+                        }
+                      : null,
+                  attemptsRemaining: penalty === "disqualified" ? 0 : prev.attemptsRemaining,
+                  canResume: false,
                 }));
               }
             });

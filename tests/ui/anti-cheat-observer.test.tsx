@@ -45,7 +45,7 @@ describe("AntiCheatObserver", () => {
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
   });
 
-  test("shows warning after sustained visible focus loss and sends keepalive offense request", async () => {
+  test("shows local warning immediately, then uses server penalty after sustained visible focus loss", async () => {
     vi.useFakeTimers();
     const onPenalty = vi.fn();
     renderObserver({ onPenalty });
@@ -59,7 +59,6 @@ describe("AntiCheatObserver", () => {
       await vi.advanceTimersByTimeAsync(1500);
     });
 
-    expect(onPenalty).toHaveBeenCalledWith("warning");
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/anti-cheat/offense",
       expect.objectContaining({
@@ -68,7 +67,8 @@ describe("AntiCheatObserver", () => {
       }),
     );
 
-    expect(onPenalty).toHaveBeenCalledWith("deduction");
+    expect(onPenalty).toHaveBeenNthCalledWith(1, "warning");
+    expect(onPenalty).toHaveBeenNthCalledWith(2, "deduction");
   });
 
   test("does not call offense route when inactive", () => {
@@ -100,7 +100,7 @@ describe("AntiCheatObserver", () => {
     );
   });
 
-  test("queues hidden visibility transitions with sendBeacon when available", () => {
+  test("sends hidden visibility transitions with keepalive fetch so threshold penalties can reflect immediately", () => {
     const sendBeacon = vi.fn().mockReturnValue(true);
     Object.defineProperty(window.navigator, "sendBeacon", {
       configurable: true,
@@ -114,14 +114,16 @@ describe("AntiCheatObserver", () => {
     document.dispatchEvent(new Event("visibilitychange"));
 
     expect(onPenalty).toHaveBeenCalledWith("warning");
-    expect(sendBeacon).toHaveBeenCalledWith(
+    expect(sendBeacon).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
       "/api/anti-cheat/offense",
-      expect.any(Blob),
+      expect.objectContaining({
+        keepalive: true,
+      }),
     );
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  test("falls back to keepalive fetch when sendBeacon cannot queue hidden transitions", () => {
+  test("does not require sendBeacon support for hidden visibility transitions", () => {
     const sendBeacon = vi.fn().mockReturnValue(false);
     Object.defineProperty(window.navigator, "sendBeacon", {
       configurable: true,
@@ -134,7 +136,7 @@ describe("AntiCheatObserver", () => {
 
     document.dispatchEvent(new Event("visibilitychange"));
 
-    expect(sendBeacon).toHaveBeenCalled();
+    expect(sendBeacon).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/anti-cheat/offense",
       expect.objectContaining({
@@ -162,7 +164,7 @@ describe("AntiCheatObserver", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  test("uses beacon on blur so early blur does not block unload-safe logging", () => {
+  test("uses fetch on hidden blur so threshold penalties can be returned", () => {
     const sendBeacon = vi.fn().mockReturnValue(true);
     Object.defineProperty(window.navigator, "sendBeacon", {
       configurable: true,
@@ -179,8 +181,8 @@ describe("AntiCheatObserver", () => {
     document.dispatchEvent(new Event("visibilitychange"));
 
     expect(onPenalty).toHaveBeenCalledWith("warning");
-    expect(sendBeacon).toHaveBeenCalledTimes(1);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(sendBeacon).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   test("ignores transient visible blur when focus returns before the grace window", async () => {
@@ -251,7 +253,7 @@ describe("AntiCheatObserver", () => {
       vi.advanceTimersByTime(500);
     });
 
-    expect(onPenalty).toHaveBeenCalledWith("warning");
+    expect(onPenalty).toHaveBeenCalledWith("deduction");
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/anti-cheat/offense",
       expect.objectContaining({

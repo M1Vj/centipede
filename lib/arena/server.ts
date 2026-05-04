@@ -14,6 +14,7 @@ import {
   normalizeArenaAnswerValue,
   parseArenaOptions,
   resolvePersistedAnswerStatusFlag,
+  resolveEffectiveCompetitionStatus,
 } from "@/lib/arena/helpers";
 import type {
   AnswerStatusFlag,
@@ -434,6 +435,7 @@ export async function loadArenaPageData(competitionId: string, actorUserId: stri
   const attempts = registration ? await fetchAttempts(admin, registration.id) : [];
   const activeAttemptRow = attempts.find((attempt) => attempt.status === "in_progress") ?? null;
   const latestAttemptRow = attempts[0] ?? null;
+  const hasDisqualifiedAttempt = attempts.some((attempt) => attempt.status === "disqualified");
   const problems = await fetchCompetitionProblems(admin, competitionId);
 
   let activeAttemptAnswers: ArenaAttemptAnswer[] = [];
@@ -443,28 +445,42 @@ export async function loadArenaPageData(competitionId: string, actorUserId: stri
   }
 
   const now = new Date();
-  const attemptsRemaining = registration
-    ? Math.max(0, competition.attemptsAllowed - attempts.length)
-    : competition.attemptsAllowed;
+  const effectiveCompetitionStatus = resolveEffectiveCompetitionStatus({
+    status: competition.status,
+    type: competition.type,
+    startTime: competition.startTime,
+    endTime: competition.endTime,
+    durationMinutes: competition.durationMinutes,
+    now,
+  });
+  const attemptsRemaining =
+    registration && hasDisqualifiedAttempt
+      ? 0
+      : registration
+        ? Math.max(0, competition.attemptsAllowed - attempts.length)
+        : competition.attemptsAllowed;
   const mode = determineCompetitionPageMode({
     hasActiveAttempt: Boolean(activeAttemptRow),
     hasRegistration: Boolean(registration),
     registrationStatus: registration?.status ?? null,
-    competitionStatus: competition.status,
+    competitionStatus: effectiveCompetitionStatus,
     competitionType: competition.type,
     attemptsRemaining,
   });
 
   return {
     mode,
-    competition,
+    competition: {
+      ...competition,
+      status: effectiveCompetitionStatus,
+    },
     registration,
     activeAttempt: buildAttemptSummary(activeAttemptRow, activeAttemptAnswers, now),
     latestAttempt: buildAttemptSummary(latestAttemptRow, activeAttemptRow ? activeAttemptAnswers : [], now),
     problems,
     eligibleTeams,
     attemptsRemaining,
-    canRegister: !registration && (competition.status === "published" || competition.status === "live"),
+    canRegister: !registration && (effectiveCompetitionStatus === "published" || effectiveCompetitionStatus === "live"),
     canResume: Boolean(activeAttemptRow),
     nowIso: now.toISOString(),
   };

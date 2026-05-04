@@ -57,6 +57,7 @@ export type RegistrationCompetitionSummary = {
   status: string;
   startTime: string | null;
   endTime: string | null;
+  durationMinutes: number;
   registrationStart: string | null;
 };
 

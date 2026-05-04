@@ -274,6 +274,144 @@ describe("ArenaExperience", () => {
     );
   });
 
+  test("keeps the warning overlay visible when offense logging fails", async () => {
+    vi.useFakeTimers();
+    const data = buildPageData("arena_runtime");
+    data.activeAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "in_progress",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: null,
+      totalTimeSeconds: 0,
+      remainingSeconds: 3600,
+      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [],
+    };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ code: "log_failed" }), { status: 500 }),
+    );
+
+    render(<ArenaExperience initialData={data} />);
+    window.dispatchEvent(new Event("blur"));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Warning: Focus Lost");
+    expect(screen.getByText(/Log status: error/i)).toBeInTheDocument();
+  });
+
+  test("shows deduction copy when the tab-switch threshold applies a score deduction", async () => {
+    vi.useFakeTimers();
+    const data = buildPageData("arena_runtime");
+    data.activeAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "in_progress",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: null,
+      totalTimeSeconds: 0,
+      remainingSeconds: 3600,
+      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [],
+    };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ penaltyApplied: "deduction" }), { status: 200 }),
+    );
+
+    render(<ArenaExperience initialData={data} />);
+    window.dispatchEvent(new Event("blur"));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Deduction Applied");
+    expect(screen.getByText(/point deduction has been applied/i)).toBeInTheDocument();
+  });
+
+  test("shows terminal force-submit copy and closes the active attempt locally", async () => {
+    vi.useFakeTimers();
+    const data = buildPageData("arena_runtime");
+    data.activeAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "in_progress",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: null,
+      totalTimeSeconds: 0,
+      remainingSeconds: 3600,
+      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [],
+    };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ penaltyApplied: "auto_submit" }), { status: 200 }),
+    );
+
+    render(<ArenaExperience initialData={data} />);
+    window.dispatchEvent(new Event("blur"));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Attempt Force-Submitted");
+    expect(screen.getByRole("alert")).toHaveTextContent("Attempt auto-submitted");
+    expect(screen.queryByText("Question Grid")).not.toBeInTheDocument();
+  });
+
+  test("shows terminal disqualification copy and removes remaining attempts locally", async () => {
+    vi.useFakeTimers();
+    const data = buildPageData("arena_runtime");
+    data.competition.type = "open";
+    data.competition.attemptsAllowed = 3;
+    data.attemptsRemaining = 2;
+    data.activeAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "in_progress",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: null,
+      totalTimeSeconds: 0,
+      remainingSeconds: 3600,
+      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [],
+    };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ penaltyApplied: "disqualified" }), { status: 200 }),
+    );
+
+    render(<ArenaExperience initialData={data} />);
+    window.dispatchEvent(new Event("blur"));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Attempt Disqualified");
+    expect(screen.getByText(/cannot attempt this competition again/i)).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Attempt disqualified");
+    expect(screen.queryByRole("button", { name: "Start competition" })).not.toBeInTheDocument();
+  });
+
   test("shows a prominent notice when anti-cheat auto-submitted the latest attempt", () => {
     const data = buildPageData("detail_register");
     data.registration = {

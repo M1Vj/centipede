@@ -41,9 +41,9 @@ using (
   )
 );
 
-drop policy if exists "anti_cheat_logs_select_organizer" on public.anti_cheat_logs;
-create policy "anti_cheat_logs_select_organizer"
-on public.anti_cheat_logs
+drop policy if exists "tab_switch_logs_select_organizer" on public.tab_switch_logs;
+create policy "tab_switch_logs_select_organizer"
+on public.tab_switch_logs
 for select
 using (
   public.jwt_is_admin()
@@ -51,21 +51,21 @@ using (
     select 1
     from public.competition_attempts ca
     join public.competitions c on c.id = ca.competition_id
-    where ca.id = public.anti_cheat_logs.attempt_id
+    where ca.id = public.tab_switch_logs.attempt_id
       and c.organizer_id = auth.uid()
   )
 );
 
-drop policy if exists "anti_cheat_logs_select_participant" on public.anti_cheat_logs;
-create policy "anti_cheat_logs_select_participant"
-on public.anti_cheat_logs
+drop policy if exists "tab_switch_logs_select_participant" on public.tab_switch_logs;
+create policy "tab_switch_logs_select_participant"
+on public.tab_switch_logs
 for select
 using (
   exists (
     select 1
     from public.competition_attempts ca
     join public.competition_registrations cr on cr.id = ca.registration_id
-    where ca.id = public.anti_cheat_logs.attempt_id
+    where ca.id = public.tab_switch_logs.attempt_id
       and (
         cr.profile_id = auth.uid()
         or (cr.team_id is not null and public.is_active_team_member(cr.team_id, auth.uid()))

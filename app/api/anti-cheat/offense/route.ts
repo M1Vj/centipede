@@ -1,6 +1,6 @@
 import { jsonError, jsonOk, requireMathleteActor } from "@/lib/arena/api";
 import { logTabSwitchOffense, type AntiCheatMetadata } from "@/lib/anti-cheat/offense";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   const sameOriginError = requireAntiCheatMutation(request);
@@ -26,12 +26,17 @@ export async function POST(request: Request) {
     return jsonError("invalid_payload", "Attempt id is required.", 400);
   }
 
-  const supabase = await createClient();
-  const result = await logTabSwitchOffense(supabase, payload.attemptId, payload.metadata);
+  const supabase = createAdminClient();
+  if (!supabase) {
+    return jsonError("service_unavailable", "Anti-cheat logging is temporarily unavailable.", 503);
+  }
+
+  const result = await logTabSwitchOffense(supabase, payload.attemptId, payload.metadata, actorId);
 
   if ("error" in result) {
     console.error("Failed to log anti-cheat offense:", result.error);
-    return jsonError("log_failed", "Unable to log anti-cheat offense.", 500);
+    const mappedError = mapOffenseLogError(result.error ?? "log_failed");
+    return jsonError(mappedError.code, mappedError.message, mappedError.status);
   }
 
   return jsonOk({ penaltyApplied: result.penaltyApplied });
@@ -91,4 +96,44 @@ async function readOffensePayload(request: Request) {
   } catch {
     return {};
   }
+}
+
+function mapOffenseLogError(error: string) {
+  if (error.includes("attempt_not_found")) {
+    return {
+      code: "attempt_not_found",
+      message: "Competition attempt was not found.",
+      status: 404,
+    };
+  }
+
+  if (error.includes("forbidden")) {
+    return {
+      code: "forbidden",
+      message: "You cannot log offenses for this attempt.",
+      status: 403,
+    };
+  }
+
+  if (error.includes("attempt_not_active")) {
+    return {
+      code: "attempt_not_active",
+      message: "Competition attempt is no longer active.",
+      status: 409,
+    };
+  }
+
+  if (error.includes("metadata_json") || error.includes("attempt_id_required")) {
+    return {
+      code: "invalid_payload",
+      message: "Anti-cheat offense payload is invalid.",
+      status: 400,
+    };
+  }
+
+  return {
+    code: "log_failed",
+    message: "Unable to log anti-cheat offense.",
+    status: 500,
+  };
 }

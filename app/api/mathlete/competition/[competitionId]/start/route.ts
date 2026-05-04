@@ -1,6 +1,7 @@
 import { jsonError, jsonOk, requireMathleteActor, requireSameOriginMutation } from "@/lib/arena/api";
 import { requireSafeExamBrowserForAttemptStart } from "@/lib/safe-exam-browser";
 import { loadArenaPageData, startCompetitionAttempt, startOpenCompetitionAttempt } from "@/lib/arena/server";
+import { runDueScheduledCompetitionLifecycleSafely } from "@/lib/competition/scheduled-start";
 
 export async function POST(
   request: Request,
@@ -27,6 +28,9 @@ export async function POST(
   }
 
   const payload = (await request.json().catch(() => ({}))) as { registrationId?: string | null };
+
+  await runDueScheduledCompetitionLifecycleSafely();
+
   const result = payload.registrationId
     ? await startCompetitionAttempt(payload.registrationId, actorId)
     : await startOpenCompetitionAttempt(competitionId, actorId);

@@ -4,13 +4,38 @@ import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { AlertCircle } from 'lucide-react'
 
+type WarningOverlayPenalty = 'warning' | 'deduction' | 'auto_submit' | 'disqualified';
+
 interface WarningOverlayProps {
   onAcknowledge: () => void;
-  penalty: 'warning' | 'deduction' | 'auto_submit' | 'disqualified' | null;
+  penalty: WarningOverlayPenalty | null;
 }
+
+const overlayCopy: Record<WarningOverlayPenalty, { title: string; message: string }> = {
+  warning: {
+    title: "Warning: Focus Lost",
+    message:
+      "This offense has been recorded. Additional focus-loss offenses may trigger score deductions, force submission, or disqualification.",
+  },
+  deduction: {
+    title: "Deduction Applied",
+    message: "This offense reached the deduction threshold. A point deduction has been applied to your score.",
+  },
+  auto_submit: {
+    title: "Attempt Force-Submitted",
+    message: "This offense reached the force-submit threshold. Your attempt has been submitted automatically.",
+  },
+  disqualified: {
+    title: "Attempt Disqualified",
+    message:
+      "This offense reached the disqualification threshold. This competition attempt has been discarded, and you cannot attempt this competition again.",
+  },
+};
 
 export function WarningOverlay({ onAcknowledge, penalty }: WarningOverlayProps) {
   if (!penalty) return null;
+
+  const copy = overlayCopy[penalty];
 
   return (
     <div 
@@ -26,7 +51,7 @@ export function WarningOverlay({ onAcknowledge, penalty }: WarningOverlayProps) 
             <AlertCircle className="w-6 h-6 text-destructive" aria-hidden="true" />
           </div>
           <CardTitle id="warning-overlay-title" className="text-2xl font-bold text-destructive">
-            Warning: Focus Lost
+            {copy.title}
           </CardTitle>
         </CardHeader>
         <CardContent id="warning-overlay-desc" className="text-center space-y-4 pt-4 overflow-y-auto min-h-0">
@@ -35,15 +60,7 @@ export function WarningOverlay({ onAcknowledge, penalty }: WarningOverlayProps) 
           </p>
           
           <div className="p-4 bg-muted rounded-lg font-medium text-foreground text-sm sm:text-base border border-border/50">
-            {penalty === 'warning' && (
-              <span>This is a final warning. Additional offenses will result in score deductions or disqualification.</span>
-            )}
-            {penalty === 'deduction' && (
-              <span>A point deduction has been applied to your score for this offense.</span>
-            )}
-            {(penalty === 'auto_submit' || penalty === 'disqualified') && (
-              <span>Your attempt has been forcefully ended due to repeated offenses.</span>
-            )}
+            <span>{copy.message}</span>
           </div>
         </CardContent>
         <CardFooter className="flex flex-col sm:flex-row justify-center gap-3 pt-6 shrink-0">
@@ -54,7 +71,7 @@ export function WarningOverlay({ onAcknowledge, penalty }: WarningOverlayProps) 
               variant="destructive"
               onClick={onAcknowledge}
             >
-              I Understand – Return to Competition
+              I Understand - Return to Competition
             </Button>
           ) : (
             <Button
