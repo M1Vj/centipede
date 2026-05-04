@@ -153,6 +153,7 @@ describe("registration api helpers", () => {
           format: "individual",
           status: "published",
           startTime: "2026-04-27T00:00:00.000Z",
+          endTime: null,
           registrationStart: "2026-04-24T00:00:00.000Z",
         },
       },
