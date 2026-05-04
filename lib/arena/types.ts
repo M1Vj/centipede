@@ -1,6 +1,7 @@
 import type { CompetitionFormat, CompetitionStatus } from "@/lib/competition/types";
 import type { ProblemType } from "@/lib/problem-bank/types";
 import type { CompetitionType } from "@/lib/scoring/types";
+import type { SafeExamBrowserMode } from "@/lib/scoring/types";
 
 export const ARENA_PAGE_MODES = ["detail_register", "pre_entry", "arena_runtime"] as const;
 export type ArenaPageMode = (typeof ARENA_PAGE_MODES)[number];
@@ -32,6 +33,8 @@ export interface ArenaCompetitionSummary {
   durationMinutes: number;
   attemptsAllowed: number;
   participantsPerTeam: number | null;
+  logTabSwitch: boolean;
+  safeExamBrowserMode: SafeExamBrowserMode;
 }
 
 export interface ArenaRegistrationSummary {

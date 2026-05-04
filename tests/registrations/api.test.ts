@@ -4,6 +4,10 @@ import {
   listOrganizerCompetitionRegistrations,
 } from "@/lib/registrations/api";
 import { normalizeOrganizerRegistrationRow } from "@/lib/registrations/organizer";
+import {
+  COMPETITION_SELECT_COLUMNS,
+  LEGACY_COMPETITION_SELECT_COLUMNS,
+} from "@/lib/competition/api";
 import { createClient } from "@/lib/supabase/server";
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -12,7 +16,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 type QueryResult = {
   data: unknown[] | null;
-  error: { code?: string; message: string } | null;
+  error: { code?: string | null; message?: string | null; details?: string | null } | null;
 };
 
 function createQueryMock(result: QueryResult) {
@@ -76,8 +80,50 @@ function createSupabaseMock(input: {
     }),
   };
 
-  return { client, registrationQuery, competitionQuery };
+  return { client, registrationQuery, competitionQuery, competitionQueries };
 }
+
+const currentCompetitionRow = {
+  id: "competition-1",
+  organizer_id: "organizer-1",
+  name: "Spring Invitational",
+  description: "",
+  instructions: "",
+  type: "scheduled",
+  format: "individual",
+  status: "published",
+  answer_key_visibility: "after_end",
+  registration_start: "2026-04-24T00:00:00.000Z",
+  registration_end: "2026-04-26T00:00:00.000Z",
+  start_time: "2026-04-27T00:00:00.000Z",
+  end_time: null,
+  duration_minutes: 60,
+  attempts_allowed: 1,
+  multi_attempt_grading_mode: "highest_score",
+  max_participants: 100,
+  participants_per_team: null,
+  max_teams: null,
+  scoring_mode: "automatic",
+  custom_points: {},
+  penalty_mode: "none",
+  deduction_value: 0,
+  tie_breaker: "earliest_submission",
+  shuffle_questions: false,
+  shuffle_options: false,
+  log_tab_switch: false,
+  offense_penalties: [],
+  safe_exam_browser_mode: "off",
+  safe_exam_browser_config_key_hashes: [],
+  scoring_snapshot_json: null,
+  draft_revision: 1,
+  draft_version: 1,
+  is_deleted: false,
+  published: true,
+  is_paused: false,
+  published_at: "2026-04-24T00:00:00.000Z",
+  created_at: "2026-04-20T00:00:00.000Z",
+  updated_at: "2026-04-20T00:00:00.000Z",
+};
 
 describe("registration api helpers", () => {
   beforeEach(() => {
@@ -101,29 +147,7 @@ describe("registration api helpers", () => {
         error: null,
       },
       competitions: {
-        data: [
-          {
-            id: "competition-1",
-            organizer_id: "organizer-1",
-            name: "Spring Invitational",
-            description: "",
-            instructions: "",
-            type: "scheduled",
-            format: "individual",
-            status: "published",
-            registration_start: "2026-04-24T00:00:00.000Z",
-            registration_end: "2026-04-26T00:00:00.000Z",
-            start_time: "2026-04-27T00:00:00.000Z",
-            end_time: null,
-            duration_minutes: 60,
-            attempts_allowed: 1,
-            max_participants: 100,
-            participants_per_team: null,
-            max_teams: null,
-            created_at: "2026-04-20T00:00:00.000Z",
-            updated_at: "2026-04-20T00:00:00.000Z",
-          },
-        ],
+        data: [currentCompetitionRow],
         error: null,
       },
     });
@@ -136,6 +160,7 @@ describe("registration api helpers", () => {
 
     expect(registrationQuery.in).toHaveBeenCalledWith("status", ["registered"]);
     expect(registrationQuery.limit).toHaveBeenCalledWith(25);
+    expect(competitionQuery.select).toHaveBeenCalledWith(COMPETITION_SELECT_COLUMNS);
     expect(competitionQuery.in).toHaveBeenCalledWith("id", ["competition-1"]);
     expect(details).toEqual([
       {
@@ -153,10 +178,76 @@ describe("registration api helpers", () => {
           format: "individual",
           status: "published",
           startTime: "2026-04-27T00:00:00.000Z",
+          endTime: null,
+          durationMinutes: 60,
           registrationStart: "2026-04-24T00:00:00.000Z",
         },
       },
     ]);
+  });
+
+  test("listMyRegistrationDetails falls back to legacy competition columns when current schema columns are missing", async () => {
+    const { client, competitionQueries } = createSupabaseMock({
+      registrations: {
+        data: [
+          {
+            id: "registration-1",
+            competition_id: "competition-1",
+            team_id: null,
+            status: "registered",
+            status_reason: null,
+            registered_at: "2026-04-25T01:00:00.000Z",
+            updated_at: "2026-04-25T01:00:00.000Z",
+          },
+        ],
+        error: null,
+      },
+      competitions: [
+        {
+          data: null,
+          error: {
+            code: "42703",
+            message: "column competitions.safe_exam_browser_mode does not exist",
+          },
+        },
+        {
+          data: [
+            {
+              ...currentCompetitionRow,
+              status: undefined,
+              answer_key_visibility: undefined,
+              end_time: undefined,
+              multi_attempt_grading_mode: undefined,
+              safe_exam_browser_mode: undefined,
+              safe_exam_browser_config_key_hashes: undefined,
+              scoring_snapshot_json: undefined,
+              draft_revision: undefined,
+              draft_version: undefined,
+              is_deleted: undefined,
+              published_at: undefined,
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(client as never);
+
+    const details = await listMyRegistrationDetails({ statuses: ["registered"] });
+
+    expect(competitionQueries[0].select).toHaveBeenCalledWith(COMPETITION_SELECT_COLUMNS);
+    expect(competitionQueries[1].select).toHaveBeenCalledWith(LEGACY_COMPETITION_SELECT_COLUMNS);
+    expect(details[0]?.competition).toEqual({
+      id: "competition-1",
+      name: "Spring Invitational",
+      type: "scheduled",
+      format: "individual",
+      status: "published",
+      startTime: "2026-04-27T00:00:00.000Z",
+      endTime: null,
+      durationMinutes: 60,
+      registrationStart: "2026-04-24T00:00:00.000Z",
+    });
   });
 
   test("listMyRegistrationDetails tolerates deferred registration schema", async () => {

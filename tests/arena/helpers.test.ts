@@ -4,6 +4,7 @@ import {
   determineCompetitionPageMode,
   formatTimerText,
   normalizeArenaAnswerValue,
+  resolveEffectiveCompetitionStatus,
   resolvePersistedAnswerStatusFlag,
 } from "@/lib/arena/helpers";
 
@@ -56,6 +57,30 @@ describe("arena helpers", () => {
         attemptsRemaining: 1,
       }),
     ).toBe("detail_register");
+  });
+
+  test("treats due published scheduled competitions as effectively live until their end window", () => {
+    expect(
+      resolveEffectiveCompetitionStatus({
+        status: "published",
+        type: "scheduled",
+        startTime: "2026-05-04T07:20:00.000Z",
+        endTime: null,
+        durationMinutes: 60,
+        now: new Date("2026-05-04T07:21:00.000Z"),
+      }),
+    ).toBe("live");
+
+    expect(
+      resolveEffectiveCompetitionStatus({
+        status: "published",
+        type: "scheduled",
+        startTime: "2026-05-04T07:20:00.000Z",
+        endTime: null,
+        durationMinutes: 60,
+        now: new Date("2026-05-04T08:21:00.000Z"),
+      }),
+    ).toBe("ended");
   });
 
   test("allows open competitions to enter without a registration when attempts remain", () => {

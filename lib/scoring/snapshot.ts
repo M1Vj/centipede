@@ -15,6 +15,8 @@ const REQUIRED_SNAPSHOT_KEYS = [
   "shuffleOptions",
   "logTabSwitch",
   "offensePenalties",
+  "safeExamBrowserMode",
+  "safeExamBrowserConfigKeyHashes",
   "customPointsByProblemId",
 ] as const;
 
@@ -63,6 +65,10 @@ export function createImmutableScoringSnapshot(
     shuffleOptions: config.shuffleOptions,
     logTabSwitch: config.logTabSwitch,
     offensePenalties,
+    safeExamBrowserMode: config.safeExamBrowserMode,
+    safeExamBrowserConfigKeyHashes: [...config.safeExamBrowserConfigKeyHashes].sort((left, right) =>
+      left.localeCompare(right),
+    ),
     customPointsByProblemId: sortCustomPoints(config.customPointsByProblemId),
   };
 
@@ -85,6 +91,8 @@ function toScoringRuleInput(value: unknown): ScoringRuleInput {
     shuffleOptions: record.shuffleOptions,
     logTabSwitch: record.logTabSwitch,
     offensePenalties: record.offensePenalties,
+    safeExamBrowserMode: record.safeExamBrowserMode,
+    safeExamBrowserConfigKeyHashes: record.safeExamBrowserConfigKeyHashes,
     customPointsByProblemId: record.customPointsByProblemId,
   };
 }

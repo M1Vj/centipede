@@ -402,6 +402,7 @@ describe("POST /api/organizer/competitions", () => {
   test("falls back to legacy competition select columns after legacy-schema insert response", async () => {
     vi.mocked(createClient).mockResolvedValue(makeServerClient() as never);
 
+    const insertPayloads: Array<Record<string, unknown>> = [];
     const single = vi
       .fn()
       .mockResolvedValueOnce({
@@ -421,9 +422,12 @@ describe("POST /api/organizer/competitions", () => {
     }));
 
     const competitionsTable = {
-      insert: vi.fn(() => ({
-        select,
-      })),
+      insert: vi.fn((payload: Record<string, unknown>) => {
+        insertPayloads.push(payload);
+        return {
+          select,
+        };
+      }),
     };
 
     vi.mocked(createAdminClient).mockReturnValue({
@@ -436,13 +440,31 @@ describe("POST /api/organizer/competitions", () => {
       }),
     } as never);
 
-    const response = await POST(makeCreateRequest(buildScheduledCreatePayload()));
+    const offensePenalties = [{ threshold: 2, penaltyKind: "warning", deductionValue: 0 }];
+    const response = await POST(
+      makeCreateRequest(
+        buildScheduledCreatePayload({
+          type: "open",
+          startTime: null,
+          logTabSwitch: true,
+          offensePenalties,
+        }),
+      ),
+    );
     const body = await response.json();
 
     expect(response.status).toBe(201);
     expect(body.code).toBe("created");
     expect(select).toHaveBeenNthCalledWith(1, COMPETITION_SELECT_COLUMNS);
     expect(select).toHaveBeenNthCalledWith(2, LEGACY_COMPETITION_SELECT_COLUMNS);
+    expect(insertPayloads).toHaveLength(2);
+    expect(insertPayloads[1]).not.toHaveProperty("offense_penalties_json");
+    expect(insertPayloads[1]).toEqual(
+      expect.objectContaining({
+        log_tab_switch: true,
+        offense_penalties: offensePenalties,
+      }),
+    );
   });
 
   test("re-reads created competition when insert returns no row data", async () => {

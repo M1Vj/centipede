@@ -10,6 +10,8 @@ import {
   startCompetitionAttempt,
   startOpenCompetitionAttempt,
 } from "@/lib/arena/server";
+import { requireSafeExamBrowserForAttemptStart } from "@/lib/safe-exam-browser";
+import { runDueScheduledCompetitionLifecycleSafely } from "@/lib/competition/scheduled-start";
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
@@ -21,6 +23,14 @@ vi.mock("@/lib/arena/server", () => ({
   saveArenaAnswer: vi.fn(),
   startCompetitionAttempt: vi.fn(),
   startOpenCompetitionAttempt: vi.fn(),
+}));
+
+vi.mock("@/lib/safe-exam-browser", () => ({
+  requireSafeExamBrowserForAttemptStart: vi.fn(),
+}));
+
+vi.mock("@/lib/competition/scheduled-start", () => ({
+  runDueScheduledCompetitionLifecycleSafely: vi.fn(),
 }));
 
 const MATHLETE_ID = "mathlete-1";
@@ -86,6 +96,7 @@ function makeMutationRequest(path: string, body: Record<string, unknown>, withOr
 describe("arena mutation routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(requireSafeExamBrowserForAttemptStart).mockResolvedValue({ ok: true });
   });
 
   test("answer route rejects cross-site mutation requests", async () => {
@@ -152,6 +163,29 @@ describe("arena mutation routes", () => {
     expect(startCompetitionAttempt).not.toHaveBeenCalled();
   });
 
+  test("start route blocks required Safe Exam Browser sessions when request proof is missing", async () => {
+    vi.mocked(createClient).mockResolvedValue(makeMathleteClient() as never);
+    vi.mocked(requireSafeExamBrowserForAttemptStart).mockResolvedValue({
+      ok: false,
+      code: "safe_exam_browser_required",
+      message: "This competition requires Safe Exam Browser.",
+    });
+
+    const response = await startRoute(
+      makeMutationRequest(`/api/mathlete/competition/${COMPETITION_ID}/start`, {
+        registrationId: "registration-1",
+      }),
+      {
+        params: Promise.resolve({ competitionId: COMPETITION_ID }),
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.code).toBe("safe_exam_browser_required");
+    expect(startCompetitionAttempt).not.toHaveBeenCalled();
+  });
+
   test("close route returns trusted closed interval count", async () => {
     vi.mocked(createClient).mockResolvedValue(makeMathleteClient() as never);
     vi.mocked(closeActiveAttemptInterval).mockResolvedValue(1 as never);
@@ -189,6 +223,8 @@ describe("arena mutation routes", () => {
         durationMinutes: 60,
         attemptsAllowed: 1,
         participantsPerTeam: null,
+        logTabSwitch: true,
+        safeExamBrowserMode: "off",
       },
       registration: null,
       activeAttempt: null,
@@ -213,6 +249,7 @@ describe("arena mutation routes", () => {
 
     expect(response.status).toBe(200);
     expect(body.machineCode).toBe("ok");
+    expect(runDueScheduledCompetitionLifecycleSafely).toHaveBeenCalledOnce();
     expect(loadArenaPageData).toHaveBeenCalledWith(COMPETITION_ID, MATHLETE_ID);
   });
 
@@ -238,6 +275,8 @@ describe("arena mutation routes", () => {
         durationMinutes: 60,
         attemptsAllowed: 3,
         participantsPerTeam: null,
+        logTabSwitch: true,
+        safeExamBrowserMode: "off",
       },
       registration: null,
       activeAttempt: null,

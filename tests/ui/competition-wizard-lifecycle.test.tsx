@@ -52,6 +52,8 @@ function buildInitialCompetition(status: CompetitionRecord["status"]): Competiti
     shuffleOptions: false,
     logTabSwitch: false,
     offensePenalties: [],
+    safeExamBrowserMode: "off",
+    safeExamBrowserConfigKeyHashes: [],
     scoringSnapshotJson: null,
     draftRevision: 1,
     draftVersion: 1,

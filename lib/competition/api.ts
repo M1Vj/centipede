@@ -1,6 +1,7 @@
 import { normalizeProblemRow } from "@/lib/problem-bank/api-helpers";
 import type { ProblemRecord } from "@/lib/problem-bank/api-helpers";
 import type { OffensePenaltyRule } from "@/lib/scoring/types";
+import { SAFE_EXAM_BROWSER_MODES, type SafeExamBrowserMode } from "@/lib/scoring/types";
 import {
   normalizeAttemptGradingModeToken,
   normalizePenaltyModeToken,
@@ -19,7 +20,7 @@ import {
 } from "./types";
 
 export const COMPETITION_SELECT_COLUMNS =
-  "id, organizer_id, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
+  "id, organizer_id, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, safe_exam_browser_mode, safe_exam_browser_config_key_hashes, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
 
 export const LEGACY_COMPETITION_SELECT_COLUMNS =
   "id, organizer_id, name, description, instructions, type, format, registration_start, registration_end, start_time, duration_minutes, attempts_allowed, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, published, is_paused, created_at";
@@ -43,6 +44,8 @@ export function isLegacyCompetitionSelectError(
     message.includes("column competitions.end_time does not exist") ||
     message.includes("column competitions.multi_attempt_grading_mode does not exist") ||
     message.includes("column competitions.scoring_snapshot_json does not exist") ||
+    message.includes("column competitions.safe_exam_browser_mode does not exist") ||
+    message.includes("column competitions.safe_exam_browser_config_key_hashes does not exist") ||
     message.includes("column competitions.draft_revision does not exist") ||
     message.includes("column competitions.draft_version does not exist") ||
     message.includes("column competitions.is_deleted does not exist") ||
@@ -60,6 +63,31 @@ function toLegacyPenaltyMode(value: CompetitionDraftMutationPayload["penaltyMode
 
 function toLegacyTieBreaker(value: CompetitionDraftMutationPayload["tieBreaker"]) {
   return value === "lowest_total_time" ? "average_time" : "earliest_submission";
+}
+
+export function buildOffensePenaltiesJson(input: CompetitionDraftMutationPayload["offensePenalties"]) {
+  const payload: Record<string, number> = {};
+
+  for (const rule of [...input].sort((left, right) => left.threshold - right.threshold)) {
+    if (rule.penaltyKind === "warning" && payload.warning_threshold === undefined) {
+      payload.warning_threshold = rule.threshold;
+    }
+
+    if (rule.penaltyKind === "deduction" && payload.deduction_threshold === undefined) {
+      payload.deduction_threshold = rule.threshold;
+      payload.deduction_value = rule.deductionValue;
+    }
+
+    if (rule.penaltyKind === "forced_submit" && payload.auto_submit_threshold === undefined) {
+      payload.auto_submit_threshold = rule.threshold;
+    }
+
+    if (rule.penaltyKind === "disqualification" && payload.disqualification_threshold === undefined) {
+      payload.disqualification_threshold = rule.threshold;
+    }
+  }
+
+  return payload;
 }
 
 export function buildCompetitionDraftRpcPayload(input: CompetitionDraftMutationPayload) {
@@ -96,6 +124,9 @@ export function buildLegacyCompetitionMutationPayload(input: CompetitionDraftMut
     shuffle_options: input.shuffleOptions,
     log_tab_switch: input.logTabSwitch,
     offense_penalties: input.offensePenalties,
+    offense_penalties_json: buildOffensePenaltiesJson(input.offensePenalties),
+    safe_exam_browser_mode: input.safeExamBrowserMode,
+    safe_exam_browser_config_key_hashes: input.safeExamBrowserConfigKeyHashes,
     published: false,
     is_paused: false,
   } as const;
@@ -340,6 +371,23 @@ function normalizeOffensePenalties(value: unknown): OffensePenaltyRule[] {
     .filter((entry): entry is OffensePenaltyRule => entry !== null);
 }
 
+function normalizeSafeExamBrowserMode(value: unknown): SafeExamBrowserMode {
+  return SAFE_EXAM_BROWSER_MODES.includes(value as SafeExamBrowserMode)
+    ? (value as SafeExamBrowserMode)
+    : "off";
+}
+
+function normalizeSafeExamBrowserHashes(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry, index, entries) => /^[a-f0-9]{64}$/.test(entry) && entries.indexOf(entry) === index);
+}
+
 export function normalizeCompetitionRecord(row: unknown): CompetitionRecord | null {
   const record = asRecord(row);
   if (!record) {
@@ -414,6 +462,8 @@ export function normalizeCompetitionRecord(row: unknown): CompetitionRecord | nu
     shuffleOptions: Boolean(record.shuffle_options),
     logTabSwitch: Boolean(record.log_tab_switch),
     offensePenalties: normalizeOffensePenalties(record.offense_penalties),
+    safeExamBrowserMode: normalizeSafeExamBrowserMode(record.safe_exam_browser_mode),
+    safeExamBrowserConfigKeyHashes: normalizeSafeExamBrowserHashes(record.safe_exam_browser_config_key_hashes),
     scoringSnapshotJson:
       typeof record.scoring_snapshot_json === "object" && record.scoring_snapshot_json !== null
         ? (record.scoring_snapshot_json as Record<string, unknown>)
@@ -475,6 +525,8 @@ export function competitionRecordToFormState(
     shuffleOptions: competition.shuffleOptions,
     logTabSwitch: competition.logTabSwitch,
     offensePenalties: competition.offensePenalties,
+    safeExamBrowserMode: competition.safeExamBrowserMode,
+    safeExamBrowserConfigKeyHashes: competition.safeExamBrowserConfigKeyHashes,
     answerKeyVisibility: competition.answerKeyVisibility,
     selectedProblemIds,
   };
