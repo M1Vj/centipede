@@ -130,8 +130,6 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   const [requestMessage, setRequestMessage] = useState<string | null>(null);
   const [withdrawPending, setWithdrawPending] = useState(false);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
-  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
-  const [submitPending, setSubmitPending] = useState(false);
   const [acknowledgements, setAcknowledgements] = useState({
     rules: false,
     device: false,
@@ -501,36 +499,13 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
     });
   }
 
-  async function submitAttempt() {
+  async function openReviewPage() {
     if (!pageData.activeAttempt) {
       return;
     }
 
-    setSubmitPending(true);
     await flushAllSaves();
-    const response = await fetch(`/api/mathlete/competition/${pageData.competition.id}/submit`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        attemptId: pageData.activeAttempt.id,
-      }),
-    });
-    const payload = await readJson<{ code?: string; message?: string; data?: ArenaPageData }>(response);
-    setSubmitPending(false);
-
-    if (!response.ok || !payload.data) {
-      setRequestState("error");
-      setRequestMessage(payload.message ?? "Submit failed.");
-      return;
-    }
-
-    setSubmitDialogOpen(false);
-    applyPageData(payload.data, {
-      preservePending: false,
-      resetRequest: true,
-    });
+    router.push(`/mathlete/competition/${pageData.competition.id}/review?attemptId=${pageData.activeAttempt.id}`);
   }
 
   async function withdrawRegistration() {
@@ -1242,23 +1217,11 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
               type="button"
               className="mt-auto h-auto w-full rounded-xl bg-[#f49700] py-5 text-sm font-black uppercase tracking-[0.18em] text-white shadow-xl shadow-[#f49700]/30 hover:bg-[#e08900]"
               disabled={!pageData.registration?.actorCanWrite}
-              onClick={() => setSubmitDialogOpen(true)}
+              onClick={() => void openReviewPage()}
             >
               Review & Submit
             </Button>
           </aside>
-
-          <ConfirmDialog
-            open={submitDialogOpen}
-            onOpenChange={setSubmitDialogOpen}
-            title="Submit attempt now?"
-            description="This finishes the current attempt immediately. Review flow will be expanded in branch 13, but direct submit is available now for controlled completion."
-            confirmLabel="Submit attempt"
-            confirmVariant="default"
-            onConfirm={() => void submitAttempt()}
-            pending={submitPending}
-            pendingLabel="Submitting"
-          />
         </div>
       ) : null}
       <ConfirmDialog
