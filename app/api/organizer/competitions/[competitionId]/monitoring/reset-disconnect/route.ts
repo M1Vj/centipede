@@ -7,6 +7,7 @@ import {
 
 export async function POST(request: Request, context: MonitoringRouteContext) {
   return runOrganizerControl(request, context, "reset_attempt_for_disconnect", ({
+    competitionId,
     actorUserId,
     reason,
     token,
@@ -20,6 +21,7 @@ export async function POST(request: Request, context: MonitoringRouteContext) {
     }
 
     return {
+      p_competition_id: competitionId,
       p_attempt_id: attemptId,
       p_reason: reason,
       p_request_idempotency_token: token,

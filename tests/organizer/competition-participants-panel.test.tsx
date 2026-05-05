@@ -255,7 +255,7 @@ describe("CompetitionParticipantsPanel", () => {
 
     await user.type(screen.getByLabelText("Announcement title"), "Time extension");
     await user.type(screen.getByLabelText("Announcement body"), "Ten more minutes added.");
-    await user.selectOptions(screen.getByLabelText("Audience"), "registered");
+    await user.selectOptions(screen.getByLabelText("Audience"), "registered_only");
     await user.click(screen.getByRole("button", { name: "Send announcement" }));
 
     expect(fetchMock).toHaveBeenCalledWith("/api/organizer/competitions/competition-1/monitoring/announce", {
@@ -265,7 +265,7 @@ describe("CompetitionParticipantsPanel", () => {
       body: JSON.stringify({
         title: "Time extension",
         body: "Ten more minutes added.",
-        audience: "registered",
+        audience: "registered_only",
       }),
     });
     expect(await screen.findByText("Announcement queued for delivery.")).toBeInTheDocument();
@@ -295,6 +295,35 @@ describe("CompetitionParticipantsPanel", () => {
       }),
     });
     expect(await screen.findByText("Pause request accepted.")).toBeInTheDocument();
+  });
+
+  test("disconnect reset requires objective evidence and posts canonical reset payload", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getAllByRole("button", { name: "Reset disconnect" })[0]);
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByRole("button", { name: "Confirm reset" })).toBeDisabled();
+
+    await user.type(within(dialog).getByLabelText("Disconnect evidence event id"), "evidence-event-1");
+    await user.type(within(dialog).getByLabelText("Control reason"), "Participant reconnected after platform drop");
+    await user.click(within(dialog).getByRole("button", { name: "Confirm reset" }));
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/organizer/competitions/competition-1/monitoring/reset-disconnect", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        "x-idempotency-key": "monitoring-token",
+      },
+      body: JSON.stringify({
+        reason: "Participant reconnected after platform drop",
+        attemptId: "attempt-1",
+        disconnectEvidenceType: "attempt_heartbeat_timeout",
+        disconnectEvidenceRef: "evidence-event-1",
+      }),
+    });
   });
 
   test("renders timeline entries chronologically with control metadata and empty state", () => {

@@ -45,6 +45,11 @@ type ControlResultRow = {
   decisionOutcome?: unknown;
 };
 
+function readNumber(value: unknown) {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
 function readString(value: unknown) {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
@@ -171,8 +176,9 @@ async function fetchMonitoringParticipants(admin: AdminClient, competitionId: st
 async function fetchMonitoringAttempts(admin: AdminClient, competitionId: string): Promise<MonitoringAttemptSummary[]> {
   const { data, error } = await admin
     .from("competition_attempts")
-    .select("id, registration_id, status, score, started_at, last_heartbeat_at, offense_count, competition_registrations!inner(competition_id)")
-    .eq("competition_registrations.competition_id", competitionId);
+    .select("id, registration_id, status, final_score, raw_score, started_at, updated_at, offense_count")
+    .eq("competition_id", competitionId)
+    .in("status", ["in_progress", "paused"]);
 
   if (error && isMonitoringMissingTableError(error)) {
     return [];
@@ -194,10 +200,10 @@ async function fetchMonitoringAttempts(admin: AdminClient, competitionId: string
       attemptId,
       registrationId,
       status,
-      score: typeof row.score === "number" ? row.score : null,
+      score: readNumber(row.final_score) ?? readNumber(row.raw_score),
       startedAt: readString(row.started_at),
-      lastHeartbeatAt: readString(row.last_heartbeat_at),
-      offenseCount: typeof row.offense_count === "number" ? row.offense_count : 0,
+      lastHeartbeatAt: readString(row.updated_at),
+      offenseCount: readNumber(row.offense_count) ?? 0,
     }];
   });
 }

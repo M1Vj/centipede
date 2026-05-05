@@ -412,6 +412,7 @@ end;
 $$;
 
 create or replace function public.reset_attempt_for_disconnect(
+  p_competition_id uuid,
   p_attempt_id uuid,
   p_reason text,
   p_request_idempotency_token text,
@@ -449,10 +450,27 @@ begin
     return;
   end if;
 
+  if p_attempt_id is not null then
+    select *
+    into v_attempt
+    from public.competition_attempts ca
+    where ca.id = p_attempt_id;
+  end if;
+
+  if p_attempt_id is null or v_attempt.id is null then
+    return query select 'attempt_not_found', p_competition_id, null::public.attempt_status, null::uuid, false, false, v_token, null::text;
+    return;
+  end if;
+
+  if p_competition_id is not null and v_attempt.competition_id <> p_competition_id then
+    return query select 'forbidden', v_attempt.competition_id, v_attempt.status, null::uuid, false, false, v_token, null::text;
+    return;
+  end if;
+
   if v_reason = '' or v_token = '' then
     v_decision := 'rejected_missing_required_tuple';
     v_event := public._monitoring_record_control_event(
-      null,
+      v_attempt.competition_id,
       p_actor_user_id,
       'attempt_disconnect_reset_rejected',
       'reset_attempt_for_disconnect',
@@ -464,10 +482,25 @@ begin
     return;
   end if;
 
+  v_event := public._monitoring_replay_control_event(v_attempt.competition_id, 'reset_attempt_for_disconnect', p_actor_user_id, v_token);
+  if v_event.id is not null then
+    v_decision := coalesce(v_event.metadata_json ->> 'decision_outcome', 'approved');
+    return query select
+      case when v_event.event_type = 'attempt_disconnect_reset_applied' then 'ok' else v_decision end,
+      v_attempt.competition_id,
+      v_attempt.status,
+      v_event.id,
+      true,
+      false,
+      v_token,
+      v_decision;
+    return;
+  end if;
+
   if p_disconnect_evidence_type not in ('attempt_heartbeat_timeout', 'platform_connection_drop', 'resume_handshake_reconnect') then
     v_decision := 'rejected_invalid_evidence_taxonomy';
     v_event := public._monitoring_record_control_event(
-      null,
+      v_attempt.competition_id,
       p_actor_user_id,
       'attempt_disconnect_reset_rejected',
       'reset_attempt_for_disconnect',
@@ -688,7 +721,7 @@ $$;
 grant execute on function public.pause_competition(uuid, text, text, uuid, text) to service_role;
 grant execute on function public.resume_competition(uuid, text, text, uuid, text) to service_role;
 grant execute on function public.extend_competition(uuid, integer, text, text, uuid, text) to service_role;
-grant execute on function public.reset_attempt_for_disconnect(uuid, text, text, uuid, text, uuid) to service_role;
+grant execute on function public.reset_attempt_for_disconnect(uuid, uuid, text, text, uuid, text, uuid) to service_role;
 grant execute on function public.moderate_delete_competition(uuid, text, text, uuid, text) to service_role;
 
 commit;

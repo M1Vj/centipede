@@ -5,7 +5,7 @@ import { Megaphone, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { AnnouncementAudience } from "@/components/monitoring/types";
+import type { MonitoringAnnouncementAudience } from "@/lib/monitoring/types";
 
 type AnnouncementComposerProps = {
   competitionId: string;
@@ -27,7 +27,7 @@ async function readResponseMessage(response: Response, fallback: string) {
 export function AnnouncementComposer({ competitionId }: AnnouncementComposerProps) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [audience, setAudience] = useState<AnnouncementAudience>("all");
+  const [audience, setAudience] = useState<MonitoringAnnouncementAudience>("registered_only");
   const [pending, setPending] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -60,7 +60,7 @@ export function AnnouncementComposer({ competitionId }: AnnouncementComposerProp
 
       setTitle("");
       setBody("");
-      setAudience("all");
+      setAudience("registered_only");
       setStatusMessage("Announcement queued for delivery.");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Announcement failed.");
@@ -112,14 +112,14 @@ export function AnnouncementComposer({ competitionId }: AnnouncementComposerProp
           <select
             id="announcement-audience"
             value={audience}
-            onChange={(event) => setAudience(event.target.value as AnnouncementAudience)}
+            onChange={(event) => setAudience(event.target.value as MonitoringAnnouncementAudience)}
             className="h-9 rounded-md border border-input bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
             required
           >
-            <option value="all">All participants</option>
-            <option value="registered">Registered only</option>
-            <option value="active">Active attempts</option>
-            <option value="flagged">Flagged attempts</option>
+            <option value="registered_only">Registered only</option>
+            <option value="registered_and_ineligible">Registered and ineligible</option>
+            <option value="all_non_cancelled">All non-cancelled</option>
+            <option value="operators_only">Operators only</option>
           </select>
         </div>
 

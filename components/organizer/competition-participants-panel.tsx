@@ -59,6 +59,11 @@ const statusOptions: Array<RegistrationStatus | "all"> = [
   "ineligible",
   "cancelled",
 ];
+const disconnectEvidenceTypes = [
+  "attempt_heartbeat_timeout",
+  "platform_connection_drop",
+  "resume_handshake_reconnect",
+] as const;
 
 function normalizeTab(tab: string | null | undefined): MonitoringTab {
   return tab === "announcements" || tab === "timeline" || tab === "participants"
@@ -230,6 +235,9 @@ export function CompetitionParticipantsPanel({
   const [controlAttemptId, setControlAttemptId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [additionalMinutes, setAdditionalMinutes] = useState(10);
+  const [disconnectEvidenceType, setDisconnectEvidenceType] =
+    useState<(typeof disconnectEvidenceTypes)[number]>("attempt_heartbeat_timeout");
+  const [disconnectEvidenceRef, setDisconnectEvidenceRef] = useState("");
   const [pending, setPending] = useState(false);
   const [controlMessage, setControlMessage] = useState<string | null>(null);
   const [controlError, setControlError] = useState<string | null>(null);
@@ -267,13 +275,16 @@ export function CompetitionParticipantsPanel({
     Boolean(controlAction) &&
     reasonIsValid &&
     !pending &&
-    (controlAction !== "extend" || additionalMinutes > 0);
+    (controlAction !== "extend" || additionalMinutes > 0) &&
+    (controlAction !== "reset" || disconnectEvidenceRef.trim().length > 0);
 
   function openControl(action: ControlAction, attemptId?: string) {
     setControlAction(action);
     setControlAttemptId(attemptId ?? null);
     setReason("");
     setAdditionalMinutes(10);
+    setDisconnectEvidenceType("attempt_heartbeat_timeout");
+    setDisconnectEvidenceRef("");
     setControlError(null);
     setControlMessage(null);
   }
@@ -298,6 +309,8 @@ export function CompetitionParticipantsPanel({
       }
       if (controlAction === "reset") {
         payload.attemptId = controlAttemptId;
+        payload.disconnectEvidenceType = disconnectEvidenceType;
+        payload.disconnectEvidenceRef = disconnectEvidenceRef.trim();
       }
 
       const response = await fetch(controlEndpoint(mode, competition.id, controlAction), {
@@ -509,6 +522,37 @@ export function CompetitionParticipantsPanel({
                 onChange={(event) => setAdditionalMinutes(Number(event.target.value))}
               />
             </div>
+          ) : null}
+          {controlAction === "reset" ? (
+            <>
+              <div className="grid gap-2">
+                <Label htmlFor="disconnect-evidence-type">Disconnect evidence type</Label>
+                <select
+                  id="disconnect-evidence-type"
+                  value={disconnectEvidenceType}
+                  onChange={(event) =>
+                    setDisconnectEvidenceType(event.target.value as (typeof disconnectEvidenceTypes)[number])
+                  }
+                  className="h-9 rounded-md border border-input bg-white px-3 text-sm shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {disconnectEvidenceTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type.replaceAll("_", " ")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="disconnect-evidence-ref">Disconnect evidence event id</Label>
+                <Input
+                  id="disconnect-evidence-ref"
+                  value={disconnectEvidenceRef}
+                  onChange={(event) => setDisconnectEvidenceRef(event.target.value)}
+                  placeholder="Detection event UUID"
+                  required
+                />
+              </div>
+            </>
           ) : null}
           <div className="grid gap-2">
             <Label htmlFor="control-reason">Control reason</Label>

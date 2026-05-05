@@ -16,9 +16,11 @@ describe("participant monitoring sql contracts", () => {
     expect(sql).toContain("create or replace function public.extend_competition");
     expect(sql).toContain("create or replace function public.reset_attempt_for_disconnect");
     expect(sql).toContain("create or replace function public.moderate_delete_competition");
+    expect(sql).toContain("p_competition_id uuid,\n  p_attempt_id uuid,");
     expect(sql).toContain("security definer");
     expect(sql).toContain("if auth.role() <> 'service_role' then");
     expect(sql).toContain("grant execute on function public.pause_competition(uuid, text, text, uuid, text) to service_role");
+    expect(sql).toContain("grant execute on function public.reset_attempt_for_disconnect(uuid, uuid, text, text, uuid, text, uuid) to service_role");
   });
 
   test("control event lookup uses aliases and idempotency token contract", () => {
@@ -51,6 +53,8 @@ describe("participant monitoring sql contracts", () => {
     expect(duplicate).toBeGreaterThan(stale);
     expect(sql).toContain("ce.happened_at > v_now - interval '10 minutes'");
     expect(sql).not.toContain("ce.happened_at >= v_now - interval '10 minutes'");
+    expect(sql).toContain("v_event := public._monitoring_replay_control_event(v_attempt.competition_id, 'reset_attempt_for_disconnect', p_actor_user_id, v_token)");
+    expect(sql).toContain("if p_competition_id is not null and v_attempt.competition_id <> p_competition_id then");
   });
 
   test("disconnect evidence taxonomy maps to canonical detection events", () => {
