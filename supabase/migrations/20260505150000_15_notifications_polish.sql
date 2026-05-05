@@ -339,6 +339,66 @@ begin
 end;
 $$;
 
+create or replace function public.update_notification_preferences(
+  p_in_app_enabled boolean,
+  p_email_enabled boolean,
+  p_team_invites boolean,
+  p_registration_reminders boolean,
+  p_announcements boolean,
+  p_leaderboard_publication boolean,
+  p_score_recalculation boolean,
+  p_organizer_decisions boolean
+)
+returns table (
+  updated_profile_id uuid,
+  preferences_updated_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return query
+  insert into public.notification_preferences (
+    profile_id,
+    in_app_enabled,
+    email_enabled,
+    team_invites,
+    registration_reminders,
+    announcements,
+    leaderboard_publication,
+    score_recalculation,
+    organizer_decisions,
+    updated_at
+  )
+  values (
+    auth.uid(),
+    coalesce(p_in_app_enabled, true),
+    coalesce(p_email_enabled, false),
+    coalesce(p_team_invites, true),
+    coalesce(p_registration_reminders, true),
+    coalesce(p_announcements, true),
+    coalesce(p_leaderboard_publication, true),
+    coalesce(p_score_recalculation, true),
+    coalesce(p_organizer_decisions, true),
+    timezone('utc', now())
+  )
+  on conflict on constraint notification_preferences_pkey do update
+  set
+    in_app_enabled = excluded.in_app_enabled,
+    email_enabled = excluded.email_enabled,
+    team_invites = excluded.team_invites,
+    registration_reminders = excluded.registration_reminders,
+    announcements = excluded.announcements,
+    leaderboard_publication = excluded.leaderboard_publication,
+    score_recalculation = excluded.score_recalculation,
+    organizer_decisions = excluded.organizer_decisions,
+    updated_at = excluded.updated_at
+  returning public.notification_preferences.profile_id,
+    public.notification_preferences.updated_at;
+end;
+$$;
+
 alter table public.notifications enable row level security;
 alter table public.notification_preferences enable row level security;
 
@@ -377,6 +437,27 @@ grant execute on function public.mark_notification_read(uuid) to authenticated;
 
 revoke execute on function public.mark_all_notifications_read() from public;
 grant execute on function public.mark_all_notifications_read() to authenticated;
+
+revoke execute on function public.update_notification_preferences(
+  boolean,
+  boolean,
+  boolean,
+  boolean,
+  boolean,
+  boolean,
+  boolean,
+  boolean
+) from public;
+grant execute on function public.update_notification_preferences(
+  boolean,
+  boolean,
+  boolean,
+  boolean,
+  boolean,
+  boolean,
+  boolean,
+  boolean
+) to authenticated;
 
 grant execute on function public.notification_preference_key(text) to authenticated, service_role;
 grant execute on function public.notification_channel_class(text) to authenticated, service_role;

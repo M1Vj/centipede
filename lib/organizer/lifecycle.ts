@@ -10,6 +10,7 @@ import {
   sendOrganizerLifecycleEmail,
   type OrganizerEmailMessageType,
 } from "@/lib/organizer/email";
+import { dispatchOrganizerDecisionNotification } from "@/lib/notifications/dispatch";
 import {
   createStatusLookupToken,
   getStatusLookupTokenExpiryDate,
@@ -335,6 +336,31 @@ async function dispatchLifecycleEmail(
     );
     return false;
   }
+}
+
+async function projectOrganizerDecisionInbox(input: {
+  applicationId: string;
+  event:
+    | "organizer_application_submitted"
+    | "organizer_application_approved"
+    | "organizer_application_rejected";
+  profileId: string | null;
+  status: "submitted" | "approved" | "rejected";
+}) {
+  if (!input.profileId) {
+    return;
+  }
+
+  await dispatchOrganizerDecisionNotification({
+    event: input.event,
+    eventIdentityKey: `${input.event}:${input.applicationId}`,
+    recipientId: input.profileId,
+    applicationId: input.applicationId,
+    linkPath: "/organizer/status",
+    metadata: {
+      status: input.status,
+    },
+  });
 }
 
 async function loadApplicationById(applicationId: string) {
@@ -833,6 +859,13 @@ export async function submitOrganizerApplication(
     console.error("Submission communication dispatch failed:", error);
   }
 
+  await projectOrganizerDecisionInbox({
+    applicationId,
+    event: "organizer_application_submitted",
+    profileId: input.profileId,
+    status: "submitted",
+  });
+
   return {
     applicationId,
     createdNew: inserted.created_new,
@@ -907,6 +940,13 @@ export async function processOrganizerDecisionHandoff(
   }
 
   if (application.status === "rejected") {
+    await projectOrganizerDecisionInbox({
+      applicationId: application.id,
+      event: "organizer_application_rejected",
+      profileId: application.profile_id,
+      status: "rejected",
+    });
+
     const communicationId = await claimCommunication(application.id, "rejected", contactEmail, {
       rejectionReason: application.rejection_reason,
       statusLookupPath: "/organizer/status",
@@ -929,10 +969,12 @@ export async function processOrganizerDecisionHandoff(
   }
 
   let invitedIdentity = options?.invitedIdentity ?? false;
+  let recipientProfileId = application.profile_id;
 
   if (!options?.skipProvisioning) {
     const resolvedIdentity = await resolveProfileForApprovedApplication(application);
     invitedIdentity = resolvedIdentity.invitedIdentity;
+    recipientProfileId = resolvedIdentity.profileId;
 
     const admin = createOrganizerAdminClient();
     const { data: provisionResult, error: provisionError } = await admin.rpc("provision_organizer_account", {
@@ -952,6 +994,13 @@ export async function processOrganizerDecisionHandoff(
       );
     }
   }
+
+  await projectOrganizerDecisionInbox({
+    applicationId: application.id,
+    event: "organizer_application_approved",
+    profileId: recipientProfileId,
+    status: "approved",
+  });
 
   const communicationId = await claimCommunication(application.id, "approved", contactEmail, {
     statusLookupPath: "/organizer/status",

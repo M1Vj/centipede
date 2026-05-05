@@ -39,8 +39,13 @@ describe("branch 15 notification SQL contracts", () => {
     expect(migration).toContain("and n.recipient_id = auth.uid()");
     expect(migration).toContain("create or replace function public.mark_all_notifications_read");
     expect(migration).toContain("where n.recipient_id = auth.uid()");
+    expect(migration).toContain("create or replace function public.update_notification_preferences");
+    expect(migration).toContain("values (");
+    expect(migration).toContain("auth.uid()");
     expect(migration).toContain("grant execute on function public.enqueue_notification");
     expect(migration).toContain("to service_role");
+    expect(migration).toContain("grant execute on function public.update_notification_preferences");
+    expect(migration).toContain("to authenticated");
   });
 
   test("enforces owner-only RLS for inbox and preferences", () => {
