@@ -21,8 +21,8 @@ type CompetitionOwnerRow = {
 };
 
 type QueueRequestBody = {
-  format?: "csv" | "xlsx";
-  scope?: string;
+  format?: unknown;
+  scope?: unknown;
 };
 
 function jsonError(code: string, message: string, status: number) {
@@ -197,8 +197,15 @@ export async function POST(
   }
 
   const body = (await request.json().catch(() => null)) as QueueRequestBody | null;
-  const format = body?.format === "xlsx" ? "xlsx" : "csv";
-  const scope = typeof body?.scope === "string" && body.scope.trim() ? body.scope.trim() : "leaderboard";
+  const format = body?.format;
+  if (format !== "csv" && format !== "xlsx") {
+    return jsonError("invalid_export_format", "Export format must be csv or xlsx.", 400);
+  }
+
+  const scope = typeof body?.scope === "string" ? body.scope.trim() : "";
+  if (!scope) {
+    return jsonError("invalid_export_scope", "Export scope is required.", 400);
+  }
 
   const queued = await queueCompetitionExportJob({
     supabase: adminClient,

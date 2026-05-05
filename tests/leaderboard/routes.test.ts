@@ -247,4 +247,46 @@ describe("branch 14 organizer mutation routes", () => {
       p_actor_user_id: ORGANIZER_ID,
     });
   });
+
+  test("rejects unsupported export formats instead of silently queueing csv", async () => {
+    const userRpc = vi.fn();
+    const adminRpc = vi.fn();
+
+    vi.mocked(createClient).mockResolvedValue(makeOrganizerClient(userRpc) as never);
+    vi.mocked(createAdminClient).mockReturnValue(makeAdminClient(adminRpc) as never);
+
+    const response = await queueExport(
+      makePostRequest(`/organizer/competition/${COMPETITION_ID}/exports`, {
+        format: "pdf",
+        scope: "leaderboard_history",
+      }),
+      { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.code).toBe("invalid_export_format");
+    expect(adminRpc).not.toHaveBeenCalled();
+  });
+
+  test("rejects blank export scope instead of silently queueing default scope", async () => {
+    const userRpc = vi.fn();
+    const adminRpc = vi.fn();
+
+    vi.mocked(createClient).mockResolvedValue(makeOrganizerClient(userRpc) as never);
+    vi.mocked(createAdminClient).mockReturnValue(makeAdminClient(adminRpc) as never);
+
+    const response = await queueExport(
+      makePostRequest(`/organizer/competition/${COMPETITION_ID}/exports`, {
+        format: "csv",
+        scope: "",
+      }),
+      { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.code).toBe("invalid_export_scope");
+    expect(adminRpc).not.toHaveBeenCalled();
+  });
 });
