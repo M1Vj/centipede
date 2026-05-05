@@ -250,7 +250,7 @@ function CompetitionCard({
 
         {isCompleted && (
           <ProgressLink
-            href={`/organizer/competition/${competition.id}`}
+            href={`/organizer/competition/${competition.id}/leaderboard`}
             className="flex-1 bg-white border border-slate-200 hover:border-slate-300 text-[#10182b] shadow-sm hover:shadow-md py-3 rounded-xl font-bold text-[14px] transition-all flex items-center justify-center gap-2"
           >
             <BarChart2 className="w-4 h-4" /> View Report

@@ -250,12 +250,20 @@ export default async function CompetitionDetailPage({
       title={competition.name || "Competition"}
       description="Review the competition rules and register when you're ready."
       actions={
-        <ProgressLink
-          href="/mathlete/competition"
-          className="rounded-full bg-[#1a1e2e] px-5 py-2 text-sm font-semibold text-white hover:bg-[#0f121a]"
-        >
-          Back to discovery
-        </ProgressLink>
+        <>
+          <ProgressLink
+            href={`/mathlete/competition/${competition.id}/leaderboard`}
+            className="rounded-full bg-[#f49700] px-5 py-2 text-sm font-semibold text-white hover:bg-[#e08900]"
+          >
+            View leaderboard
+          </ProgressLink>
+          <ProgressLink
+            href="/mathlete/competition"
+            className="rounded-full bg-[#1a1e2e] px-5 py-2 text-sm font-semibold text-white hover:bg-[#0f121a]"
+          >
+            Back to discovery
+          </ProgressLink>
+        </>
       }
     >
       {eventNotices.length > 0 ? <CompetitionEventNotices notices={eventNotices} /> : null}

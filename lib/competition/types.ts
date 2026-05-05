@@ -119,6 +119,7 @@ export interface CompetitionDraftMutationPayload {
 export interface CompetitionRecord {
   id: string;
   organizerId: string;
+  leaderboardPublished: boolean;
   name: string;
   description: string;
   instructions: string;
