@@ -64,8 +64,7 @@ export type CompetitionNotificationEvent =
   | "competition_problem_dispute_resolved"
   | "leaderboard_published"
   | "dispute_resolved"
-  | "score_recalculated"
-  | "competition_export_job_queued";
+  | "score_recalculated";
 
 export type OrganizerDecisionNotificationEvent =
   | "organizer_application_submitted"

@@ -353,7 +353,7 @@ async function projectOrganizerDecisionInbox(input: {
 
   await dispatchOrganizerDecisionNotification({
     event: input.event,
-    eventIdentityKey: `${input.event}:${input.applicationId}`,
+    eventIdentityKey: `organizer_decision:${input.applicationId}`,
     recipientId: input.profileId,
     applicationId: input.applicationId,
     linkPath: "/organizer/status",

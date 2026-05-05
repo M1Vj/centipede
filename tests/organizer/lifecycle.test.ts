@@ -715,7 +715,7 @@ describe("organizer lifecycle RPC fallbacks", () => {
 
     expect(dispatchOrganizerDecisionNotification).toHaveBeenCalledWith({
       event: "organizer_application_rejected",
-      eventIdentityKey: "organizer_application_rejected:app-789",
+      eventIdentityKey: "organizer_decision:app-789",
       recipientId: "profile-789",
       applicationId: "app-789",
       linkPath: "/organizer/status",

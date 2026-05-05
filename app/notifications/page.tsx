@@ -19,6 +19,7 @@ type InboxSnapshot = {
   error: string | null;
   notifications: NotificationItem[];
   unreadCount: number;
+  warning: string | null;
 };
 
 async function getAuthenticatedUserId() {
@@ -60,6 +61,7 @@ async function fetchInboxSnapshot(): Promise<InboxSnapshot> {
       error: "Notifications require Supabase environment variables.",
       notifications: [],
       unreadCount: 0,
+      warning: null,
     };
   }
 
@@ -85,6 +87,7 @@ async function fetchInboxSnapshot(): Promise<InboxSnapshot> {
       error: "Notifications are temporarily unavailable.",
       notifications: [],
       unreadCount: 0,
+      warning: null,
     };
   }
 
@@ -99,9 +102,10 @@ async function fetchInboxSnapshot(): Promise<InboxSnapshot> {
     .filter((notification): notification is NotificationItem => Boolean(notification));
 
   return {
-    error: unreadResult.error ? "Unread count is temporarily unavailable." : null,
+    error: null,
     notifications,
     unreadCount: unreadResult.count ?? notifications.filter((notification) => !notification.readAt).length,
+    warning: unreadResult.error ? "Unread count is temporarily unavailable." : null,
   };
 }
 
@@ -166,6 +170,7 @@ export default async function NotificationsPage() {
       markReadAction={markNotificationRead}
       notifications={snapshot.notifications}
       unreadCount={snapshot.unreadCount}
+      warning={snapshot.warning}
     />
   );
 }

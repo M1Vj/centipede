@@ -47,10 +47,9 @@ describe("notification components", () => {
 
     expect(screen.getByRole("heading", { name: "Notifications" })).toBeInTheDocument();
     expect(screen.getByText("1 unread")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open notification" })).toHaveAttribute(
-      "href",
-      "/mathlete/history",
-    );
+    expect(
+      screen.getByRole("link", { name: /Open Leaderboard published from/ }),
+    ).toHaveAttribute("href", "/mathlete/history");
     expect(screen.getByRole("button", { name: "Mark Leaderboard published as read" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mark all notifications as read" })).toBeInTheDocument();
   });
@@ -80,6 +79,34 @@ describe("notification components", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Notifications are temporarily unavailable.",
     );
+  });
+
+  test("keeps notifications visible when only unread count is unavailable", () => {
+    render(
+      <NotificationInboxShell
+        warning="Unread count is temporarily unavailable."
+        notifications={[
+          {
+            id: "notification-1",
+            title: "Score recalculated",
+            body: "Your score changed.",
+            createdAt: "2026-05-05T02:00:00.000Z",
+            linkPath: null,
+            readAt: null,
+            type: "score_recalculated",
+          },
+        ]}
+        unreadCount={1}
+        markAllAction={async () => {}}
+        markReadAction={async () => {}}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Unread count is temporarily unavailable.",
+    );
+    expect(screen.getByText("Score recalculated")).toBeInTheDocument();
+    expect(screen.queryByText("Notifications are temporarily unavailable.")).not.toBeInTheDocument();
   });
 
   test("renders preference toggles with deterministic defaults", () => {
@@ -112,8 +139,8 @@ describe("notification components", () => {
 
     await user.click(screen.getByRole("button", { name: "Organizer notifications, 3 unread" }));
 
-    expect(screen.getByRole("link", { name: "View inbox" })).toHaveAttribute("href", "/notifications");
-    expect(screen.getByRole("link", { name: "Notification settings" })).toHaveAttribute(
+    expect(screen.getByRole("menuitem", { name: "View inbox" })).toHaveAttribute("href", "/notifications");
+    expect(screen.getByRole("menuitem", { name: "Notification settings" })).toHaveAttribute(
       "href",
       "/settings/notifications",
     );

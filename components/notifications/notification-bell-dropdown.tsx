@@ -5,6 +5,7 @@ import { ProgressLink } from "@/components/ui/progress-link";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -49,22 +50,24 @@ export function NotificationBellDropdown({
           Notifications
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <div className="space-y-1 p-1">
+        <DropdownMenuItem asChild className="rounded-xl px-3 py-2.5">
           <ProgressLink
             href="/notifications"
-            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/70"
+            className="flex w-full items-center gap-3 text-sm font-semibold text-slate-700"
           >
             <Inbox className="size-4" />
             <span>View inbox</span>
           </ProgressLink>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild className="rounded-xl px-3 py-2.5">
           <ProgressLink
             href="/settings/notifications"
-            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/70"
+            className="flex w-full items-center gap-3 text-sm font-semibold text-slate-700"
           >
             <Settings className="size-4" />
             <span>Notification settings</span>
           </ProgressLink>
-        </div>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <p className="px-3 py-2 text-xs leading-5 text-slate-500">
           {hasUnread

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { OrganizerNav } from "@/components/organizer/organizer-nav";
 import { createClient } from "@/lib/supabase/server";
@@ -30,10 +31,13 @@ export default async function OrganizerLayout({
             href="/organizer"
             className="flex items-center gap-2 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1e2e]"
           >
-            <img
+            <Image
               src="/mathwiz-logo.svg"
               alt="MathWiz"
-              className="h-7 w-auto object-contain"
+              width={96}
+              height={28}
+              className="object-contain"
+              style={{ width: "auto", height: "28px" }}
             />
             <span className="text-[#f49700] font-bold text-[14px] tracking-wide">
               Organizer

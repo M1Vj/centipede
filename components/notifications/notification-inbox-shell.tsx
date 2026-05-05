@@ -1,4 +1,5 @@
-import { Check, ChevronRight, MailOpen } from "lucide-react";
+import { AlertCircle, Check, ChevronRight, MailOpen } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/ui/feedback-states";
 import { ProgressLink } from "@/components/ui/progress-link";
@@ -11,6 +12,7 @@ type NotificationInboxShellProps = {
   markReadAction: (formData: FormData) => Promise<void> | void;
   notifications: NotificationItem[];
   unreadCount: number;
+  warning?: string | null;
 };
 
 function formatNotificationDate(value: string | null) {
@@ -35,6 +37,7 @@ export function NotificationInboxShell({
   markReadAction,
   notifications,
   unreadCount,
+  warning,
 }: NotificationInboxShellProps) {
   const safeUnreadCount = Math.max(0, unreadCount);
 
@@ -74,6 +77,17 @@ export function NotificationInboxShell({
             </form>
           </div>
         </div>
+
+        {warning ? (
+          <Alert
+            className="border-amber-200 bg-amber-50 text-amber-900"
+            role="status"
+            aria-live="polite"
+          >
+            <AlertCircle className="size-4" />
+            <AlertDescription>{warning}</AlertDescription>
+          </Alert>
+        ) : null}
 
         {error ? (
           <ErrorState
@@ -122,7 +136,7 @@ export function NotificationInboxShell({
                       <ProgressLink
                         href={notification.linkPath}
                         className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-200 px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/70"
-                        aria-label="Open notification"
+                        aria-label={`Open ${notification.title} from ${formatNotificationDate(notification.createdAt)}`}
                       >
                         Open
                         <ChevronRight className="size-4" />
