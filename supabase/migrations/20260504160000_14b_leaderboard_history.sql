@@ -8,9 +8,9 @@ set leaderboard_published = coalesce(leaderboard_published, false)
 where leaderboard_published is null;
 
 do $$ begin
-  create type public.problem_dispute_status as enum ('open', 'reviewing', 'accepted', 'rejected', 'resolved');
-exception
-  when duplicate_object then null;
+  if not exists (select 1 from pg_type where typname = 'dispute_status') then
+    create type public.dispute_status as enum ('open', 'reviewing', 'accepted', 'rejected', 'resolved');
+  end if;
 end $$;
 
 do $$ begin
@@ -32,7 +32,7 @@ create table if not exists public.problem_disputes (
   attempt_id uuid not null references public.competition_attempts (id) on delete cascade,
   reporter_id uuid not null references public.profiles (id) on delete cascade,
   reason text not null,
-  status public.problem_dispute_status not null default 'open',
+  status public.dispute_status not null default 'open',
   resolution_note text,
   resolved_by uuid references public.profiles (id) on delete set null,
   resolved_at timestamptz,
@@ -42,6 +42,9 @@ create table if not exists public.problem_disputes (
 
 alter table public.problem_disputes
   add column if not exists competition_id uuid references public.competitions (id) on delete cascade;
+
+alter table public.problem_disputes
+  add column if not exists updated_at timestamptz not null default timezone('utc', now());
 
 update public.problem_disputes pd
 set competition_id = cp.competition_id
@@ -143,6 +146,14 @@ create table if not exists public.leaderboard_entries (
 
 create unique index if not exists leaderboard_entries_competition_registration_uq
   on public.leaderboard_entries (competition_id, registration_id);
+
+do $$ begin
+  alter table public.leaderboard_entries
+    add constraint leaderboard_entries_competition_registration_uq
+    unique using index leaderboard_entries_competition_registration_uq;
+exception
+  when duplicate_object then null;
+end $$;
 
 create index if not exists leaderboard_entries_competition_rank_idx
   on public.leaderboard_entries (competition_id, rank);
@@ -504,7 +515,7 @@ begin
       sr.published_visibility,
       sr.computed_at
     from source_rows sr
-    on conflict (competition_id, registration_id)
+    on conflict on constraint leaderboard_entries_competition_registration_uq
     do update set
       attempt_id = excluded.attempt_id,
       rank = excluded.rank,
@@ -1017,7 +1028,7 @@ $$;
 
 create or replace function public.resolve_problem_dispute(
   p_dispute_id uuid,
-  p_status public.problem_dispute_status,
+  p_status public.dispute_status,
   p_resolution_note text,
   p_request_idempotency_token text,
   p_actor_user_id uuid default null
@@ -1026,7 +1037,7 @@ returns table (
   machine_code text,
   dispute_id uuid,
   competition_id uuid,
-  status public.problem_dispute_status,
+  status public.dispute_status,
   correction_id uuid,
   replayed boolean,
   changed boolean,
@@ -1071,10 +1082,10 @@ begin
   end if;
 
   if p_status not in (
-    'reviewing'::public.problem_dispute_status,
-    'accepted'::public.problem_dispute_status,
-    'rejected'::public.problem_dispute_status,
-    'resolved'::public.problem_dispute_status
+    'reviewing'::public.dispute_status,
+    'accepted'::public.dispute_status,
+    'rejected'::public.dispute_status,
+    'resolved'::public.dispute_status
   ) then
     return query
     select 'invalid_status', p_dispute_id, null::uuid, p_status, null::uuid, false, false, null::timestamptz;
@@ -1143,9 +1154,9 @@ begin
   end if;
 
   if v_dispute.status in (
-    'accepted'::public.problem_dispute_status,
-    'rejected'::public.problem_dispute_status,
-    'resolved'::public.problem_dispute_status
+    'accepted'::public.dispute_status,
+    'rejected'::public.dispute_status,
+    'resolved'::public.dispute_status
   ) then
     return query
     select
@@ -1160,7 +1171,7 @@ begin
     return;
   end if;
 
-  if p_status in ('accepted'::public.problem_dispute_status, 'rejected'::public.problem_dispute_status, 'resolved'::public.problem_dispute_status)
+  if p_status in ('accepted'::public.dispute_status, 'rejected'::public.dispute_status, 'resolved'::public.dispute_status)
      and v_note = '' then
     return query
     select
@@ -1177,14 +1188,14 @@ begin
 
   update public.problem_disputes pd
   set status = p_status,
-      resolution_note = case when p_status = 'reviewing'::public.problem_dispute_status then null else v_note end,
+      resolution_note = case when p_status = 'reviewing'::public.dispute_status then null else v_note end,
       resolved_by = case
-        when p_status in ('accepted'::public.problem_dispute_status, 'rejected'::public.problem_dispute_status, 'resolved'::public.problem_dispute_status)
+        when p_status in ('accepted'::public.dispute_status, 'rejected'::public.dispute_status, 'resolved'::public.dispute_status)
           then v_actor_id
         else null
       end,
       resolved_at = case
-        when p_status in ('accepted'::public.problem_dispute_status, 'rejected'::public.problem_dispute_status, 'resolved'::public.problem_dispute_status)
+        when p_status in ('accepted'::public.dispute_status, 'rejected'::public.dispute_status, 'resolved'::public.dispute_status)
           then v_now
         else null
       end
@@ -1192,8 +1203,8 @@ begin
   returning *
   into v_dispute;
 
-  if p_status = 'accepted'::public.problem_dispute_status then
-    select correction_id
+  if p_status = 'accepted'::public.dispute_status then
+    select rpc_result.correction_id
     into v_correction_id
     from public.record_competition_problem_correction(
       v_competition.id,
@@ -1206,14 +1217,14 @@ begin
         'status', p_status
       ),
       concat('dispute-correction:', v_dispute.id::text, ':', v_token)
-    );
+    ) rpc_result;
 
-    select machine_code
+    select recalc_result.machine_code
     into v_recalc_machine_code
     from public.recalculate_competition_scores(
       v_competition.id,
       concat('dispute-recalc:', v_dispute.id::text, ':', v_token)
-    );
+    ) recalc_result;
 
     select rle.refreshed_rows
     into v_refresh_rows
@@ -1278,14 +1289,14 @@ revoke all on function public.recalculate_competition_scores(uuid, text) from pu
 revoke all on function public.record_competition_problem_correction(uuid, uuid, uuid, text, jsonb, text) from public;
 revoke all on function public.publish_leaderboard(uuid, text, uuid) from public;
 revoke all on function public.queue_export_job(uuid, public.export_job_format, text, text, uuid) from public;
-revoke all on function public.resolve_problem_dispute(uuid, public.problem_dispute_status, text, text, uuid) from public;
+revoke all on function public.resolve_problem_dispute(uuid, public.dispute_status, text, text, uuid) from public;
 
 grant execute on function public.refresh_leaderboard_entries(uuid) to service_role;
 grant execute on function public.recalculate_competition_scores(uuid, text) to service_role;
 grant execute on function public.record_competition_problem_correction(uuid, uuid, uuid, text, jsonb, text) to service_role;
 grant execute on function public.publish_leaderboard(uuid, text, uuid) to service_role;
 grant execute on function public.queue_export_job(uuid, public.export_job_format, text, text, uuid) to service_role;
-grant execute on function public.resolve_problem_dispute(uuid, public.problem_dispute_status, text, text, uuid) to service_role;
+grant execute on function public.resolve_problem_dispute(uuid, public.dispute_status, text, text, uuid) to service_role;
 
 grant select, insert, update, delete on public.problem_disputes to service_role;
 grant select, insert, update, delete on public.competition_problem_corrections to service_role;

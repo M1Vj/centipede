@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type SupabaseError = {
   code?: string | null;
@@ -64,7 +65,7 @@ function isDisputeSchemaCompatibilityError(error: SupabaseError | null | undefin
 export async function listCompetitionDisputes(input: {
   competitionId: string;
 }): Promise<CompetitionDispute[]> {
-  const supabase = await createClient();
+  const supabase = createAdminClient() ?? (await createClient());
   const { data: competitionProblems, error: competitionProblemError } = await supabase
     .from("competition_problems")
     .select("id, content_snapshot_latex, order_index")
