@@ -71,6 +71,8 @@ const competition: CompetitionRecord = {
   shuffleOptions: false,
   logTabSwitch: false,
   offensePenalties: [],
+  safeExamBrowserMode: "off",
+  safeExamBrowserConfigKeyHashes: [],
   scoringSnapshotJson: null,
   draftRevision: 1,
   draftVersion: 1,

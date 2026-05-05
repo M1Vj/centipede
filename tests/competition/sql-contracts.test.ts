@@ -38,6 +38,14 @@ const TEAM_REGISTRATION_MEMBERSHIP_INTEGRITY_MIGRATION_PATH = join(
   process.cwd(),
   "supabase/migrations/20260429113000_harden_team_registration_membership_integrity.sql",
 );
+const ATTEMPT_POLICY_AMBIGUITY_MIGRATION_PATH = join(
+  process.cwd(),
+  "supabase/migrations/20260503190000_fix_attempt_policy_column_ambiguity.sql",
+);
+const ANTI_CHEAT_LOGGING_HARDENING_MIGRATION_PATH = join(
+  process.cwd(),
+  "supabase/migrations/20260504150000_harden_anti_cheat_offense_logging.sql",
+);
 
 describe("competition sql contracts", () => {
   test("start_competition qualifies event lookup columns to avoid output-parameter ambiguity", () => {
@@ -106,6 +114,25 @@ describe("competition sql contracts", () => {
     expect(sql).toContain("from public.validate_team_registration(p_team_id, p_competition_id) vtr");
     expect(sql).toContain("v_existing_registration := found;");
     expect(sql).toContain("if v_existing_registration then");
+  });
+
+  test("attempt policies qualify attempt_id columns to avoid RPC ambiguity", () => {
+    const sql = readFileSync(ATTEMPT_POLICY_AMBIGUITY_MIGRATION_PATH, "utf8");
+
+    expect(sql).toContain("where ca.id = public.attempt_intervals.attempt_id");
+    expect(sql).toContain("where ca.id = public.attempt_answers.attempt_id");
+    expect(sql).toContain("where ca.id = public.tab_switch_logs.attempt_id");
+    expect(sql).not.toContain("where ca.id = attempt_id");
+  });
+
+  test("anti-cheat offense logging supports service role actor context and inactive attempt races", () => {
+    const sql = readFileSync(ANTI_CHEAT_LOGGING_HARDENING_MIGRATION_PATH, "utf8");
+
+    expect(sql).toContain("p_actor_user_id uuid");
+    expect(sql).toContain("v_caller_id uuid := coalesce(p_actor_user_id, auth.uid())");
+    expect(sql).toContain("return coalesce(v_last_penalty, 'none')");
+    expect(sql).toContain("grant execute on function public.log_tab_switch_offense(uuid, jsonb, uuid) to service_role");
+    expect(sql).toContain("select public.log_tab_switch_offense(p_attempt_id, p_metadata_json, auth.uid())");
   });
 
   test("register_for_competition compares registration windows against unshifted timestamptz now", () => {

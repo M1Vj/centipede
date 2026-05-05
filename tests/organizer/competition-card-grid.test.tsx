@@ -59,6 +59,8 @@ function buildCompetition(status: CompetitionRecord["status"], overrides: Partia
     shuffleOptions: false,
     logTabSwitch: false,
     offensePenalties: [],
+    safeExamBrowserMode: "off",
+    safeExamBrowserConfigKeyHashes: [],
     scoringSnapshotJson: null,
     draftRevision: 1,
     draftVersion: 1,

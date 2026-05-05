@@ -21,6 +21,9 @@ export type AttemptGradingMode = (typeof ATTEMPT_GRADING_MODES)[number];
 
 export type CompetitionType = "scheduled" | "open";
 
+export const SAFE_EXAM_BROWSER_MODES = ["off", "required"] as const;
+export type SafeExamBrowserMode = (typeof SAFE_EXAM_BROWSER_MODES)[number];
+
 export const SCORING_MODE_ALIASES: Record<string, ScoringMode> = {
   difficulty: "difficulty",
   automatic: "difficulty",
@@ -75,6 +78,8 @@ export interface ScoringRuleConfig {
   shuffleOptions: boolean;
   logTabSwitch: boolean;
   offensePenalties: OffensePenaltyRule[];
+  safeExamBrowserMode: SafeExamBrowserMode;
+  safeExamBrowserConfigKeyHashes: string[];
   customPointsByProblemId: Record<string, number>;
 }
 
@@ -88,6 +93,8 @@ export interface ScoringSnapshot {
   readonly shuffleOptions: boolean;
   readonly logTabSwitch: boolean;
   readonly offensePenalties: readonly OffensePenaltyRule[];
+  readonly safeExamBrowserMode: SafeExamBrowserMode;
+  readonly safeExamBrowserConfigKeyHashes: readonly string[];
   readonly customPointsByProblemId: Readonly<Record<string, number>>;
 }
 
