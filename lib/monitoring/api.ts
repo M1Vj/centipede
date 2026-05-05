@@ -178,7 +178,7 @@ async function fetchMonitoringAttempts(admin: AdminClient, competitionId: string
     .from("competition_attempts")
     .select("id, registration_id, status, final_score, raw_score, started_at, updated_at, offense_count")
     .eq("competition_id", competitionId)
-    .in("status", ["in_progress", "paused"]);
+    .eq("status", "in_progress");
 
   if (error && isMonitoringMissingTableError(error)) {
     return [];

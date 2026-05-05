@@ -124,7 +124,7 @@ async function listMonitoringAttemptSummaries(
       "id, registration_id, status, started_at, total_time_seconds, final_score, raw_score, offense_count, effective_attempt_deadline_at, grade_summary_json",
     )
     .eq("competition_id", competitionId)
-    .in("status", ["in_progress", "paused"])
+    .eq("status", "in_progress")
     .order("started_at", { ascending: false })
     .limit(100);
 
