@@ -154,7 +154,7 @@ create table if not exists public.export_jobs (
   format public.export_job_format not null,
   scope text not null default 'leaderboard',
   status public.export_job_status not null default 'queued',
-  download_url text,
+  storage_path text,
   error_message text,
   request_idempotency_token text not null,
   created_at timestamptz not null default timezone('utc', now()),
@@ -1283,9 +1283,9 @@ revoke all on function public.resolve_problem_dispute(uuid, public.problem_dispu
 grant execute on function public.refresh_leaderboard_entries(uuid) to service_role;
 grant execute on function public.recalculate_competition_scores(uuid, text) to service_role;
 grant execute on function public.record_competition_problem_correction(uuid, uuid, uuid, text, jsonb, text) to service_role;
-grant execute on function public.publish_leaderboard(uuid, text, uuid) to authenticated, service_role;
-grant execute on function public.queue_export_job(uuid, public.export_job_format, text, text, uuid) to authenticated, service_role;
-grant execute on function public.resolve_problem_dispute(uuid, public.problem_dispute_status, text, text, uuid) to authenticated, service_role;
+grant execute on function public.publish_leaderboard(uuid, text, uuid) to service_role;
+grant execute on function public.queue_export_job(uuid, public.export_job_format, text, text, uuid) to service_role;
+grant execute on function public.resolve_problem_dispute(uuid, public.problem_dispute_status, text, text, uuid) to service_role;
 
 grant select, insert, update, delete on public.problem_disputes to service_role;
 grant select, insert, update, delete on public.competition_problem_corrections to service_role;

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   listCompetitionExportJobs,
@@ -175,6 +176,11 @@ export async function POST(
     return actorContext.response;
   }
 
+  const adminClient = createAdminClient();
+  if (!adminClient) {
+    return jsonError("service_unavailable", "Export queue is temporarily unavailable.", 503);
+  }
+
   const { competitionId } = await params;
   const authorization = await authorizeCompetition({
     competitionId,
@@ -195,6 +201,7 @@ export async function POST(
   const scope = typeof body?.scope === "string" && body.scope.trim() ? body.scope.trim() : "leaderboard";
 
   const queued = await queueCompetitionExportJob({
+    supabase: adminClient,
     competitionId,
     actorUserId: actorContext.actor.id,
     format,

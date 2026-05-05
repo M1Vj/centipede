@@ -193,7 +193,7 @@ export function LeaderboardManagementPanel({
             format: exportFormat,
             scope: "leaderboard_history",
             status: exportStatus,
-            downloadUrl: null,
+            storagePath: null,
             errorMessage: null,
             requestIdempotencyToken: "",
             createdAt,

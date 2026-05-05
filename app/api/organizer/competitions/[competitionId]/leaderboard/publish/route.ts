@@ -4,6 +4,7 @@ import {
   jsonDatabaseError,
   jsonError,
   jsonOk,
+  requireCompetitionAdminClient,
   requireOrganizerCompetitionActor,
   requireSameOriginMutation,
 } from "@/app/api/organizer/competitions/_shared";
@@ -95,6 +96,11 @@ export async function POST(
     return actorResult.response;
   }
 
+  const adminResult = requireCompetitionAdminClient();
+  if ("response" in adminResult) {
+    return adminResult.response;
+  }
+
   const { competitionId } = await params;
   const token = getRequestIdempotencyToken(request);
   if (!token) {
@@ -111,52 +117,22 @@ export async function POST(
     return competitionResult.response;
   }
 
-  const rpcResult = await actorResult.supabase.rpc("publish_leaderboard", {
+  const rpcResult = await adminResult.adminClient.rpc("publish_leaderboard", {
     p_competition_id: competitionId,
     p_request_idempotency_token: token,
     p_actor_user_id: actorResult.actor.userId,
   });
 
   if (rpcResult.error) {
-    if (!isPublishLeaderboardCompatibilityError(rpcResult.error)) {
-      return jsonDatabaseError(rpcResult.error);
+    if (isPublishLeaderboardCompatibilityError(rpcResult.error)) {
+      return jsonError(
+        "service_unavailable",
+        "Leaderboard publication is temporarily unavailable while migrations are incomplete.",
+        503,
+      );
     }
 
-    const fallbackUpdate = await actorResult.supabase
-      .from("competitions")
-      .update({
-        leaderboard_published: true,
-      })
-      .eq("id", competitionId)
-      .eq("organizer_id", actorResult.actor.userId)
-      .select("id, leaderboard_published")
-      .maybeSingle();
-
-    if (fallbackUpdate.error) {
-      return jsonDatabaseError(fallbackUpdate.error);
-    }
-
-    await dispatchCompetitionNotification({
-      event: "competition_leaderboard_published",
-      eventIdentityKey: token,
-      recipientId: actorResult.actor.userId,
-      actorId: actorResult.actor.userId,
-      competitionId,
-      metadata: {
-        competitionId,
-        source: "fallback_update",
-      },
-    });
-
-    return jsonOk({
-      code: "ok",
-      machineCode: "ok",
-      replayed: false,
-      changed: true,
-      competitionId: fallbackUpdate.data?.id ?? competitionId,
-      leaderboardPublished: fallbackUpdate.data?.leaderboard_published === true,
-      eventId: null,
-    });
+    return jsonDatabaseError(rpcResult.error);
   }
 
   const payload = extractRpcRow<PublishLeaderboardRpcRow>(rpcResult.data);

@@ -4,6 +4,7 @@ import {
   jsonDatabaseError,
   jsonError,
   jsonOk,
+  requireCompetitionAdminClient,
   requireOrganizerCompetitionActor,
   requireSameOriginMutation,
 } from "@/app/api/organizer/competitions/_shared";
@@ -71,6 +72,11 @@ export async function POST(
     return actorResult.response;
   }
 
+  const adminResult = requireCompetitionAdminClient();
+  if ("response" in adminResult) {
+    return adminResult.response;
+  }
+
   const { competitionId, disputeId } = await params;
   const token = getRequestIdempotencyToken(request);
   if (!token) {
@@ -100,7 +106,7 @@ export async function POST(
     return jsonError("resolution_note_required", "Resolution note is required for terminal decisions.", 400);
   }
 
-  const rpcResult = await actorResult.supabase.rpc("resolve_problem_dispute", {
+  const rpcResult = await adminResult.adminClient.rpc("resolve_problem_dispute", {
     p_dispute_id: disputeId,
     p_status: status,
     p_resolution_note: resolutionNote,

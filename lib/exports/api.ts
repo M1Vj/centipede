@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
 type SupabaseError = {
   code?: string | null;
   message?: string | null;
@@ -13,7 +15,7 @@ type ExportJobRow = {
   format: "csv" | "xlsx";
   scope: string;
   status: "queued" | "processing" | "completed" | "failed" | "cancelled";
-  download_url: string | null;
+  storage_path: string | null;
   error_message: string | null;
   request_idempotency_token: string;
   created_at: string;
@@ -41,7 +43,7 @@ export type ExportJob = {
   format: "csv" | "xlsx";
   scope: string;
   status: "queued" | "processing" | "completed" | "failed" | "cancelled";
-  downloadUrl: string | null;
+  storagePath: string | null;
   errorMessage: string | null;
   requestIdempotencyToken: string;
   createdAt: string;
@@ -124,7 +126,7 @@ function normalizeExportJob(row: ExportJobRow): ExportJob {
     format: row.format,
     scope: row.scope,
     status: row.status,
-    downloadUrl: row.download_url,
+    storagePath: row.storage_path,
     errorMessage: row.error_message,
     requestIdempotencyToken: row.request_idempotency_token,
     createdAt: row.created_at,
@@ -134,13 +136,14 @@ function normalizeExportJob(row: ExportJobRow): ExportJob {
 }
 
 export async function queueCompetitionExportJob(input: {
+  supabase?: SupabaseClient;
   competitionId: string;
   actorUserId: string;
   format: "csv" | "xlsx";
   scope: string;
   requestIdempotencyToken: string;
 }): Promise<QueueExportJobResult> {
-  const supabase = await createClient();
+  const supabase = input.supabase ?? (await createClient());
   const { data, error } = await supabase.rpc("queue_export_job", {
     p_competition_id: input.competitionId,
     p_format: input.format,
@@ -178,7 +181,7 @@ export async function listCompetitionExportJobs(input: {
   const { data, error } = await supabase
     .from("export_jobs")
     .select(
-      "id, competition_id, requested_by, format, scope, status, download_url, error_message, request_idempotency_token, created_at, updated_at, completed_at",
+      "id, competition_id, requested_by, format, scope, status, storage_path, error_message, request_idempotency_token, created_at, updated_at, completed_at",
     )
     .eq("competition_id", input.competitionId)
     .order("created_at", { ascending: false })
@@ -193,6 +196,32 @@ export async function listCompetitionExportJobs(input: {
   }
 
   return (data ?? []).map((row) => normalizeExportJob(row));
+}
+
+export async function getCompetitionExportJob(input: {
+  supabase?: SupabaseClient;
+  competitionId: string;
+  exportJobId: string;
+}): Promise<ExportJob | null> {
+  const supabase = input.supabase ?? (await createClient());
+  const { data, error } = await supabase
+    .from("export_jobs")
+    .select(
+      "id, competition_id, requested_by, format, scope, status, storage_path, error_message, request_idempotency_token, created_at, updated_at, completed_at",
+    )
+    .eq("id", input.exportJobId)
+    .eq("competition_id", input.competitionId)
+    .maybeSingle<ExportJobRow>();
+
+  if (error) {
+    if (isExportSchemaCompatibilityError(error)) {
+      return null;
+    }
+
+    throw error;
+  }
+
+  return data ? normalizeExportJob(data) : null;
 }
 
 export function mapQueueExportMachineCodeToStatus(machineCode: string): number {
