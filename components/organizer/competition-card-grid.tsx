@@ -208,7 +208,7 @@ function CompetitionCard({
         {isUpcoming && (
           <>
             <ProgressLink
-              href={`/organizer/competition/${competition.id}`}
+              href={`/organizer/competition/${competition.id}/participants`}
               className="flex-1 bg-slate-100 hover:bg-slate-200 text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2"
             >
               <Settings className="w-4 h-4" /> Manage
@@ -276,6 +276,39 @@ export function CompetitionCardGrid({ competitions }: CompetitionCardGridProps) 
   useEffect(() => {
     setItems(competitions);
   }, [competitions]);
+
+  useEffect(() => {
+    const now = Date.now();
+    const nextStartAt = items.reduce<number | null>((earliest, competition) => {
+      if (
+        competition.type !== "scheduled" ||
+        competition.status !== "published" ||
+        !competition.startTime
+      ) {
+        return earliest;
+      }
+
+      const startsAt = new Date(competition.startTime).getTime();
+      if (!Number.isFinite(startsAt) || startsAt <= now) {
+        return earliest;
+      }
+
+      return earliest === null || startsAt < earliest ? startsAt : earliest;
+    }, null);
+
+    if (nextStartAt === null) {
+      return;
+    }
+
+    const delayMs = Math.min(nextStartAt - now + 1000, 2_147_483_647);
+    const timeout = window.setTimeout(() => {
+      router.refresh();
+    }, delayMs);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [items, router]);
 
   const filtered =
     activeTab === "All Events"

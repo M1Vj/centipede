@@ -10,6 +10,7 @@ import type {
   ArenaProblemOption,
   AttemptStatus,
 } from "@/lib/arena/types";
+import type { CompetitionStatus } from "@/lib/competition/types";
 
 export function isTerminalAttemptStatus(status: AttemptStatus | null | undefined) {
   return (
@@ -40,10 +41,74 @@ type DetermineCompetitionPageModeArgs = {
   hasActiveAttempt: boolean;
   hasRegistration: boolean;
   registrationStatus: string | null;
-  competitionStatus: string;
+  competitionStatus: CompetitionStatus;
   competitionType: string;
   attemptsRemaining: number;
 };
+
+type ResolveEffectiveCompetitionStatusArgs = {
+  status: CompetitionStatus;
+  type: string;
+  startTime: string | null;
+  endTime: string | null;
+  durationMinutes: number;
+  now?: Date;
+};
+
+function parseTimestamp(value: string | null | undefined) {
+  if (!value) {
+    return Number.NaN;
+  }
+
+  return new Date(value).getTime();
+}
+
+function resolveCompetitionEndTimestamp({
+  startTime,
+  endTime,
+  durationMinutes,
+}: {
+  startTime: string | null;
+  endTime: string | null;
+  durationMinutes: number;
+}) {
+  const explicitEnd = parseTimestamp(endTime);
+  if (!Number.isNaN(explicitEnd)) {
+    return explicitEnd;
+  }
+
+  const start = parseTimestamp(startTime);
+  if (Number.isNaN(start) || durationMinutes <= 0) {
+    return Number.NaN;
+  }
+
+  return start + durationMinutes * 60000;
+}
+
+export function resolveEffectiveCompetitionStatus({
+  status,
+  type,
+  startTime,
+  endTime,
+  durationMinutes,
+  now = new Date(),
+}: ResolveEffectiveCompetitionStatusArgs): CompetitionStatus {
+  if (status !== "published" || type !== "scheduled") {
+    return status;
+  }
+
+  const start = parseTimestamp(startTime);
+  if (Number.isNaN(start) || start > now.getTime()) {
+    return status;
+  }
+
+  const end = resolveCompetitionEndTimestamp({ startTime, endTime, durationMinutes });
+  if (!Number.isNaN(end) && end <= now.getTime()) {
+    return "ended";
+  }
+
+  return "live";
+}
 
 export function determineCompetitionPageMode({
   hasActiveAttempt,
@@ -53,6 +118,10 @@ export function determineCompetitionPageMode({
   competitionType,
   attemptsRemaining,
 }: DetermineCompetitionPageModeArgs): ArenaPageMode {
+  if (competitionStatus === "ended" || competitionStatus === "archived") {
+    return "detail_register";
+  }
+
   if (hasActiveAttempt) {
     return "arena_runtime";
   }
@@ -61,12 +130,11 @@ export function determineCompetitionPageMode({
   const canAttemptScheduled = competitionStatus === "live";
   const canAttemptOpen = competitionStatus === "published" || competitionStatus === "live";
 
-  if (
-    registered &&
-    attemptsRemaining > 0 &&
-    ((competitionType === "scheduled" && canAttemptScheduled) ||
-      (competitionType === "open" && canAttemptOpen))
-  ) {
+  if (competitionType === "open" && canAttemptOpen && attemptsRemaining > 0) {
+    return "pre_entry";
+  }
+
+  if (registered && attemptsRemaining > 0 && competitionType === "scheduled" && canAttemptScheduled) {
     return "pre_entry";
   }
 

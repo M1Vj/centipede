@@ -9,6 +9,7 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 
 | Release Code | Date Released |
 | ------------ | ------------- |
+| CP.010.009   | 2026-05-05    |
 | CP.010.008   | 2026-04-25    |
 | CP.010.007   | 2026-04-16    |
 | CP.010.006   | 2026-04-11    |
@@ -17,6 +18,20 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 | CP.010.003   | 2026-03-28    |
 | CP.010.002   | 2026-03-14    |
 | CP.010.001   | 2026-02-28    |
+
+---
+
+## CP.010.009 Release Notes
+
+- Added anti-cheat logging for focus-loss and tab-switch behavior, including participant warning overlays and organizer-facing offense summaries.
+- Introduced Safe Exam Browser configuration support with organizer policy controls and mathlete-side competition config access.
+- Hardened offense escalation, penalty computation, and scoring fallback behavior across anti-cheat and legacy competition flows.
+- Fixed competition lifecycle and registration reliability issues, including manual open-competition starts, automatic scheduled starts, registration count sync, team registration integrity, and dashboard state visibility.
+
+Known Issues:
+
+- Some mobile arena and dashboard surfaces may still need visual polish after live-competition stress testing.
+- Anti-cheat policy rollout depends on correct competition-level configuration and participant browser support.
 
 ---
 
@@ -162,10 +177,17 @@ local `.env.local` template.
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
 Optional fallback for older Supabase projects:
 
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+Scheduled competition starts also require:
+
+- `CRON_SECRET`
+
+The app-level cron route at `/api/cron/competitions/start-due` runs every minute in `vercel.json`, requires `Authorization: Bearer $CRON_SECRET`, and uses the Supabase service role key to move due scheduled competitions from `published` to `live`.
 
 ### What Is Included
 

@@ -15,6 +15,7 @@ import {
 } from "@/lib/competition/api";
 import type { CompetitionRecord } from "@/lib/competition/types";
 import { fetchCompetitionEventNotices } from "@/lib/competition/events";
+import { runDueScheduledCompetitionLifecycleSafely } from "@/lib/competition/scheduled-start";
 import type { DiscoverableCompetition } from "@/lib/competition/discovery";
 import type { RegistrationStatus, RegistrationSummary } from "@/lib/registrations/types";
 import { createClient } from "@/lib/supabase/server";
@@ -25,11 +26,10 @@ type LeaderTeam = {
   teamCode: string;
 };
 
-type AttemptRow = {
-  status: string | null;
+type ActiveMembershipRow = {
+  team_id: string | null;
+  role: string | null;
 };
-
-type CompetitionPageMode = "arena_runtime" | "pre_entry" | "detail_register";
 
 type RegistrationRow = {
   id: string;
@@ -66,15 +66,6 @@ function isMissingRegistrationSchema(error: SupabaseError | null | undefined) {
     message.includes("competition_registrations") ||
     message.includes("competition_id")
   );
-}
-
-function isMissingAttemptsSchema(error: SupabaseError | null | undefined) {
-  if (!error) {
-    return false;
-  }
-
-  const message = error.message?.toLowerCase() ?? "";
-  return error.code === "42P01" || message.includes("competition_attempts");
 }
 
 function toDiscoverableCompetition(competition: CompetitionRecord): DiscoverableCompetition {
@@ -126,44 +117,6 @@ async function fetchCompetitionById(supabase: Awaited<ReturnType<typeof createCl
   return fallback.data;
 }
 
-async function resolveCompetitionPageMode(input: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
-  registration: RegistrationRow | null;
-}): Promise<CompetitionPageMode> {
-  const registration = input.registration;
-
-  if (!registration || registration.status !== "registered") {
-    return "detail_register";
-  }
-
-  const { data, error } = await input.supabase
-    .from("competition_attempts")
-    .select("status")
-    .eq("registration_id", registration.id)
-    .order("started_at", { ascending: false })
-    .limit(1);
-
-  if (error) {
-    if (isMissingAttemptsSchema(error as SupabaseError)) {
-      return "pre_entry";
-    }
-
-    throw error;
-  }
-
-  const status = (data?.[0] as AttemptRow | undefined)?.status ?? null;
-
-  if (status === "in_progress") {
-    return "arena_runtime";
-  }
-
-  if (status === "submitted" || status === "auto_submitted" || status === "graded" || status === "disqualified") {
-    return "detail_register";
-  }
-
-  return "pre_entry";
-}
-
 export default async function CompetitionDetailPage({
   params,
 }: {
@@ -177,6 +130,9 @@ export default async function CompetitionDetailPage({
 
   const supabase = await createClient();
   const { competitionId } = await params;
+
+  await runDueScheduledCompetitionLifecycleSafely();
+
   const rawCompetition = await fetchCompetitionById(supabase, competitionId);
   const normalized = rawCompetition ? normalizeCompetitionRecord(rawCompetition) : null;
 
@@ -209,14 +165,23 @@ export default async function CompetitionDetailPage({
         }
       : null;
 
-  const { data: leaderMemberships } = await supabase
+  const { data: activeMemberships } = await supabase
     .from("team_memberships")
-    .select("team_id")
+    .select("team_id, role")
     .eq("profile_id", profile.id)
-    .eq("role", "leader")
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .returns<ActiveMembershipRow[]>();
 
-  const leaderTeamIds = (leaderMemberships ?? [])
+  const activeTeamIds = Array.from(
+    new Set(
+      (activeMemberships ?? [])
+        .map((row) => row.team_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  );
+
+  const leaderTeamIds = (activeMemberships ?? [])
+    .filter((row) => row.role === "leader")
     .map((row) => row.team_id)
     .filter((id): id is string => typeof id === "string" && id.length > 0);
 
@@ -236,12 +201,12 @@ export default async function CompetitionDetailPage({
     : [];
 
   let teamRegistrations: RegistrationSummary[] = [];
-  if (leaderTeamIds.length > 0) {
+  if (activeTeamIds.length > 0) {
     const teamRegResult = await supabase
       .from("competition_registrations")
       .select("id, competition_id, team_id, status, status_reason")
       .eq("competition_id", competition.id)
-      .in("team_id", leaderTeamIds);
+      .in("team_id", activeTeamIds);
 
     if (teamRegResult.error) {
       if (!isMissingRegistrationSchema(teamRegResult.error)) {
@@ -265,19 +230,14 @@ export default async function CompetitionDetailPage({
           | RegistrationRow
           | undefined) ?? null;
 
-  const pageMode = await resolveCompetitionPageMode({
-    supabase,
-    registration: modeRegistration,
-  });
-
-  if (pageMode === "arena_runtime" || pageMode === "pre_entry") {
+  if (competition.type === "open" || modeRegistration) {
     const arenaData = await loadArenaPageData(competition.id, profile.id);
 
     if (!arenaData) {
       notFound();
     }
 
-    if (arenaData.mode !== "detail_register") {
+    if (competition.type === "open" || arenaData.mode !== "detail_register") {
       return <ArenaExperience initialData={arenaData} />;
     }
   }

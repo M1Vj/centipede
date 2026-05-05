@@ -1,6 +1,7 @@
 import {
   ATTEMPT_GRADING_MODE_ALIASES,
   PENALTY_MODE_ALIASES,
+  SAFE_EXAM_BROWSER_MODES,
   SCORING_MODE_ALIASES,
   TIE_BREAKER_ALIASES,
   type AttemptGradingMode,
@@ -8,6 +9,7 @@ import {
   type OffensePenaltyKind,
   type OffensePenaltyRule,
   type PenaltyMode,
+  type SafeExamBrowserMode,
   type ScoringMode,
   type ScoringRuleConfig,
   type TieBreaker,
@@ -42,6 +44,8 @@ export interface ScoringRuleInput {
   shuffleOptions?: unknown;
   logTabSwitch?: unknown;
   offensePenalties?: unknown;
+  safeExamBrowserMode?: unknown;
+  safeExamBrowserConfigKeyHashes?: unknown;
   customPointsByProblemId?: unknown;
 }
 
@@ -118,6 +122,8 @@ export function createDefaultScoringRuleConfig(): ScoringRuleConfig {
     shuffleOptions: false,
     logTabSwitch: false,
     offensePenalties: [],
+    safeExamBrowserMode: "off",
+    safeExamBrowserConfigKeyHashes: [],
     customPointsByProblemId: {},
   };
 }
@@ -285,6 +291,40 @@ function validateCustomPointsByProblemId(
   return ok(sortedOutput);
 }
 
+function normalizeSafeExamBrowserMode(value: unknown): SafeExamBrowserMode {
+  const normalized = normalizeToken(value);
+  return SAFE_EXAM_BROWSER_MODES.includes(normalized as SafeExamBrowserMode)
+    ? (normalized as SafeExamBrowserMode)
+    : "off";
+}
+
+function normalizeSafeExamBrowserConfigKeyHashes(value: unknown): string[] {
+  const rawValues = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[\s,]+/)
+      : [];
+
+  const seen = new Set<string>();
+  const hashes: string[] = [];
+
+  rawValues.forEach((entry) => {
+    if (typeof entry !== "string") {
+      return;
+    }
+
+    const normalized = entry.trim().toLowerCase();
+    if (!/^[a-f0-9]{64}$/.test(normalized) || seen.has(normalized)) {
+      return;
+    }
+
+    seen.add(normalized);
+    hashes.push(normalized);
+  });
+
+  return hashes;
+}
+
 export function validateScoringRuleInput(
   input: ScoringRuleInput,
 ): ScoringValidationResult<ScoringRuleConfig> {
@@ -361,6 +401,28 @@ export function validateScoringRuleInput(
     errors.push(...offensePenaltiesResult.errors);
   }
 
+  const safeExamBrowserMode = normalizeSafeExamBrowserMode(input.safeExamBrowserMode);
+  const safeExamBrowserConfigKeyHashes = normalizeSafeExamBrowserConfigKeyHashes(
+    input.safeExamBrowserConfigKeyHashes,
+  );
+  if (
+    input.safeExamBrowserMode !== undefined &&
+    normalizeToken(input.safeExamBrowserMode) !== "" &&
+    !SAFE_EXAM_BROWSER_MODES.includes(normalizeToken(input.safeExamBrowserMode) as SafeExamBrowserMode)
+  ) {
+    errors.push({
+      field: "safeExamBrowserMode",
+      reason: "Safe Exam Browser mode must be off or required.",
+    });
+  }
+
+  if (safeExamBrowserMode === "required" && safeExamBrowserConfigKeyHashes.length === 0) {
+    errors.push({
+      field: "safeExamBrowserConfigKeyHashes",
+      reason: "Required Safe Exam Browser mode needs at least one 64-character Config Key hash.",
+    });
+  }
+
   const customPointsByProblemId = customPointsResult.value ?? {};
   if (scoringMode === "custom" && Object.keys(customPointsByProblemId).length === 0) {
     errors.push({
@@ -383,6 +445,8 @@ export function validateScoringRuleInput(
     shuffleOptions: normalizeBoolean(input.shuffleOptions, defaults.shuffleOptions),
     logTabSwitch: normalizeBoolean(input.logTabSwitch, defaults.logTabSwitch),
     offensePenalties: offensePenaltiesResult.value ?? [],
+    safeExamBrowserMode,
+    safeExamBrowserConfigKeyHashes,
     customPointsByProblemId,
   });
 }

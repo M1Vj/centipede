@@ -190,3 +190,34 @@ export async function loadCompetitionEditWorkspaceData(
     formState: competition ? competitionRecordToFormState(competition, selectedProblemIds) : createDefaultCompetitionDraftState(),
   };
 }
+
+export async function loadOrganizerCompetitionForManagement(
+  competitionId: string,
+  organizerId: string,
+): Promise<CompetitionRecord | null> {
+  const supabase = await createClient();
+  const primaryResult = await supabase
+    .from("competitions")
+    .select(COMPETITION_SELECT_COLUMNS)
+    .eq("id", competitionId)
+    .eq("organizer_id", organizerId)
+    .maybeSingle();
+
+  const fallbackResult =
+    primaryResult.error && isLegacyCompetitionSelectError(primaryResult.error)
+      ? await supabase
+          .from("competitions")
+          .select(LEGACY_COMPETITION_SELECT_COLUMNS)
+          .eq("id", competitionId)
+          .eq("organizer_id", organizerId)
+          .maybeSingle()
+      : null;
+
+  const result = fallbackResult ? fallbackResult : primaryResult;
+  if (result.error) {
+    return null;
+  }
+
+  const competition = normalizeCompetitionRecord(result.data);
+  return competition && !competition.isDeleted ? competition : null;
+}

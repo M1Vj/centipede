@@ -9,11 +9,14 @@ import {
   isLegacyCompetitionSelectError,
   normalizeCompetitionRecord,
 } from "@/lib/competition/api";
+import { startDueScheduledCompetitionsSafely } from "@/lib/competition/scheduled-start";
 import type { CompetitionRecord } from "@/lib/competition/types";
 
 export default async function OrganizerCompetitionPage() {
   const { profile } = await getWorkspaceContext({ requireRole: "organizer" });
   const supabase = await createClient();
+
+  await startDueScheduledCompetitionsSafely();
 
   const primaryResult = await supabase
     .from("competitions")

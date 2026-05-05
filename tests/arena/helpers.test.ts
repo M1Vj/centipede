@@ -4,6 +4,7 @@ import {
   determineCompetitionPageMode,
   formatTimerText,
   normalizeArenaAnswerValue,
+  resolveEffectiveCompetitionStatus,
   resolvePersistedAnswerStatusFlag,
 } from "@/lib/arena/helpers";
 
@@ -19,6 +20,19 @@ describe("arena helpers", () => {
         attemptsRemaining: 1,
       }),
     ).toBe("arena_runtime");
+  });
+
+  test("ended competitions never resolve to interactive arena runtime", () => {
+    expect(
+      determineCompetitionPageMode({
+        hasActiveAttempt: true,
+        hasRegistration: true,
+        registrationStatus: "registered",
+        competitionStatus: "ended",
+        competitionType: "scheduled",
+        attemptsRemaining: 1,
+      }),
+    ).toBe("detail_register");
   });
 
   test("resolves pre-entry only for registered attempt-eligible competitions", () => {
@@ -41,6 +55,54 @@ describe("arena helpers", () => {
         competitionStatus: "ended",
         competitionType: "scheduled",
         attemptsRemaining: 1,
+      }),
+    ).toBe("detail_register");
+  });
+
+  test("treats due published scheduled competitions as effectively live until their end window", () => {
+    expect(
+      resolveEffectiveCompetitionStatus({
+        status: "published",
+        type: "scheduled",
+        startTime: "2026-05-04T07:20:00.000Z",
+        endTime: null,
+        durationMinutes: 60,
+        now: new Date("2026-05-04T07:21:00.000Z"),
+      }),
+    ).toBe("live");
+
+    expect(
+      resolveEffectiveCompetitionStatus({
+        status: "published",
+        type: "scheduled",
+        startTime: "2026-05-04T07:20:00.000Z",
+        endTime: null,
+        durationMinutes: 60,
+        now: new Date("2026-05-04T08:21:00.000Z"),
+      }),
+    ).toBe("ended");
+  });
+
+  test("allows open competitions to enter without a registration when attempts remain", () => {
+    expect(
+      determineCompetitionPageMode({
+        hasActiveAttempt: false,
+        hasRegistration: false,
+        registrationStatus: null,
+        competitionStatus: "published",
+        competitionType: "open",
+        attemptsRemaining: 1,
+      }),
+    ).toBe("pre_entry");
+
+    expect(
+      determineCompetitionPageMode({
+        hasActiveAttempt: false,
+        hasRegistration: false,
+        registrationStatus: null,
+        competitionStatus: "published",
+        competitionType: "open",
+        attemptsRemaining: 0,
       }),
     ).toBe("detail_register");
   });

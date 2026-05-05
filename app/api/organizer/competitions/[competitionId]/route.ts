@@ -9,7 +9,7 @@ import {
 import { validateCompetitionDraftInput } from "@/lib/competition/validation";
 import {
   buildCompetitionDraftRpcPayload,
-  buildLegacyCompetitionMutationPayload,
+  buildLegacySchemaCompetitionMutationPayload,
   fetchCompetition,
   jsonDatabaseError,
   jsonError,
@@ -209,7 +209,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ compe
     const legacyUpdateResult = await adminClient
       .from("competitions")
       .update({
-        ...buildLegacyCompetitionMutationPayload(validation.value),
+        ...buildLegacySchemaCompetitionMutationPayload(validation.value),
       })
       .eq("id", competitionId)
       .select(LEGACY_COMPETITION_SELECT_COLUMNS)
@@ -256,6 +256,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ compe
 
   if (saveError) {
     return jsonDatabaseError(saveError);
+  }
+
+  try {
+    const safeExamBrowserUpdate = await adminClient
+      .from("competitions")
+      .update({
+        safe_exam_browser_mode: validation.value.safeExamBrowserMode,
+        safe_exam_browser_config_key_hashes: validation.value.safeExamBrowserConfigKeyHashes,
+      })
+      .eq("id", competitionId);
+
+    if (safeExamBrowserUpdate.error && !isLegacyCompetitionSchemaError(safeExamBrowserUpdate.error)) {
+      return jsonDatabaseError(safeExamBrowserUpdate.error);
+    }
+  } catch (error) {
+    if (!isLegacyCompetitionSchemaError(error as { code?: string | null; message?: string | null })) {
+      return jsonDatabaseError(error);
+    }
   }
 
   const lifecycleResult = normalizeCompetitionLifecycleResult(savedResult);
