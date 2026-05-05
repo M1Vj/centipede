@@ -45,6 +45,7 @@ vi.mock("@/components/ui/progress-link", () => ({
 const competition: CompetitionRecord = {
   id: "competition-1",
   organizerId: "organizer-1",
+  leaderboardPublished: false,
   name: "Regional Math Finals",
   description: "Competition description",
   instructions: "Competition instructions",

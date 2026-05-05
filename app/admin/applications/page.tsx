@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import {
   createAdminClient,
   approveOrganizerApplication,
@@ -422,6 +423,8 @@ export default async function AdminApplicationsPage({
 }: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  await connection();
+
   const resolvedSearchParams = (await searchParams) || {};
   const getSingle = (param: string | string[] | undefined, fallback: string) =>
     typeof param === "string" ? param : (Array.isArray(param) ? param[0] || fallback : fallback);
