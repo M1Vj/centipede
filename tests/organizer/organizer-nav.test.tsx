@@ -48,12 +48,13 @@ describe("OrganizerNav", () => {
 
     expect(screen.getByRole("button", { name: "Open organizer navigation" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Notifications" }));
+    await user.click(screen.getByRole("button", { name: "Organizer notifications" }));
 
-    expect(screen.getByText("Notifications")).toBeInTheDocument();
-    expect(
-      screen.getByText("No notifications yet. Organizer updates will appear here."),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View inbox" })).toHaveAttribute("href", "/notifications");
+    expect(screen.getByRole("link", { name: "Notification settings" })).toHaveAttribute(
+      "href",
+      "/settings/notifications",
+    );
   });
 
   test("keeps guest links and mobile toggle for unauthenticated organizer sessions", () => {
@@ -62,6 +63,6 @@ describe("OrganizerNav", () => {
     expect(screen.getByRole("link", { name: "Apply" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Status" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open organizer navigation" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Notifications" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Organizer notifications" })).not.toBeInTheDocument();
   });
 });

@@ -26,7 +26,8 @@ export default function MathleteLayout({
               alt="MathWiz"
               width={96}
               height={28}
-              className="h-7 w-auto object-contain"
+              className="object-contain"
+              style={{ width: "auto", height: "28px" }}
             />
             <span className="text-[14px] font-bold tracking-wide text-[#f49700]">
               Mathlete

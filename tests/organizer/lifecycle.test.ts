@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import {
   lookupOrganizerApplicationStatus,
   prepareOrganizerIdentityForApproval,
+  processOrganizerDecisionHandoff,
   submitOrganizerApplication,
 } from "@/lib/organizer/lifecycle";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { dispatchOrganizerDecisionNotification } from "@/lib/notifications/dispatch";
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(),
@@ -21,6 +23,13 @@ vi.mock("@/lib/supabase/env", () => ({
 vi.mock("@/lib/organizer/email", () => ({
   sendOrganizerLifecycleEmail: vi.fn().mockResolvedValue({
     providerMessageId: "provider-message-id",
+  }),
+}));
+
+vi.mock("@/lib/notifications/dispatch", () => ({
+  dispatchOrganizerDecisionNotification: vi.fn().mockResolvedValue({
+    ok: true,
+    eventIdentityKey: "organizer_application_rejected:app-789",
   }),
 }));
 
@@ -650,5 +659,75 @@ describe("organizer lifecycle RPC fallbacks", () => {
     expect(first).toEqual({ machineCode: "not_found" });
     expect(second).toEqual({ machineCode: "throttled" });
     expect(maybeSingle).toHaveBeenCalledTimes(1);
+  });
+
+  test("processOrganizerDecisionHandoff projects linked rejection decisions into inbox without owning email policy", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: "app-789",
+        status: "rejected",
+        profile_id: "profile-789",
+        applicant_full_name: "Linked Organizer",
+        organization_name: "Linked Org",
+        contact_email: "linked@example.com",
+        rejection_reason: "Missing eligibility proof.",
+      },
+      error: null,
+    });
+    const eq = vi.fn().mockImplementation(() => ({ maybeSingle }));
+    const select = vi.fn().mockImplementation(() => ({ eq }));
+    const from = vi.fn().mockImplementation((table: string) => {
+      if (table !== "organizer_applications") {
+        throw new Error(`Unexpected table: ${table}`);
+      }
+
+      return { select };
+    });
+    const rpc = vi.fn().mockImplementation(async (fnName: string) => {
+      if (fnName === "claim_organizer_application_communication") {
+        return { data: "communication-789", error: null };
+      }
+
+      if (fnName === "mark_organizer_application_communication_sent") {
+        return { data: null, error: null };
+      }
+
+      return { data: null, error: null };
+    });
+    const adminClient = {
+      rpc,
+      from,
+      storage: {
+        from: vi.fn(),
+      },
+      auth: {
+        admin: {
+          inviteUserByEmail: vi.fn(),
+          generateLink: vi.fn(),
+          resetPasswordForEmail: vi.fn(),
+        },
+      },
+    };
+
+    vi.mocked(createSupabaseClient).mockReturnValue(adminClient as never);
+
+    await processOrganizerDecisionHandoff("app-789");
+
+    expect(dispatchOrganizerDecisionNotification).toHaveBeenCalledWith({
+      event: "organizer_application_rejected",
+      eventIdentityKey: "organizer_decision:app-789",
+      recipientId: "profile-789",
+      applicationId: "app-789",
+      linkPath: "/organizer/status",
+      metadata: {
+        status: "rejected",
+      },
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "claim_organizer_application_communication",
+      expect.objectContaining({
+        p_message_type: "rejected",
+      }),
+    );
   });
 });

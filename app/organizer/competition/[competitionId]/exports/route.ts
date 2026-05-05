@@ -6,7 +6,6 @@ import {
   mapQueueExportMachineCodeToStatus,
   queueCompetitionExportJob,
 } from "@/lib/exports/api";
-import { dispatchCompetitionNotification } from "@/lib/notifications/dispatch";
 
 type ActorProfile = {
   id: string;
@@ -223,21 +222,6 @@ export async function POST(
       mapQueueExportMachineCodeToStatus(queued.machineCode),
     );
   }
-
-  await dispatchCompetitionNotification({
-    event: "competition_export_job_queued",
-    eventIdentityKey: token,
-    recipientId: actorContext.actor.id,
-    actorId: actorContext.actor.id,
-    competitionId,
-    metadata: {
-      format: queued.format ?? format,
-      scope: queued.scope ?? scope,
-      exportJobId: queued.exportJobId,
-      machineCode: queued.machineCode,
-      replayed: queued.replayed,
-    },
-  });
 
   return NextResponse.json({
     code: "ok",
