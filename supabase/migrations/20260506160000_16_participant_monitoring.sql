@@ -37,6 +37,9 @@ create index if not exists competition_events_disconnect_detection_idx
     'resume_handshake_reconnect_detected'
   );
 
+alter table public.competition_attempts
+  add column if not exists updated_at timestamptz not null default timezone('utc', now());
+
 create index if not exists competition_attempts_monitoring_status_idx
   on public.competition_attempts (competition_id, status, effective_attempt_deadline_at);
 
@@ -285,6 +288,11 @@ begin
     return;
   end if;
 
+  if coalesce(v_competition.is_deleted, false) then
+    return query select 'deleted', p_competition_id, v_competition.status, null::uuid, false, false, v_token;
+    return;
+  end if;
+
   if v_competition.organizer_id <> p_actor_user_id then
     return query select 'forbidden', p_competition_id, v_competition.status, null::uuid, false, false, v_token;
     return;
@@ -376,6 +384,11 @@ begin
     return;
   end if;
 
+  if coalesce(v_competition.is_deleted, false) then
+    return query select 'deleted', p_competition_id, v_competition.status, null::uuid, false, false, v_token;
+    return;
+  end if;
+
   if v_competition.organizer_id <> p_actor_user_id then
     return query select 'forbidden', p_competition_id, v_competition.status, null::uuid, false, false, v_token;
     return;
@@ -387,7 +400,8 @@ begin
   end if;
 
   update public.competition_attempts as ca
-  set effective_attempt_deadline_at = coalesce(ca.effective_attempt_deadline_at, ca.attempt_base_deadline_at, ca.started_at) + make_interval(mins => p_additional_minutes)
+  set effective_attempt_deadline_at = coalesce(ca.effective_attempt_deadline_at, ca.attempt_base_deadline_at, ca.started_at) + make_interval(mins => p_additional_minutes),
+      updated_at = timezone('utc', now())
   where ca.competition_id = p_competition_id
     and ca.status = 'in_progress'::public.attempt_status;
 
@@ -543,11 +557,15 @@ begin
     return;
   end if;
 
+  if coalesce(v_competition.is_deleted, false) then
+    return query select 'deleted', v_attempt.competition_id, v_attempt.status, null::uuid, false, false, v_token, null::text;
+    return;
+  end if;
+
   select *
   into v_detection
   from public.competition_events ce
-  where ce.id = p_disconnect_evidence_ref
-    and ce.competition_id = v_attempt.competition_id
+  where ce.competition_id = v_attempt.competition_id
     and (ce.metadata_json ->> 'attempt_id') = p_attempt_id::text
     and ce.event_type = case p_disconnect_evidence_type
       when 'attempt_heartbeat_timeout' then 'attempt_heartbeat_timeout_detected'
@@ -558,7 +576,7 @@ begin
   order by coalesce((ce.metadata_json ->> 'disconnect_evidence_observed_at')::timestamptz, ce.happened_at) desc, ce.happened_at desc, ce.id desc
   limit 1;
 
-  if not found then
+  if not found or v_detection.id <> p_disconnect_evidence_ref then
     v_decision := 'rejected_stale_evidence';
     v_event := public._monitoring_record_control_event(
       v_attempt.competition_id,
@@ -567,7 +585,17 @@ begin
       'reset_attempt_for_disconnect',
       v_token,
       jsonb_build_object('attempt_id', p_attempt_id),
-      jsonb_build_object('decision_outcome', v_decision, 'attempt_id', p_attempt_id, 'disconnect_evidence_type', p_disconnect_evidence_type, 'disconnect_evidence_ref', p_disconnect_evidence_ref, 'reason', v_reason, 'request_idempotency_token', v_token, 'actor_user_id', p_actor_user_id)
+      jsonb_build_object(
+        'decision_outcome', v_decision,
+        'attempt_id', p_attempt_id,
+        'disconnect_evidence_type', p_disconnect_evidence_type,
+        'disconnect_evidence_ref', p_disconnect_evidence_ref,
+        'disconnect_evidence_observed_at', case when v_detection.id is null then null else coalesce(v_detection.metadata_json ->> 'disconnect_evidence_observed_at', v_detection.happened_at::text) end,
+        'newest_disconnect_evidence_ref', v_detection.id,
+        'reason', v_reason,
+        'request_idempotency_token', v_token,
+        'actor_user_id', p_actor_user_id
+      )
     );
     return query select v_decision, v_attempt.competition_id, v_attempt.status, v_event.id, false, false, v_token, v_decision;
     return;
@@ -594,14 +622,24 @@ begin
       'reset_attempt_for_disconnect',
       v_token,
       jsonb_build_object('attempt_id', p_attempt_id),
-      jsonb_build_object('decision_outcome', v_decision, 'attempt_id', p_attempt_id, 'disconnect_evidence_type', p_disconnect_evidence_type, 'disconnect_evidence_ref', p_disconnect_evidence_ref, 'reason', v_reason, 'request_idempotency_token', v_token, 'actor_user_id', p_actor_user_id)
+      jsonb_build_object(
+        'decision_outcome', v_decision,
+        'attempt_id', p_attempt_id,
+        'disconnect_evidence_type', p_disconnect_evidence_type,
+        'disconnect_evidence_ref', p_disconnect_evidence_ref,
+        'disconnect_evidence_observed_at', coalesce(v_detection.metadata_json ->> 'disconnect_evidence_observed_at', v_detection.happened_at::text),
+        'reason', v_reason,
+        'request_idempotency_token', v_token,
+        'actor_user_id', p_actor_user_id
+      )
     );
     return query select v_decision, v_attempt.competition_id, v_attempt.status, v_event.id, false, false, v_token, v_decision;
     return;
   end if;
 
   update public.competition_attempts as ca
-  set effective_attempt_deadline_at = greatest(coalesce(ca.effective_attempt_deadline_at, v_now), v_now) + interval '120 seconds'
+  set effective_attempt_deadline_at = greatest(coalesce(ca.effective_attempt_deadline_at, v_now), v_now) + interval '120 seconds',
+      updated_at = timezone('utc', now())
   where ca.id = p_attempt_id
   returning *
   into v_attempt;
@@ -671,11 +709,45 @@ begin
 
   select * into v_competition from public.competitions c where c.id = p_competition_id for update;
   if not found then
+    insert into public.admin_audit_logs (
+      actor_user_id,
+      action_type,
+      target_table,
+      target_id,
+      description,
+      metadata
+    )
+    values (
+      p_actor_user_id,
+      'moderate_delete_competition_rejected',
+      'competitions',
+      p_competition_id,
+      v_reason,
+      jsonb_build_object('decision_outcome', 'not_found', 'request_idempotency_token', v_token)
+    );
+
     return query select 'not_found', p_competition_id, null::public.competition_status, null::uuid, false, false, v_token;
     return;
   end if;
 
   if v_competition.status = 'draft'::public.competition_status then
+    insert into public.admin_audit_logs (
+      actor_user_id,
+      action_type,
+      target_table,
+      target_id,
+      description,
+      metadata
+    )
+    values (
+      p_actor_user_id,
+      'moderate_delete_competition_rejected',
+      'competitions',
+      p_competition_id,
+      v_reason,
+      jsonb_build_object('decision_outcome', 'invalid_transition', 'status', v_competition.status, 'request_idempotency_token', v_token)
+    );
+
     return query select 'invalid_transition', p_competition_id, v_competition.status, null::uuid, false, false, v_token;
     return;
   end if;

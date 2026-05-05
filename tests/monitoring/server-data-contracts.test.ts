@@ -15,4 +15,11 @@ describe("monitoring server data contracts", () => {
     expect(serverData).not.toContain('"paused"]');
     expect(monitoringApi).not.toContain('"paused"]');
   });
+
+  test("active attempt last-seen uses updated heartbeat timestamp before start fallback", () => {
+    const serverData = readFileSync(SERVER_DATA_PATH, "utf8");
+
+    expect(serverData).toContain("started_at, updated_at");
+    expect(serverData).toContain("lastSeenAt: readString(row.updated_at) ?? readString(row.started_at)");
+  });
 });

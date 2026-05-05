@@ -49,6 +49,10 @@ export async function POST(request: Request, context: MonitoringRouteContext) {
     return competitionResult.response;
   }
 
+  if (competitionResult.competition.isDeleted) {
+    return jsonError("deleted", "Competition is already deleted.", 404);
+  }
+
   const adminResult = requireCompetitionAdminClient();
   if ("response" in adminResult) {
     return adminResult.response;

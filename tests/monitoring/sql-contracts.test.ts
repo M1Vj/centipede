@@ -11,6 +11,7 @@ describe("participant monitoring sql contracts", () => {
   test("live control RPCs are service-role security definer functions", () => {
     const sql = readFileSync(PARTICIPANT_MONITORING_MIGRATION_PATH, "utf8");
 
+    expect(sql).toContain("add column if not exists updated_at timestamptz not null");
     expect(sql).toContain("create or replace function public.pause_competition");
     expect(sql).toContain("create or replace function public.resume_competition");
     expect(sql).toContain("create or replace function public.extend_competition");
@@ -57,6 +58,15 @@ describe("participant monitoring sql contracts", () => {
     expect(sql).toContain("if p_competition_id is not null and v_attempt.competition_id <> p_competition_id then");
   });
 
+  test("disconnect reset requires newest qualifying evidence and records observed time on rejections", () => {
+    const sql = readFileSync(PARTICIPANT_MONITORING_MIGRATION_PATH, "utf8");
+
+    expect(sql).toContain("v_detection.id <> p_disconnect_evidence_ref");
+    expect(sql).toContain("order by coalesce((ce.metadata_json ->> 'disconnect_evidence_observed_at')::timestamptz, ce.happened_at) desc, ce.happened_at desc, ce.id desc");
+    expect(sql).toContain("'disconnect_evidence_observed_at', coalesce(v_detection.metadata_json ->> 'disconnect_evidence_observed_at', v_detection.happened_at::text)");
+    expect(sql).toContain("'newest_disconnect_evidence_ref', v_detection.id");
+  });
+
   test("disconnect evidence taxonomy maps to canonical detection events", () => {
     const sql = readFileSync(PARTICIPANT_MONITORING_MIGRATION_PATH, "utf8");
 
@@ -78,5 +88,16 @@ describe("participant monitoring sql contracts", () => {
     expect(sql).not.toContain("control_action = 'admin_resume_competition'");
     expect(sql).not.toContain("control_action = 'admin_extend_competition'");
     expect(sql).not.toContain("control_action = 'admin_reset_attempt_for_disconnect'");
+  });
+
+  test("monitoring controls block soft-deleted competitions and moderation rejection writes admin audit", () => {
+    const sql = readFileSync(PARTICIPANT_MONITORING_MIGRATION_PATH, "utf8");
+
+    expect(sql).toContain("if coalesce(v_competition.is_deleted, false) then");
+    expect(sql).toContain("return query select 'deleted', p_competition_id, v_competition.status");
+    expect(sql).toContain("return query select 'deleted', v_attempt.competition_id, v_attempt.status");
+    expect(sql).toContain("insert into public.admin_audit_logs");
+    expect(sql).toContain("'moderate_delete_competition_rejected'");
+    expect(sql).toContain("'decision_outcome', 'invalid_transition'");
   });
 });

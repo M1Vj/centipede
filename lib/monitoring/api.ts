@@ -16,7 +16,13 @@ type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>;
 type RegistrationRecipientRow = {
   id?: unknown;
   profile_id?: unknown;
+  team_id?: unknown;
   status?: unknown;
+};
+
+type TeamMembershipRecipientRow = {
+  team_id?: unknown;
+  profile_id?: unknown;
 };
 
 type AnnouncementRow = {
@@ -277,7 +283,7 @@ export async function sendCompetitionAnnouncement(input: {
 
   const recipientsResult = await input.admin
     .from("competition_registrations")
-    .select("id, profile_id, status")
+    .select("id, profile_id, team_id, status")
     .eq("competition_id", input.competitionId)
     .in("status", statuses);
 
@@ -286,30 +292,80 @@ export async function sendCompetitionAnnouncement(input: {
   }
 
   const recipients = Array.isArray(recipientsResult.data) ? recipientsResult.data as RegistrationRecipientRow[] : [];
+  const teamIds = Array.from(new Set(recipients.map((recipient) => readString(recipient.team_id)).filter((teamId): teamId is string => Boolean(teamId))));
+  const teamRecipientsByTeamId = new Map<string, string[]>();
+
+  if (teamIds.length > 0) {
+    const teamRecipientsResult = await input.admin
+      .from("team_memberships")
+      .select("team_id, profile_id")
+      .eq("is_active", true)
+      .in("team_id", teamIds);
+
+    if (teamRecipientsResult.error) {
+      return { announcement, dispatchCount: 0, error: teamRecipientsResult.error } as const;
+    }
+
+    for (const membership of (Array.isArray(teamRecipientsResult.data) ? teamRecipientsResult.data as TeamMembershipRecipientRow[] : [])) {
+      const teamId = readString(membership.team_id);
+      const profileId = readString(membership.profile_id);
+      if (!teamId || !profileId) {
+        continue;
+      }
+      const existing = teamRecipientsByTeamId.get(teamId) ?? [];
+      existing.push(profileId);
+      teamRecipientsByTeamId.set(teamId, existing);
+    }
+  }
+
   let dispatchCount = 0;
+  let failedDispatchCount = 0;
   for (const recipient of recipients) {
-    const recipientId = readString(recipient.profile_id);
     const registrationId = readString(recipient.id);
-    if (!recipientId || !registrationId) {
+    const directRecipientId = readString(recipient.profile_id);
+    const teamId = readString(recipient.team_id);
+    const recipientIds = directRecipientId
+      ? [directRecipientId]
+      : teamId
+        ? teamRecipientsByTeamId.get(teamId) ?? []
+        : [];
+
+    if (!registrationId || recipientIds.length === 0) {
       continue;
     }
 
-    await dispatchCompetitionNotification({
-      event: "competition_announcement_posted",
-      eventIdentityKey: `announcement:${announcementId}:${recipientId}`,
-      recipientId,
-      actorId: input.actorUserId,
-      title: input.title,
-      body: input.body,
-      linkPath: `/mathlete/competition/${input.competitionId}/review`,
-      competitionId: input.competitionId,
-      registrationId,
-      metadata: {
-        announcementId,
-        audience: input.audience,
-      },
-    });
-    dispatchCount += 1;
+    for (const recipientId of recipientIds) {
+      const dispatchResult = await dispatchCompetitionNotification({
+        event: "competition_announcement_posted",
+        eventIdentityKey: `announcement:${announcementId}:${registrationId}:${recipientId}`,
+        recipientId,
+        actorId: input.actorUserId,
+        title: input.title,
+        body: input.body,
+        linkPath: `/mathlete/competition/${input.competitionId}/review`,
+        competitionId: input.competitionId,
+        registrationId,
+        metadata: {
+          announcementId,
+          audience: input.audience,
+          teamId,
+        },
+      });
+
+      if (dispatchResult.ok) {
+        dispatchCount += 1;
+      } else {
+        failedDispatchCount += 1;
+      }
+    }
+  }
+
+  if (failedDispatchCount > 0) {
+    return {
+      announcement,
+      dispatchCount,
+      error: { message: `${failedDispatchCount} announcement notification dispatches failed.` },
+    } as const;
   }
 
   return { announcement, dispatchCount, error: null } as const;

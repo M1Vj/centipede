@@ -21,6 +21,7 @@ type AttemptRow = {
   registration_id?: unknown;
   status?: unknown;
   started_at?: unknown;
+  updated_at?: unknown;
   total_time_seconds?: unknown;
   final_score?: unknown;
   raw_score?: unknown;
@@ -121,7 +122,7 @@ async function listMonitoringAttemptSummaries(
   const { data, error } = await supabase
     .from("competition_attempts")
     .select(
-      "id, registration_id, status, started_at, total_time_seconds, final_score, raw_score, offense_count, effective_attempt_deadline_at, grade_summary_json",
+      "id, registration_id, status, started_at, updated_at, total_time_seconds, final_score, raw_score, offense_count, effective_attempt_deadline_at, grade_summary_json",
     )
     .eq("competition_id", competitionId)
     .eq("status", "in_progress")
@@ -168,7 +169,7 @@ async function listMonitoringAttemptSummaries(
       score,
       maxScore,
       startedAt: readString(row.started_at),
-      lastSeenAt: readString(row.started_at),
+      lastSeenAt: readString(row.updated_at) ?? readString(row.started_at),
       elapsedSeconds: readNumber(row.total_time_seconds),
       remainingSeconds,
       offenseCount,

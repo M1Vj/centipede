@@ -45,7 +45,7 @@ function chainQuery(result: QueryResult) {
   return query;
 }
 
-function makeCompetitionRow() {
+function makeCompetitionRow(overrides: Record<string, unknown> = {}) {
   return {
     id: COMPETITION_ID,
     organizer_id: ORGANIZER_ID,
@@ -85,10 +85,11 @@ function makeCompetitionRow() {
     published_at: null,
     created_at: "2026-05-01T00:00:00.000Z",
     updated_at: "2026-05-01T00:00:00.000Z",
+    ...overrides,
   };
 }
 
-function makeActorClient(actorId: string, role: "organizer" | "admin") {
+function makeActorClient(actorId: string, role: "organizer" | "admin", competitionOverrides: Record<string, unknown> = {}) {
   return {
     auth: {
       getUser: vi.fn().mockResolvedValue({
@@ -111,7 +112,7 @@ function makeActorClient(actorId: string, role: "organizer" | "admin") {
 
       if (table === "competitions") {
         return chainQuery({
-          data: makeCompetitionRow(),
+          data: makeCompetitionRow(competitionOverrides),
           error: null,
         });
       }
@@ -121,7 +122,10 @@ function makeActorClient(actorId: string, role: "organizer" | "admin") {
   };
 }
 
-function makeAdminClient(rpc = vi.fn()) {
+function makeAdminClient(rpc = vi.fn(), options: {
+  registrations?: Array<Record<string, unknown>>;
+  teamMemberships?: Array<Record<string, unknown>>;
+} = {}) {
   const announcementInsert = vi.fn().mockReturnValue({
     select: vi.fn().mockReturnValue({
       maybeSingle: vi.fn().mockResolvedValue({
@@ -147,19 +151,30 @@ function makeAdminClient(rpc = vi.fn()) {
       }
 
       if (table === "competition_registrations") {
+        const registrationData = options.registrations ?? [
+          { id: "registration-1", profile_id: "mathlete-1", status: "registered" },
+          { id: "registration-2", profile_id: "mathlete-2", status: "withdrawn" },
+        ];
         const query = chainQuery({
-          data: [
-            { id: "registration-1", profile_id: "mathlete-1", status: "registered" },
-            { id: "registration-2", profile_id: "mathlete-2", status: "withdrawn" },
-          ],
+          data: registrationData,
           error: null,
         });
-        query.in.mockResolvedValue({
-          data: [
-            { id: "registration-1", profile_id: "mathlete-1", status: "registered" },
-          ],
+        query.in.mockImplementation((_column: string, statuses: string[]) => Promise.resolve({
+          data: registrationData.filter((registration) => statuses.includes(String(registration.status))),
+          error: null,
+        }));
+        return query;
+      }
+
+      if (table === "team_memberships") {
+        const query = chainQuery({
+          data: options.teamMemberships ?? [],
           error: null,
         });
+        query.in.mockImplementation((_column: string, teamIds: string[]) => Promise.resolve({
+          data: (options.teamMemberships ?? []).filter((membership) => teamIds.includes(String(membership.team_id))),
+          error: null,
+        }));
         return query;
       }
 
@@ -205,12 +220,95 @@ describe("participant monitoring routes", () => {
     expect(dispatchCompetitionNotification).toHaveBeenCalledTimes(1);
     expect(dispatchCompetitionNotification).toHaveBeenCalledWith(expect.objectContaining({
       event: "competition_announcement_posted",
-      eventIdentityKey: "announcement:announcement-1:mathlete-1",
+      eventIdentityKey: "announcement:announcement-1:registration-1:mathlete-1",
       recipientId: "mathlete-1",
       actorId: ORGANIZER_ID,
       competitionId: COMPETITION_ID,
       registrationId: "registration-1",
     }));
+  });
+
+  test("organizer announcement fans out team registrations to active team members", async () => {
+    const admin = makeAdminClient(vi.fn(), {
+      registrations: [
+        { id: "registration-team-1", profile_id: null, team_id: "team-1", status: "registered" },
+      ],
+      teamMemberships: [
+        { team_id: "team-1", profile_id: "mathlete-1", is_active: true },
+        { team_id: "team-1", profile_id: "mathlete-2", is_active: true },
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(makeActorClient(ORGANIZER_ID, "organizer") as never);
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+    const response = (await announce(
+      makePostRequest(`/api/organizer/competitions/${COMPETITION_ID}/monitoring/announce`, {
+        title: "Schedule update",
+        body: "Pause starts at noon.",
+        audience: "registered_only",
+      }),
+      { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
+    ))!;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.dispatchCount).toBe(2);
+    expect(dispatchCompetitionNotification).toHaveBeenCalledTimes(2);
+    expect(dispatchCompetitionNotification).toHaveBeenCalledWith(expect.objectContaining({
+      eventIdentityKey: "announcement:announcement-1:registration-team-1:mathlete-1",
+      recipientId: "mathlete-1",
+      registrationId: "registration-team-1",
+    }));
+    expect(dispatchCompetitionNotification).toHaveBeenCalledWith(expect.objectContaining({
+      eventIdentityKey: "announcement:announcement-1:registration-team-1:mathlete-2",
+      recipientId: "mathlete-2",
+      registrationId: "registration-team-1",
+    }));
+  });
+
+  test("organizer announcement surfaces dispatch failures as non-ok result", async () => {
+    const admin = makeAdminClient();
+    vi.mocked(dispatchCompetitionNotification).mockResolvedValueOnce({
+      ok: false,
+      eventIdentityKey: "announcement:announcement-1:mathlete-1",
+      error: "enqueue_failed",
+    });
+    vi.mocked(createClient).mockResolvedValue(makeActorClient(ORGANIZER_ID, "organizer") as never);
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+    const response = (await announce(
+      makePostRequest(`/api/organizer/competitions/${COMPETITION_ID}/monitoring/announce`, {
+        title: "Schedule update",
+        body: "Pause starts at noon.",
+        audience: "registered_only",
+      }),
+      { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
+    ))!;
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body.code).toBe("announcement_failed");
+  });
+
+  test("organizer announcement rejects soft-deleted competitions before durable writes", async () => {
+    const admin = makeAdminClient();
+    vi.mocked(createClient).mockResolvedValue(makeActorClient(ORGANIZER_ID, "organizer", { is_deleted: true }) as never);
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+    const response = (await announce(
+      makePostRequest(`/api/organizer/competitions/${COMPETITION_ID}/monitoring/announce`, {
+        title: "Schedule update",
+        body: "Pause starts at noon.",
+        audience: "registered_only",
+      }),
+      { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
+    ))!;
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.code).toBe("deleted");
+    expect(admin.from).not.toHaveBeenCalled();
+    expect(dispatchCompetitionNotification).not.toHaveBeenCalled();
   });
 
   test("organizer pause calls service-role RPC with owner actor and canonical tuple", async () => {

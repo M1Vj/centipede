@@ -32,4 +32,8 @@ export type MonitoringCompetitionEvent = {
   metadata: Record<string, unknown>;
 };
 
-export type AnnouncementAudience = "all" | "registered" | "active" | "flagged";
+export type AnnouncementAudience =
+  | "registered_only"
+  | "registered_and_ineligible"
+  | "all_non_cancelled"
+  | "operators_only";
