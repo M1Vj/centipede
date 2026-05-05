@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { CompetitionParticipantsPanel } from "@/components/organizer/competition-participants-panel";
+import { loadMonitoringData } from "@/components/monitoring/server-data";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import { OffenseLogsPanel } from "@/components/anti-cheat/offense-logs-panel";
 import { getCompetitionOffenses } from "@/lib/anti-cheat/queries";
@@ -11,11 +12,13 @@ import { listOrganizerCompetitionRegistrations } from "@/lib/registrations/api";
 
 interface PageProps {
   params: Promise<{ competitionId: string }>;
+  searchParams?: Promise<{ tab?: string }>;
 }
 
-export default async function OrganizerCompetitionParticipantsPage({ params }: PageProps) {
+export default async function OrganizerCompetitionParticipantsPage({ params, searchParams }: PageProps) {
   const { profile } = await getWorkspaceContext({ requireRole: "organizer" });
   const { competitionId } = await params;
+  const query = await searchParams;
   await startDueScheduledCompetitionsSafely();
   const competition = await loadOrganizerCompetitionForManagement(
     competitionId,
@@ -30,6 +33,7 @@ export default async function OrganizerCompetitionParticipantsPage({ params }: P
     listOrganizerCompetitionRegistrations({ competitionId }),
     getCompetitionOffenses(competitionId, profile?.id ?? ""),
   ]);
+  const monitoring = await loadMonitoringData(competitionId, registrations);
 
   return (
     <div className="w-full px-4">
@@ -38,6 +42,11 @@ export default async function OrganizerCompetitionParticipantsPage({ params }: P
         <CompetitionParticipantsPanel
           competition={competition}
           registrations={registrations}
+          activeAttempts={monitoring.activeAttempts}
+          events={monitoring.events}
+          initialTab={query?.tab}
+          routePath={`/organizer/competition/${competitionId}/participants`}
+          mode="organizer"
         />
       </div>
     </div>
