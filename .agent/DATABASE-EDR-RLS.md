@@ -413,10 +413,12 @@ Purpose: organizer or admin broadcast messages tied to a competition.
 | --- | --- | --- |
 | `id` | uuid pk |
 | `competition_id` | uuid fk -> competitions.id |
-| `author_id` | uuid fk -> profiles.id |
-| `audience` | enum `announcement_audience` |
-| `message` | text |
+| `actor_user_id` | uuid fk -> profiles.id nullable |
+| `audience` | text constrained to canonical `announcement_audience` values |
+| `title` | text |
+| `body` | text |
 | `created_at` | timestamptz |
+| `metadata_json` | jsonb |
 
 Canonical `announcement_audience` enum values and recipient predicates:
 
@@ -424,6 +426,8 @@ Canonical `announcement_audience` enum values and recipient predicates:
 - `registered_and_ineligible`: recipients where `competition_registrations.status in ('registered','ineligible')`; withdrawn and cancelled rows are excluded
 - `all_non_cancelled`: recipients where `competition_registrations.status in ('registered','withdrawn','ineligible')`; cancelled rows are excluded
 - `operators_only`: recipients are competition owner organizer plus admins only; participant registration rows are not targeted
+
+Branch-16 backend contract: organizer announcement routes must insert a durable `competition_announcements` row before notification dispatch. Notification fan-out uses branch-15 `dispatchCompetitionNotification` with stable event identity `announcement:{announcement_id}:{recipient_id}`. `registered_only` excludes withdrawn rows; `registered_and_ineligible` includes registered plus ineligible; `all_non_cancelled` includes withdrawn but excludes cancelled; `operators_only` does not target participant registration rows.
 
 ### `competition_events`
 
@@ -445,6 +449,8 @@ Duplicate-window contract: deny reset when an approved reset event exists for th
 Rejection precedence contract (first failing gate wins): `rejected_missing_required_tuple` -> `rejected_invalid_evidence_taxonomy` -> `rejected_ineligible_attempt_state` -> `rejected_stale_evidence` -> `rejected_duplicate_window`.
 
 Idempotency contract: event-producing RPCs (`publish_competition`, `start_competition`, `end_competition`, `archive_competition`, `moderate_delete_competition`, `publish_leaderboard`, `pause_competition`, `resume_competition`, `extend_competition`, `reset_attempt_for_disconnect`, `resolve_problem_dispute`) must require `request_idempotency_token`. Token-source rule is canonical: caller supplies the token for every event-producing RPC except scheduled `end_competition` transitions with `transition_source = 'system_timer'`, which must use deterministic server token `system_end:{competition_id}:{effective_end_boundary_iso}`. `pause_competition`, `resume_competition`, `extend_competition`, `reset_attempt_for_disconnect`, `moderate_delete_competition`, and manual open `end_competition` must also require a non-empty reason. `end_competition` must enforce `transition_source in ('system_timer','trusted_manual_action')` with deterministic mapping: scheduled competitions must use `system_timer` only, while organizer manual end for open competitions must use `trusted_manual_action` and is not an admin live-support control. Duplicate `(competition_id, control_action, actor_user_id, request_idempotency_token)` requests return the existing outcome and must not re-apply side effects. For disconnect resets, both `attempt_disconnect_reset_applied` and `attempt_disconnect_reset_rejected` outcomes map to `control_action = 'reset_attempt_for_disconnect'` for replay safety. For moderation delete, both accepted and rejected moderation decisions map to `control_action = 'moderate_delete_competition'` for replay safety and audit parity. SQL uniqueness for this dedupe key must coalesce nullable `actor_user_id` to the system-actor sentinel in the unique key (`coalesce(actor_user_id, '00000000-0000-0000-0000-000000000000'::uuid)`). Branch-14 dispute/publication orchestration events must write canonical payload fields (`dispute_id`, `competition_problem_id`, `correction_artifact_ids`, `leaderboard_published`, `request_idempotency_token`), and `competition_ended` events must write (`transition_source`, `reason_text`, `request_idempotency_token`) where `reason_text` is required non-empty for `trusted_manual_action` and null for `system_timer` so notification fan-out and audit reads do not infer state indirectly. `recalculate_competition_scores(competition_id, request_idempotency_token)` remains compute-only and is not an event-producing RPC; `score_recalculated` event emission belongs to branch `14` orchestration.
+
+Branch-16 live-support boundary: organizer-owned controls are `pause_competition`, `resume_competition`, `extend_competition`, and `reset_attempt_for_disconnect`. Admin live support may call only force-pause through `pause_competition(..., p_actor_role = 'admin')` and non-draft abuse/fraud moderation delete through `moderate_delete_competition`; admin must not receive resume, extend, or disconnect-reset APIs.
 
 ### `competition_attempts`
 
