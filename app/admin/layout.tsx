@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import {
   LayoutDashboard,
@@ -31,6 +32,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  await connection();
   await getAdminProfile();
 
   return (

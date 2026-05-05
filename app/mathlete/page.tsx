@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { getWorkspaceContext as getProtectedWorkspaceContext } from "@/lib/auth/workspace";
 import { MathleteDashboardOverview } from "@/components/mathlete/dashboard-overview";
 import { UpcomingCompetitionRefresh } from "@/components/mathlete/upcoming-competition-refresh";
@@ -10,6 +11,7 @@ async function getWorkspaceContext() {
 }
 
 export default async function MathletePage() {
+  await connection();
   const { userEmail, profile } = await getWorkspaceContext();
   const fallbackName = userEmail?.split("@")[0] ?? "Mathlete";
   const displayName =
