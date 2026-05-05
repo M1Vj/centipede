@@ -613,14 +613,14 @@ Purpose: in-app user notifications.
 | `title` | text |
 | `body` | text |
 | `link_path` | text |
+| `event_identity_key` | text | deterministic producer-stable key for `(recipient_id, event_identity_key)` idempotency |
 | `metadata_json` | jsonb |
-| `is_read` | boolean |
 | `read_at` | timestamptz nullable |
 | `created_at` | timestamptz |
 
-Indexes: `(recipient_id, is_read, created_at desc)`.
+Indexes: `(recipient_id, created_at desc)`, partial unread `(recipient_id, created_at desc) where read_at is null`.
 
-Idempotency contract: trusted notification writes must include deterministic `event_identity_key` in `metadata_json`, with uniqueness on `(recipient_id, event_identity_key)` so retried deliveries are no-op.
+Idempotency contract: trusted notification writes must include deterministic `event_identity_key`, with uniqueness on `(recipient_id, event_identity_key)` so retried deliveries are no-op.
 
 ### `notification_preferences`
 
@@ -647,6 +647,8 @@ Deterministic channel-precedence contract:
 - `competition_announcement_posted` must always write exactly one inbox row per `(recipient_id, event_identity_key)` for resolved recipients; email remains preference-governed.
 - `email_eligible` events outside mandatory inbox classes write inbox only when `in_app_enabled = true` and the mapped event-category toggle is enabled.
 - Email delivery always requires `email_enabled = true` and the mapped event-category toggle enabled.
+- Branch 15 dispatch supports the canonical events in `.agent/features/2026-05-09-UR11b-UR13/15-B-notifications-polish.md`; existing producer aliases `competition_leaderboard_published` and `competition_problem_dispute_resolved` normalize to `leaderboard_published` and `dispute_resolved`.
+- `enqueue_notification(...)` validates event-to-preference mapping, degrades invalid `link_path` to null, creates missing default preferences, applies inbox preference gates, and preserves idempotency through `notifications_recipient_event_identity_uq`.
 
 Deterministic event-to-toggle mapping:
 
