@@ -24,18 +24,11 @@ const navItems: NavItem[] = [
   { label: "Competitions", href: "/mathlete/competition" },
   { label: "Teams", href: "/mathlete/teams" },
   { label: "History", href: "/mathlete/history" },
-  { label: "Registrations", href: "/mathlete#registrations" },
 ];
 
-function isItemActive(pathname: string, currentHash: string, href: string) {
-  const [targetPath, targetHash] = href.split("#");
-
-  if (targetHash) {
-    return pathname === targetPath && currentHash === `#${targetHash}`;
-  }
-
+function isItemActive(pathname: string, href: string) {
   if (href === "/mathlete") {
-    return pathname === href && !currentHash;
+    return pathname === href;
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -44,26 +37,10 @@ function isItemActive(pathname: string, currentHash: string, href: string) {
 export function MathleteWorkspaceNav() {
   const pathname = usePathname() ?? "";
   const [menuOpen, setMenuOpen] = useState(false);
-  const [currentHash, setCurrentHash] = useState("");
-
-  useEffect(() => {
-    const syncHash = () => {
-      if (typeof window !== "undefined") {
-        setCurrentHash(window.location.hash);
-      }
-    };
-
-    syncHash();
-    window.addEventListener("hashchange", syncHash);
-
-    return () => {
-      window.removeEventListener("hashchange", syncHash);
-    };
-  }, []);
 
   useEffect(() => {
     setMenuOpen(false);
-  }, [pathname, currentHash]);
+  }, [pathname]);
 
   return (
     <>
@@ -72,7 +49,7 @@ export function MathleteWorkspaceNav() {
         aria-label="Mathlete navigation"
       >
         {navItems.map((item) => {
-          const active = isItemActive(pathname, currentHash, item.href);
+          const active = isItemActive(pathname, item.href);
 
           return (
             <ProgressLink
@@ -175,7 +152,7 @@ export function MathleteWorkspaceNav() {
         <div className="absolute left-4 right-4 top-[calc(100%+12px)] rounded-[28px] border border-slate-200 bg-white p-3 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.45)] md:hidden">
           <div className="space-y-1">
             {navItems.map((item) => {
-              const active = isItemActive(pathname, currentHash, item.href);
+              const active = isItemActive(pathname, item.href);
 
               return (
                 <ProgressLink

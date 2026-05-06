@@ -18,6 +18,10 @@ const postDevelopLintContractsSql = readFileSync(
   "supabase/migrations/20260506121000_13_fix_db_lint_contracts_after_develop.sql",
   "utf8",
 );
+const leaderboardSubmitRestoreSql = readFileSync(
+  "supabase/migrations/20260506123000_14_restore_submit_grading_leaderboard.sql",
+  "utf8",
+);
 
 describe("review submission sql contracts", () => {
   test("creates dispute table and state machine enum", () => {
@@ -77,5 +81,18 @@ describe("review submission sql contracts", () => {
     expect(postDevelopLintContractsSql).toContain("and oa.profile_id is null");
     expect(postDevelopLintContractsSql).toContain("now();");
     expect(postDevelopLintContractsSql).not.toContain("timezone('utc', now())");
+  });
+
+  test("restores final submit grading and leaderboard refresh after branch 13 stubs", () => {
+    expect(leaderboardSubmitRestoreSql).toContain("create or replace function public.grade_attempt");
+    expect(leaderboardSubmitRestoreSql).toContain("update public.attempt_answers aa");
+    expect(leaderboardSubmitRestoreSql).toContain("points_awarded = case when answer_scores.is_correct");
+    expect(leaderboardSubmitRestoreSql).toContain("update public.competition_attempts ca");
+    expect(leaderboardSubmitRestoreSql).toContain("raw_score = v_raw_score");
+    expect(leaderboardSubmitRestoreSql).toContain("create or replace function public.refresh_leaderboard_entries");
+    expect(leaderboardSubmitRestoreSql).toContain("with ranked_attempts as");
+    expect(leaderboardSubmitRestoreSql).toContain("on conflict on constraint leaderboard_entries_competition_registration_uq");
+    expect(leaderboardSubmitRestoreSql).toContain("perform public.refresh_leaderboard_entries(v_attempt.competition_id)");
+    expect(leaderboardSubmitRestoreSql).not.toContain("'deferred_owner_schema'::text");
   });
 });
