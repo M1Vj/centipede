@@ -10,6 +10,14 @@ const gradeTimestampSql = readFileSync(
   "supabase/migrations/20260504130200_13_grade_attempt_timestamp_contract.sql",
   "utf8",
 );
+const postDevelopSubmitGradeSql = readFileSync(
+  "supabase/migrations/20260506120000_13_reapply_submit_grade_contracts_after_develop.sql",
+  "utf8",
+);
+const postDevelopLintContractsSql = readFileSync(
+  "supabase/migrations/20260506121000_13_fix_db_lint_contracts_after_develop.sql",
+  "utf8",
+);
 
 describe("review submission sql contracts", () => {
   test("creates dispute table and state machine enum", () => {
@@ -54,5 +62,20 @@ describe("review submission sql contracts", () => {
     expect(gradeTimestampSql).toContain("graded_at timestamptz");
     expect(gradeTimestampSql).toContain("now()");
     expect(gradeTimestampSql).not.toContain("timezone('utc', now())");
+    expect(postDevelopSubmitGradeSql).toContain("create or replace function public.submit_competition_attempt");
+    expect(postDevelopSubmitGradeSql).toContain("create or replace function public.grade_attempt");
+    expect(postDevelopSubmitGradeSql).toContain("#variable_conflict use_column");
+    expect(postDevelopSubmitGradeSql).toContain("where ca.registration_id = v_attempt.registration_id");
+    expect(postDevelopSubmitGradeSql).toContain("grant execute on function public.grade_attempt(uuid) to service_role");
+  });
+
+  test("keeps post-develop database contracts lint-clean for participant submit dependencies", () => {
+    expect(postDevelopLintContractsSql).toContain("create or replace function public.resume_competition_attempt");
+    expect(postDevelopLintContractsSql).toContain("where ai.attempt_id = p_attempt_id");
+    expect(postDevelopLintContractsSql).toContain("from public.competition_events ce");
+    expect(postDevelopLintContractsSql).toContain("and ce.request_idempotency_token = v_token");
+    expect(postDevelopLintContractsSql).toContain("and oa.profile_id is null");
+    expect(postDevelopLintContractsSql).toContain("now();");
+    expect(postDevelopLintContractsSql).not.toContain("timezone('utc', now())");
   });
 });
