@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { getAdminStats } from "@/lib/supabase/admin";
 import {
   Card,
@@ -108,7 +109,9 @@ function StatCardSkeleton() {
   );
 }
 
-export default function AdminDashboardPage() {
+export default async function AdminDashboardPage() {
+  await connection();
+
   return (
     <div className="shell py-10 space-y-10">
       <div>

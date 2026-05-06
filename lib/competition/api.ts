@@ -20,7 +20,7 @@ import {
 } from "./types";
 
 export const COMPETITION_SELECT_COLUMNS =
-  "id, organizer_id, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, safe_exam_browser_mode, safe_exam_browser_config_key_hashes, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
+  "id, organizer_id, leaderboard_published, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, safe_exam_browser_mode, safe_exam_browser_config_key_hashes, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
 
 export const LEGACY_COMPETITION_SELECT_COLUMNS =
   "id, organizer_id, name, description, instructions, type, format, registration_start, registration_end, start_time, duration_minutes, attempts_allowed, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, published, is_paused, created_at";
@@ -44,6 +44,7 @@ export function isLegacyCompetitionSelectError(
     message.includes("column competitions.end_time does not exist") ||
     message.includes("column competitions.multi_attempt_grading_mode does not exist") ||
     message.includes("column competitions.scoring_snapshot_json does not exist") ||
+    message.includes("column competitions.leaderboard_published does not exist") ||
     message.includes("column competitions.safe_exam_browser_mode does not exist") ||
     message.includes("column competitions.safe_exam_browser_config_key_hashes does not exist") ||
     message.includes("column competitions.draft_revision does not exist") ||
@@ -406,6 +407,7 @@ export function normalizeCompetitionRecord(row: unknown): CompetitionRecord | nu
   return {
     id,
     organizerId,
+    leaderboardPublished: Boolean(record.leaderboard_published),
     name: normalizeString(record.name),
     description: normalizeString(record.description),
     instructions: normalizeString(record.instructions),

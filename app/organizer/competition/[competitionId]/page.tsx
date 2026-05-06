@@ -32,6 +32,14 @@ export default async function OrganizerCompetitionDetailPage({ params }: PagePro
           >
             <ArrowLeft className="w-4 h-4" /> Back to Competitions
           </ProgressLink>
+          {workspaceData.competition.status !== "draft" ? (
+            <ProgressLink
+              href={`/organizer/competition/${competitionId}/leaderboard`}
+              className="ml-auto rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.1em] text-slate-700 hover:border-slate-400"
+            >
+              Leaderboard workspace
+            </ProgressLink>
+          ) : null}
         </div>
 
         <CompetitionWizard

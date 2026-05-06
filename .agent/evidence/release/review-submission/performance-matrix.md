@@ -1,0 +1,24 @@
+# Performance Matrix
+
+- branch: `feature/review-submission`
+- commit: local branch commits created after evidence capture; see `git log --oneline -4`
+- command_matrix_results:
+  - `npm run build`: pass; production compile and static generation completed
+  - `npm run test`: pass; no timing regression blocked suite
+- route_probe_results:
+  - review route: pass; server-rendered summary from persisted rows, no client-only recomputation dependency
+  - answer-key route: pass; snapshot data and dispute state hydrate server-side before client interactions
+- security_gate_results:
+  - no performance shortcut bypasses answer-key visibility or participant ownership checks
+- accessibility_gate_results:
+  - responsive screenshots checked for mobile, tablet, and desktop overflow; no blocking overlap observed
+- performance_gate_results:
+  - review page avoids N+1 answer lookups by loading answers and problems once
+  - answer-key page fetches latest attempt, problems, and open/reviewing disputes without polling
+  - submit/dispute workflows show deterministic pending/disabled states to prevent repeated request bursts
+- incident_rehearsal_results:
+  - SQL RPC contract failures were caught by browser submit, patched, and covered by migration contract tests
+- sli_slo_results:
+  - target: `>= 99.5%` successful-request ratio over rolling 28 days
+- blocker_registry_links:
+  - none

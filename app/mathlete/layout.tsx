@@ -24,9 +24,9 @@ export default function MathleteLayout({
             <Image
               src="/mathwiz-logo.svg"
               alt="MathWiz"
-              width={96}
+              width={28}
               height={28}
-              className="h-7 w-auto object-contain"
+              className="object-contain"
             />
             <span className="text-[14px] font-bold tracking-wide text-[#f49700]">
               Mathlete

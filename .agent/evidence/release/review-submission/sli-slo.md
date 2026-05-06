@@ -1,0 +1,28 @@
+# SLI/SLO
+
+- branch: `feature/review-submission`
+- commit: local branch commits created after evidence capture; see `git log --oneline -4`
+- command_matrix_results:
+  - `npm run lint`: pass with existing warnings only
+  - `npm run test`: pass; 391 tests
+  - `npm run build`: pass
+  - `npm run supabase:db:reset`: pass
+- route_probe_results:
+  - review submit request after fixes: HTTP 200
+  - answer-key reload after dispute: persisted `Dispute open` disabled state visible
+- security_gate_results:
+  - state-changing paths require authenticated mathlete context and same-origin policy
+  - answer-key reads require valid participant registration context
+- accessibility_gate_results:
+  - keyboard-reachable buttons/links/dialog fields verified through accessible snapshots
+- performance_gate_results:
+  - no long-running client polling or blocking loops introduced
+- incident_rehearsal_results:
+  - degraded SQL contract path documented and fixed in branch migrations
+- sli_slo_results:
+  - reliability SLI: successful participant submit/dispute HTTP responses divided by total submit/dispute attempts
+  - release-one SLO: `>= 99.5%` successful-request ratio over rolling 28 days
+  - error budget: `<= 0.5%`
+  - local branch sample after fixes: critical browser path passed
+- blocker_registry_links:
+  - none

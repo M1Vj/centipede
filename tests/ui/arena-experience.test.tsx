@@ -3,10 +3,12 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { ArenaExperience } from "@/components/arena/arena-experience";
 import type { ArenaPageData } from "@/lib/arena/types";
 
+const routerPushMock = vi.fn();
 const routerRefreshMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
+    push: routerPushMock,
     refresh: routerRefreshMock,
   }),
 }));
@@ -134,6 +136,7 @@ function buildPageData(mode: ArenaPageData["mode"]): ArenaPageData {
 describe("ArenaExperience", () => {
   beforeEach(() => {
     fetchMock.mockReset();
+    routerPushMock.mockReset();
     routerRefreshMock.mockReset();
   });
 
@@ -548,7 +551,7 @@ describe("ArenaExperience", () => {
     });
   });
 
-  test("flushes pending autosave before submit", async () => {
+  test("flushes pending autosave before opening review", async () => {
     const runtimeData = buildPageData("arena_runtime");
     runtimeData.activeAttempt = {
       id: "attempt-1",
@@ -592,27 +595,6 @@ describe("ArenaExperience", () => {
         );
       }
 
-      if (url.endsWith("/submit")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              data: {
-                ...runtimeData,
-                mode: "detail_register",
-                activeAttempt: null,
-                latestAttempt: {
-                  ...runtimeData.activeAttempt,
-                  status: "submitted",
-                  submittedAt: "2026-04-22T12:05:01.000Z",
-                  remainingSeconds: 0,
-                },
-              },
-            }),
-            { status: 200 },
-          ),
-        );
-      }
-
       return Promise.resolve(
         new Response(
           JSON.stringify({
@@ -629,16 +611,15 @@ describe("ArenaExperience", () => {
       target: { value: "42" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Review & Submit" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Submit attempt" }));
 
     await waitFor(() => {
       const calledUrls = fetchMock.mock.calls.map(([input]) => String(input));
       expect(calledUrls.findIndex((url) => url.endsWith("/answer"))).toBeGreaterThanOrEqual(0);
-      expect(calledUrls.findIndex((url) => url.endsWith("/submit"))).toBeGreaterThanOrEqual(0);
-      expect(calledUrls.findIndex((url) => url.endsWith("/answer"))).toBeLessThan(
-        calledUrls.findIndex((url) => url.endsWith("/submit")),
+      expect(routerPushMock).toHaveBeenCalledWith(
+        "/mathlete/competition/competition-1/review?attemptId=attempt-1",
       );
     });
+    expect(fetchMock.mock.calls.map(([input]) => String(input)).some((url) => url.endsWith("/submit"))).toBe(false);
   });
 
   test("marks non-empty answers filled even when previous persisted status was blank", () => {

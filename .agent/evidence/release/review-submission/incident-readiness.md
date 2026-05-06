@@ -1,0 +1,30 @@
+# Incident Readiness
+
+- branch: `feature/review-submission`
+- commit: local branch commits created after evidence capture; see `git log --oneline -4`
+- command_matrix_results:
+  - migration reset: pass
+  - full test suite: pass
+  - production build: pass
+- route_probe_results:
+  - submit flow: final confirmation, trusted submit, terminal result state
+  - answer-key flow: hidden before allowed visibility, visible after ended state
+  - dispute flow: open dispute created and persisted across reload
+- security_gate_results:
+  - participant-facing error messages remain generic
+  - machine codes remain in API details for deterministic debugging without exposing answer payloads
+  - duplicate submit/dispute paths are replay-safe or disabled
+- accessibility_gate_results:
+  - final submit and dispute incident paths use dialogs/alerts with readable text
+- performance_gate_results:
+  - no incident-only expensive recomputation added to normal route render
+- incident_rehearsal_results:
+  - detected `submit_competition_attempt` PL/pgSQL ambiguity during manual browser submit
+  - detected `grade_attempt` timestamp contract mismatch during retry
+  - added forward migrations and SQL contract tests for both defects
+  - reran reset/build/tests after fixes
+- sli_slo_results:
+  - incident severity trigger: submit/dispute success ratio below 99.5% rolling 28-day SLO
+  - first checks: API response machine code, Supabase function body version, dispute duplicate index, answer-key visibility policy
+- blocker_registry_links:
+  - none

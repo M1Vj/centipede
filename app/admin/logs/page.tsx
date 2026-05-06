@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   Card,
@@ -131,7 +132,9 @@ function LogsSkeleton() {
   );
 }
 
-export default function AdminLogsPage() {
+export default async function AdminLogsPage() {
+  await connection();
+
   return (
     <div className="shell py-10 space-y-8">
       <div className="flex items-center justify-between gap-4">

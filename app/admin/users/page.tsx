@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import {
   createAdminClient,
   purgeUser,
@@ -282,6 +283,8 @@ export default async function AdminUsersPage({
 }: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  await connection();
+
   const resolvedSearchParams = (await searchParams) || {};
   const getSingle = (param: string | string[] | undefined, fallback: string) => 
     typeof param === 'string' ? param : (Array.isArray(param) ? param[0] || fallback : fallback);
