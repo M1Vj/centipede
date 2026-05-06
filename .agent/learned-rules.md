@@ -159,3 +159,6 @@ Always use sub-agents for tasks whenever possible. Prefer combined end-to-end de
 
 ### 4.10
 If user explicitly forbids sub-agents for current task, execute directly in main session and do not delegate until user lifts that constraint.
+
+### 4.11
+Before deleting tracked components during cleanup, require direct project-owner confirmation or stronger evidence than missing current imports. Some tracked components can be intentionally retained for near-term reuse, templates, or branch continuity even when not referenced by the current route graph.
