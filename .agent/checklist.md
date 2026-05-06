@@ -16,8 +16,8 @@ Use this checklist as the canonical execution order for the rebuild. Mark an ite
 - [x] 10-B-competition-search -> feature/competition-search (merge: c212e4b, PR #24)
 - [x] 11-A-arena -> feature/arena (merge: 3654b5f, PR #25)
 - [x] 12-A-anti-cheat -> feature/anti-cheat (merge: f605868, PR #28)
-- [ ] 13-A-review-submission -> feature/review-submission
-- [ ] 14-B-leaderboard-history -> feature/leaderboard-history
+- [x] 13-A-review-submission -> feature/review-submission (merge: b492e90, PR #29)
+- [x] 14-B-leaderboard-history -> feature/leaderboard-history (merge: a41f4a7, PR #31)
 - [ ] 15-B-notifications-polish -> feature/notifications-polish
 - [ ] 16-B-participant-monitoring -> feature/participant-monitoring
 - [ ] 17-A-testing-bug-fixes -> feature/testing-bug-fixes
