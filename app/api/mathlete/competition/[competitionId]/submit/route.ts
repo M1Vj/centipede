@@ -1,5 +1,6 @@
 import { jsonError, jsonOk, requireMathleteActor, requireSameOriginMutation } from "@/lib/arena/api";
-import { loadArenaPageData, submitCompetitionAttempt } from "@/lib/arena/server";
+import { submitCompetitionAttempt } from "@/lib/arena/server";
+import { loadReviewSubmissionPageData } from "@/lib/submission/server";
 
 export async function POST(
   request: Request,
@@ -25,14 +26,23 @@ export async function POST(
     return jsonError("attempt_id_required", "Attempt id required.", 400);
   }
 
-  const result = await submitCompetitionAttempt(payload.attemptId, actorId, "manual");
+  let result;
+  try {
+    result = await submitCompetitionAttempt(payload.attemptId, actorId, "manual");
+  } catch (error) {
+    console.error("Failed to submit competition attempt.", error);
+    return jsonError("submit_failed", "Attempt submit failed. Try again once grading service is available.", 500, {
+      machineCode: "rpc_error",
+    });
+  }
+
   if (!result || result.machine_code !== "ok") {
     return jsonError("submit_failed", "Attempt submit failed.", 409, {
       machineCode: result?.machine_code ?? "unknown",
     });
   }
 
-  const data = await loadArenaPageData(competitionId, actorId);
+  const data = await loadReviewSubmissionPageData(competitionId, actorId, payload.attemptId);
   if (!data) {
     return jsonError("not_found", "Competition not found.", 404);
   }
