@@ -58,6 +58,14 @@ begin
           union all
           select jsonb_array_elements_text(
             case
+              when jsonb_typeof(coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) -> 'accepted_answers') = 'array'
+                then coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) -> 'accepted_answers'
+              else '[]'::jsonb
+            end
+          )
+          union all
+          select jsonb_array_elements_text(
+            case
               when jsonb_typeof(coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) -> 'answers') = 'array'
                 then coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) -> 'answers'
               else '[]'::jsonb
@@ -72,7 +80,23 @@ begin
             end
           )
           union all
+          select jsonb_array_elements_text(
+            case
+              when jsonb_typeof(coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) -> 'correct_option_ids') = 'array'
+                then coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) -> 'correct_option_ids'
+              else '[]'::jsonb
+            end
+          )
+          union all
+          select coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) ->> 'acceptedAnswer'
+          union all
+          select coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) ->> 'accepted_answer'
+          union all
+          select coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) ->> 'accepted'
+          union all
           select coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) ->> 'correctAnswer'
+          union all
+          select coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) ->> 'correct_answer'
           union all
           select coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) ->> 'answer'
           union all
@@ -83,6 +107,8 @@ begin
           select coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) ->> 'latex'
           union all
           select coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) ->> 'answerLatex'
+          union all
+          select coalesce(cp.answer_key_snapshot_json, '{}'::jsonb) ->> 'answer_latex'
           union all
           select jsonb_array_elements_text(
             case
@@ -190,31 +216,98 @@ begin
     return;
   end if;
 
-  with ranked_attempts as (
+  with official_attempts as (
+    select candidate_attempts.*
+    from (
+      select
+        ca.*,
+        row_number() over (
+          partition by ca.registration_id
+          order by
+            case coalesce(v_competition.multi_attempt_grading_mode, 'highest_score'::public.attempt_grading_mode)
+              when 'highest_score'::public.attempt_grading_mode then coalesce(ca.final_score, 0)
+              else 0
+            end desc,
+            case coalesce(v_competition.multi_attempt_grading_mode, 'highest_score'::public.attempt_grading_mode)
+              when 'latest_score'::public.attempt_grading_mode then ca.attempt_no
+              else 0
+            end desc,
+            ca.attempt_no desc,
+            coalesce(ca.submitted_at, ca.started_at, now()) desc,
+            ca.id desc
+        ) as official_attempt_rank
+      from public.competition_attempts ca
+      where ca.competition_id = p_competition_id
+        and ca.status in (
+          'submitted'::public.attempt_status,
+          'auto_submitted'::public.attempt_status,
+          'disqualified'::public.attempt_status,
+          'graded'::public.attempt_status
+        )
+    ) candidate_attempts
+    where candidate_attempts.official_attempt_rank = 1
+  )
+  update public.competition_attempts ca
+  set is_latest_visible_result = exists (
+    select 1
+    from official_attempts oa
+    where oa.id = ca.id
+  )
+  where ca.competition_id = p_competition_id
+    and ca.status in (
+      'submitted'::public.attempt_status,
+      'auto_submitted'::public.attempt_status,
+      'disqualified'::public.attempt_status,
+      'graded'::public.attempt_status
+    );
+
+  with official_attempts as (
+    select candidate_attempts.*
+    from (
+      select
+        ca.*,
+        row_number() over (
+          partition by ca.registration_id
+          order by
+            case coalesce(v_competition.multi_attempt_grading_mode, 'highest_score'::public.attempt_grading_mode)
+              when 'highest_score'::public.attempt_grading_mode then coalesce(ca.final_score, 0)
+              else 0
+            end desc,
+            case coalesce(v_competition.multi_attempt_grading_mode, 'highest_score'::public.attempt_grading_mode)
+              when 'latest_score'::public.attempt_grading_mode then ca.attempt_no
+              else 0
+            end desc,
+            ca.attempt_no desc,
+            coalesce(ca.submitted_at, ca.started_at, now()) desc,
+            ca.id desc
+        ) as official_attempt_rank
+      from public.competition_attempts ca
+      where ca.competition_id = p_competition_id
+        and ca.status in (
+          'submitted'::public.attempt_status,
+          'auto_submitted'::public.attempt_status,
+          'disqualified'::public.attempt_status,
+          'graded'::public.attempt_status
+        )
+    ) candidate_attempts
+    where candidate_attempts.official_attempt_rank = 1
+  ), ranked_attempts as (
     select
-      ca.competition_id,
-      ca.registration_id,
-      ca.id as attempt_id,
+      oa.competition_id,
+      oa.registration_id,
+      oa.id as attempt_id,
       row_number() over (
-        partition by ca.competition_id
+        partition by oa.competition_id
         order by
-          coalesce(ca.final_score, 0) desc,
-          coalesce(ca.total_time_seconds, 2147483647) asc,
-          coalesce(ca.submitted_at, ca.started_at, now()) asc,
-          ca.id asc
+          coalesce(oa.final_score, 0) desc,
+          coalesce(oa.total_time_seconds, 2147483647) asc,
+          coalesce(oa.submitted_at, oa.started_at, now()) asc,
+          oa.id asc
       ) as leaderboard_rank,
-      coalesce(ca.final_score, 0) as score,
-      coalesce(ca.total_time_seconds, 0) as total_time_seconds,
-      coalesce(ca.offense_count, 0) as offense_count
-    from public.competition_attempts ca
-    where ca.competition_id = p_competition_id
-      and ca.status in (
-        'submitted'::public.attempt_status,
-        'auto_submitted'::public.attempt_status,
-        'disqualified'::public.attempt_status,
-        'graded'::public.attempt_status
-      )
-      and coalesce(ca.is_latest_visible_result, true) = true
+      coalesce(oa.final_score, 0) as score,
+      coalesce(oa.total_time_seconds, 0) as total_time_seconds,
+      coalesce(oa.offense_count, 0) as offense_count
+    from official_attempts oa
   ), source_rows as (
     select
       ra.competition_id,
