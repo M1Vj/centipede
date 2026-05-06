@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   Card,
@@ -106,7 +107,9 @@ function GridSkeleton() {
   );
 }
 
-export default function AdminProblemBanksListPage() {
+export default async function AdminProblemBanksListPage() {
+  await connection();
+
   return (
     <div className="shell py-10 space-y-8">
       <div>

@@ -19,7 +19,10 @@ export type TeamNotificationEvent =
 
 export type CompetitionNotificationEvent =
   | "competition_registration_confirmed"
-  | "competition_registration_withdrawn";
+  | "competition_registration_withdrawn"
+  | "competition_leaderboard_published"
+  | "competition_problem_dispute_resolved"
+  | "competition_export_job_queued";
 
 export type TeamNotificationDispatchInput = {
   event: TeamNotificationEvent;
