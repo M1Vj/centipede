@@ -1,0 +1,40 @@
+# Release Evidence Summary
+
+- branch: `feature/review-submission`
+- commit: local branch commits created after evidence capture; see `git log --oneline -4`
+- command_matrix_results:
+  - `npm run supabase:db:reset`: pass; fresh migrations apply through `20260506121000_13_fix_db_lint_contracts_after_develop.sql`
+  - `npm run lint`: pass with 5 existing `<img>` warnings outside branch scope
+  - `npm run test`: pass; 88 files, 442 tests
+  - `npm run build`: pass with local Supabase env
+- route_probe_results:
+  - `/auth/login`: pass; form login completed through UI
+  - `/profile/complete`: pass; required mathlete profile completion completed through UI
+  - `/mathlete/competition/[competitionId]/review`: pass; mobile `375x812`, summary counts, jump links, confirmation dialog, submit lock, result state
+  - `/mathlete/competition/[competitionId]/answer-key`: pass; live competition hidden, ended competition visible, tablet `768x1024`, desktop `1440x1000`, dispute create and reload persistence
+  - `/api/mathlete/competition/[competitionId]/disputes`: pass; same-origin browser submission created one open dispute and replayed as disabled state on reload
+- security_gate_results:
+  - same-origin mutation guard present on dispute route
+  - mathlete actor guard present on dispute and submit routes
+  - service-role RPC owns dispute insertion
+  - duplicate open/reviewing disputes protected by SQL unique index and replay response
+  - answer keys gated by `answer_key_visibility` and ended/archived state, independent of leaderboard publication
+- accessibility_gate_results:
+  - review jump links expose problem/status names
+  - final submit uses alert dialog with explicit lock copy
+  - dispute dialog labels textarea and disables submit until reason is valid
+  - answer-key dispute buttons expose problem numbers and disabled persisted state
+- performance_gate_results:
+  - review summary computed from existing attempt answers and snapshot problem rows
+  - answer key loads snapshot rows in one server loader pass plus dispute hydration
+  - build route generation completed all 72 pages
+- incident_rehearsal_results:
+  - browser submit initially exposed SQL RPC defects; fixed with branch migrations `20260504130100` and `20260504130200`
+  - PR tester submit fallback reproduced as an unstructured trusted-submit failure risk; fixed with structured submit-route JSON, review payload refresh, and post-develop submit/grade contract reapply migration `20260506120000`
+  - local Supabase lint exposed older active function defects; fixed with post-develop lint contract migration `20260506121000`
+  - retry after migration applied returned HTTP 200 and rendered terminal attempt state
+- sli_slo_results:
+  - release-one baseline: successful-request ratio target `>= 99.5%` over rolling 28 days, error budget `<= 0.5%`
+  - local QA critical path after fixes: submit route 200, dispute route created and persisted, no current console errors on final answer-key reload
+- blocker_registry_links:
+  - no open critical or high blockers after fixes
