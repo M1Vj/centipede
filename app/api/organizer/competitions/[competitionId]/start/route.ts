@@ -52,6 +52,30 @@ export async function POST(request: Request, context: { params: Promise<{ compet
     });
   }
 
+  if (competition.status === "live") {
+    await dispatchCompetitionStartedNotifications({
+      actorId: actor.userId,
+      competitionId,
+      organizerId: actor.userId,
+      requestIdempotencyToken,
+    });
+
+    return jsonOk({
+      code: "ok",
+      competition,
+      lifecycle: {
+        machineCode: "ok",
+        status: "live",
+        eventId: null,
+        replayed: true,
+        changed: false,
+        requestIdempotencyToken,
+        draftRevision: competition.draftRevision,
+        selectedProblemCount: null,
+      },
+    });
+  }
+
   const adminClientResult = requireCompetitionAdminClient();
   if ("response" in adminClientResult) {
     return adminClientResult.response;

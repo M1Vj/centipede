@@ -45,6 +45,29 @@ type InviteeProfileRow = {
   grade_level: string | null;
 };
 
+async function dispatchInviteNotification(input: {
+  actorId: string;
+  invite: NonNullable<ReturnType<typeof normalizeTeamInvitationRow>>;
+  teamId: string;
+  teamName: string;
+}) {
+  await dispatchTeamNotification({
+    event: "team_invite_sent",
+    eventIdentityKey: `team_invite_sent:${input.invite.id}`,
+    recipientId: input.invite.inviteeId,
+    actorId: input.actorId,
+    teamId: input.teamId,
+    inviteId: input.invite.id,
+    linkPath: "/mathlete/teams/invites",
+    title: "Team invite received",
+    body: `You were invited to join ${input.teamName}.`,
+    metadata: {
+      teamName: input.teamName,
+      inviterId: input.actorId,
+    },
+  });
+}
+
 export async function GET(_: Request, context: RouteContext) {
   const auth = await requireMathleteActor();
   if ("response" in auth) {
@@ -307,6 +330,15 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (existingInvite) {
       const invite = normalizeTeamInvitationRow(existingInvite);
+      if (invite) {
+        await dispatchInviteNotification({
+          actorId: actor.userId,
+          invite,
+          teamId,
+          teamName: team.name,
+        });
+      }
+
       return jsonOk({
         code: "already_invited",
         invite,
@@ -332,9 +364,19 @@ export async function POST(request: Request, context: RouteContext) {
         return jsonDatabaseError(replayError);
       }
 
+      const invite = normalizeTeamInvitationRow(replayInvite);
+      if (invite) {
+        await dispatchInviteNotification({
+          actorId: actor.userId,
+          invite,
+          teamId,
+          teamName: team.name,
+        });
+      }
+
       return jsonOk({
         code: "already_invited",
-        invite: normalizeTeamInvitationRow(replayInvite),
+        invite,
         replayed: true,
       });
     }
@@ -364,9 +406,19 @@ export async function POST(request: Request, context: RouteContext) {
           return jsonDatabaseError(pendingError);
         }
 
+        const invite = normalizeTeamInvitationRow(pendingInvite);
+        if (invite) {
+          await dispatchInviteNotification({
+            actorId: actor.userId,
+            invite,
+            teamId,
+            teamName: team.name,
+          });
+        }
+
         return jsonOk({
           code: "already_invited",
-          invite: normalizeTeamInvitationRow(pendingInvite),
+          invite,
         });
       }
 
@@ -380,20 +432,11 @@ export async function POST(request: Request, context: RouteContext) {
 
     await attachTeamActionResource(admin, reservation.entryId, invite.id);
 
-    await dispatchTeamNotification({
-      event: "team_invite_sent",
-      eventIdentityKey: `team_invite_sent:${invite.id}`,
-      recipientId: invitee.id,
+    await dispatchInviteNotification({
       actorId: actor.userId,
+      invite,
       teamId,
-      inviteId: invite.id,
-      linkPath: "/mathlete/teams/invites",
-      title: "Team invite received",
-      body: `You were invited to join ${team.name}.`,
-      metadata: {
-        teamName: team.name,
-        inviterId: actor.userId,
-      },
+      teamName: team.name,
     });
 
     return jsonOk(

@@ -157,4 +157,74 @@ describe("team invite route notifications", () => {
       }),
     );
   });
+
+  test("backfills notification when a pending invite already exists", async () => {
+    const profilesQuery = chain({
+      data: {
+        id: INVITEE_ID,
+        full_name: "Dana Kim",
+        role: "mathlete",
+        is_active: true,
+      },
+      error: null,
+    });
+    const membershipQuery = chain({ data: null, error: null });
+    const pendingInviteQuery = chain({
+      data: {
+        id: INVITE_ID,
+        team_id: TEAM_ID,
+        inviter_id: INVITER_ID,
+        invitee_id: INVITEE_ID,
+        status: "pending",
+        created_at: "2026-05-07T00:00:00.000Z",
+        responded_at: null,
+      },
+      error: null,
+    });
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "profiles") {
+          return profilesQuery;
+        }
+
+        if (table === "team_memberships") {
+          return membershipQuery;
+        }
+
+        if (table === "team_invitations") {
+          return pendingInviteQuery;
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    } as never);
+
+    const response = await POST(
+      new Request(`http://localhost:3000/api/mathlete/teams/${TEAM_ID}/invites`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+          "x-forwarded-host": "localhost:3000",
+        },
+        body: JSON.stringify({
+          inviteeId: INVITEE_ID,
+          requestIdempotencyToken: "invite-token-2",
+        }),
+      }),
+      { params: Promise.resolve({ teamId: TEAM_ID }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(dispatchTeamNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "team_invite_sent",
+        eventIdentityKey: `team_invite_sent:${INVITE_ID}`,
+        recipientId: INVITEE_ID,
+        linkPath: "/mathlete/teams/invites",
+      }),
+    );
+    expect(reserveTeamAction).not.toHaveBeenCalled();
+  });
 });
