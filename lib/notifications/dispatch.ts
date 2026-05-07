@@ -17,6 +17,7 @@ export type CanonicalNotificationEvent =
   | "team_roster_invalidated"
   | "competition_registration_confirmed"
   | "competition_registration_withdrawn"
+  | "competition_started"
   | "competition_announcement_posted"
   | "leaderboard_published"
   | "dispute_resolved"
@@ -59,6 +60,7 @@ export type TeamNotificationEvent =
 export type CompetitionNotificationEvent =
   | "competition_registration_confirmed"
   | "competition_registration_withdrawn"
+  | "competition_started"
   | "competition_announcement_posted"
   | "competition_leaderboard_published"
   | "competition_problem_dispute_resolved"
@@ -111,6 +113,7 @@ const EVENT_PREFERENCE_KEYS: Record<CanonicalNotificationEvent, NotificationPref
   team_roster_invalidated: "team_invites",
   competition_registration_confirmed: "registration_reminders",
   competition_registration_withdrawn: "registration_reminders",
+  competition_started: "registration_reminders",
   competition_announcement_posted: "announcements",
   leaderboard_published: "leaderboard_publication",
   dispute_resolved: "leaderboard_publication",
@@ -127,6 +130,7 @@ const EVENT_CHANNEL_CLASSES: Record<CanonicalNotificationEvent, NotificationChan
   team_roster_invalidated: "email_eligible",
   competition_registration_confirmed: "email_eligible",
   competition_registration_withdrawn: "email_eligible",
+  competition_started: "email_eligible",
   competition_announcement_posted: "email_eligible",
   leaderboard_published: "email_eligible",
   dispute_resolved: "email_eligible",
@@ -138,8 +142,8 @@ const EVENT_CHANNEL_CLASSES: Record<CanonicalNotificationEvent, NotificationChan
 
 const EVENT_TEMPLATES: Record<CanonicalNotificationEvent, { title: string; body: string }> = {
   team_invite_sent: {
-    title: "Team invite sent",
-    body: "A team invitation was sent.",
+    title: "Team invite received",
+    body: "You have a pending team invitation.",
   },
   team_invite_accepted: {
     title: "Team invite accepted",
@@ -160,6 +164,10 @@ const EVENT_TEMPLATES: Record<CanonicalNotificationEvent, { title: string; body:
   competition_registration_withdrawn: {
     title: "Registration withdrawn",
     body: "Your competition registration was withdrawn.",
+  },
+  competition_started: {
+    title: "Competition started",
+    body: "A competition you registered for is now live.",
   },
   competition_announcement_posted: {
     title: "Competition announcement",
@@ -194,6 +202,9 @@ const EVENT_TEMPLATES: Record<CanonicalNotificationEvent, { title: string; body:
 const UUID_SEGMENT = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 const ALLOWED_LINK_PATTERNS = [
   /^\/organizer\/status$/,
+  /^\/mathlete\/teams\/invites$/,
+  new RegExp(`^/mathlete/competition/${UUID_SEGMENT}$`),
+  new RegExp(`^/organizer/competition/${UUID_SEGMENT}$`),
   new RegExp(`^/mathlete/competition/${UUID_SEGMENT}/leaderboard$`),
   new RegExp(`^/organizer/competition/${UUID_SEGMENT}/leaderboard$`),
   new RegExp(`^/organizer/competition/${UUID_SEGMENT}/participants$`),

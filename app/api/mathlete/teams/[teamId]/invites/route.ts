@@ -387,6 +387,9 @@ export async function POST(request: Request, context: RouteContext) {
       actorId: actor.userId,
       teamId,
       inviteId: invite.id,
+      linkPath: "/mathlete/teams/invites",
+      title: "Team invite received",
+      body: `You were invited to join ${team.name}.`,
       metadata: {
         teamName: team.name,
         inviterId: actor.userId,

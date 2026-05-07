@@ -44,11 +44,11 @@ describe("OrganizerNav", () => {
   test("renders organizer notification dropdown with accessible trigger and content", async () => {
     const user = userEvent.setup();
 
-    render(<OrganizerNav isOrganizer isAuthenticated />);
+    render(<OrganizerNav isOrganizer isAuthenticated unreadCount={3} />);
 
     expect(screen.getByRole("button", { name: "Open organizer navigation" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Organizer notifications" }));
+    await user.click(screen.getByRole("button", { name: "Organizer notifications, 3 unread" }));
 
     expect(screen.getByRole("link", { name: "View inbox" })).toHaveAttribute("href", "/notifications");
     expect(screen.getByRole("link", { name: "Notification settings" })).toHaveAttribute(

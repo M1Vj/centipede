@@ -28,7 +28,11 @@ function isItemActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function MathleteWorkspaceNav() {
+type MathleteWorkspaceNavProps = {
+  unreadCount?: number | null;
+};
+
+export function MathleteWorkspaceNav({ unreadCount = 0 }: MathleteWorkspaceNavProps) {
   const pathname = usePathname() ?? "";
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -65,7 +69,7 @@ export function MathleteWorkspaceNav() {
 
       <div className="relative hidden md:block">
         <div className="flex items-center gap-4 rounded-full bg-[#0f121a] py-1 pl-6 pr-2">
-          <NotificationBellDropdown label="Mathlete notifications" />
+          <NotificationBellDropdown label="Mathlete notifications" unreadCount={unreadCount} />
           <button
             type="button"
             onClick={() => setMenuOpen((current) => !current)}

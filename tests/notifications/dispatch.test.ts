@@ -37,6 +37,7 @@ describe("notification dispatch helpers", () => {
   test("maps canonical events to one preference key and one channel class", () => {
     expect(getNotificationPreferenceKey("competition_announcement_posted")).toBe("announcements");
     expect(getNotificationPreferenceKey("leaderboard_published")).toBe("leaderboard_publication");
+    expect(getNotificationPreferenceKey("competition_started")).toBe("registration_reminders");
     expect(getNotificationPreferenceKey("score_recalculated")).toBe("score_recalculation");
     expect(getNotificationPreferenceKey("organizer_application_approved")).toBe("organizer_decisions");
 
@@ -62,6 +63,13 @@ describe("notification dispatch helpers", () => {
     expect(sanitizeNotificationLinkPath(`/mathlete/competition/${COMPETITION_ID}/leaderboard`)).toBe(
       `/mathlete/competition/${COMPETITION_ID}/leaderboard`,
     );
+    expect(sanitizeNotificationLinkPath(`/mathlete/competition/${COMPETITION_ID}`)).toBe(
+      `/mathlete/competition/${COMPETITION_ID}`,
+    );
+    expect(sanitizeNotificationLinkPath(`/organizer/competition/${COMPETITION_ID}`)).toBe(
+      `/organizer/competition/${COMPETITION_ID}`,
+    );
+    expect(sanitizeNotificationLinkPath("/mathlete/teams/invites")).toBe("/mathlete/teams/invites");
     expect(sanitizeNotificationLinkPath("/organizer/status")).toBe("/organizer/status");
     expect(sanitizeNotificationLinkPath("https://example.com/phish")).toBeNull();
     expect(sanitizeNotificationLinkPath("/admin/users")).toBeNull();

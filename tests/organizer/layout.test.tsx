@@ -36,7 +36,11 @@ function createSupabaseClientMock({
   const maybeSingle = vi.fn().mockResolvedValue({
     data: role ? { role } : null,
   });
-  const eq = vi.fn().mockReturnValue({ maybeSingle });
+  const is = vi.fn().mockResolvedValue({
+    count: 3,
+    error: null,
+  });
+  const eq = vi.fn().mockReturnValue({ is, maybeSingle });
   const select = vi.fn().mockReturnValue({ eq });
   const from = vi.fn().mockReturnValue({ select });
 
@@ -49,7 +53,7 @@ function createSupabaseClientMock({
       }),
     },
     from,
-    mocks: { from },
+    mocks: { from, is },
   };
 }
 
@@ -72,7 +76,8 @@ describe("organizer layout navigation", () => {
     const nav = screen.getByRole("navigation", { name: "Organizer navigation" });
     expect(shellNav).toHaveClass("rounded-full");
     expect(nav).toHaveClass("gap-10");
-    expect(screen.getByRole("button", { name: "Organizer notifications" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Organizer notifications, 3 unread" })).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open organizer navigation" })).toBeInTheDocument();
 
     for (const label of ["Dashboard", "Competitions", "Problembanks", "History", "Profile", "Settings"]) {
@@ -84,6 +89,8 @@ describe("organizer layout navigation", () => {
     }
 
     expect(client.mocks.from).toHaveBeenCalledWith("profiles");
+    expect(client.mocks.from).toHaveBeenCalledWith("notifications");
+    expect(client.mocks.is).toHaveBeenCalledWith("read_at", null);
   });
 
   test("keeps guest organizer IA links for unauthenticated sessions", async () => {

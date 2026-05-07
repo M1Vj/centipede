@@ -136,6 +136,8 @@ async function markNotificationRead(formData: FormData) {
   }
 
   revalidatePath("/notifications");
+  revalidatePath("/mathlete");
+  revalidatePath("/organizer");
 }
 
 async function markAllNotificationsRead() {
@@ -158,6 +160,8 @@ async function markAllNotificationsRead() {
   }
 
   revalidatePath("/notifications");
+  revalidatePath("/mathlete");
+  revalidatePath("/organizer");
 }
 
 export default async function NotificationsPage() {

@@ -1,4 +1,5 @@
 import { normalizeCompetitionLifecycleResult } from "@/lib/competition/api";
+import { dispatchCompetitionStartedNotifications } from "@/lib/notifications/competition-start";
 import {
   competitionLifecycleErrorMessage,
   competitionLifecycleErrorStatus,
@@ -114,6 +115,13 @@ export async function POST(request: Request, context: { params: Promise<{ compet
       }
     }
 
+    await dispatchCompetitionStartedNotifications({
+      actorId: actor.userId,
+      competitionId,
+      organizerId: actor.userId,
+      requestIdempotencyToken,
+    });
+
     return jsonOk({
       code: "ok",
       competition:
@@ -158,6 +166,13 @@ export async function POST(request: Request, context: { params: Promise<{ compet
   const refreshed = await fetchCompetition(supabase, competitionId, actor.userId);
   if ("response" in refreshed) {
     if (refreshed.response.status === 404 || refreshed.response.status === 503) {
+      await dispatchCompetitionStartedNotifications({
+        actorId: actor.userId,
+        competitionId,
+        organizerId: actor.userId,
+        requestIdempotencyToken,
+      });
+
       return jsonOk({
         code: "ok",
         competition: startedCompetition,
@@ -176,6 +191,13 @@ export async function POST(request: Request, context: { params: Promise<{ compet
 
     return refreshed.response;
   }
+
+  await dispatchCompetitionStartedNotifications({
+    actorId: actor.userId,
+    competitionId,
+    organizerId: actor.userId,
+    requestIdempotencyToken,
+  });
 
   return jsonOk({
     code: "ok",

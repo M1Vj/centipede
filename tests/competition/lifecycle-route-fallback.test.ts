@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { POST as startCompetition } from "@/app/api/organizer/competitions/[competitionId]/start/route";
 import { POST as endCompetition } from "@/app/api/organizer/competitions/[competitionId]/end/route";
 import { POST as archiveCompetition } from "@/app/api/organizer/competitions/[competitionId]/archive/route";
+import { dispatchCompetitionStartedNotifications } from "@/lib/notifications/competition-start";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,6 +12,15 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(),
+}));
+
+vi.mock("@/lib/notifications/competition-start", () => ({
+  dispatchCompetitionStartedNotifications: vi.fn().mockResolvedValue({
+    attempted: 2,
+    sent: 2,
+    skipped: 0,
+    failed: 0,
+  }),
 }));
 
 const ORGANIZER_ID = "organizer-1";
@@ -165,6 +175,12 @@ describe("lifecycle route legacy fallback compatibility", () => {
     expect(rpc).toHaveBeenCalledWith("start_competition", {
       p_competition_id: COMPETITION_ID,
       p_request_idempotency_token: "idem-token-123",
+    });
+    expect(dispatchCompetitionStartedNotifications).toHaveBeenCalledWith({
+      actorId: ORGANIZER_ID,
+      competitionId: COMPETITION_ID,
+      organizerId: ORGANIZER_ID,
+      requestIdempotencyToken: "idem-token-123",
     });
   });
 

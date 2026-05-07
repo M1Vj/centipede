@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { dispatchCompetitionStartedNotifications } from "@/lib/notifications/competition-start";
 import {
   endDueScheduledCompetitions,
   startDueScheduledCompetitions,
@@ -7,6 +8,15 @@ import {
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(),
+}));
+
+vi.mock("@/lib/notifications/competition-start", () => ({
+  dispatchCompetitionStartedNotifications: vi.fn().mockResolvedValue({
+    attempted: 2,
+    sent: 2,
+    skipped: 0,
+    failed: 0,
+  }),
 }));
 
 beforeEach(() => {
@@ -38,6 +48,7 @@ describe("scheduled competition start helper and cron route", () => {
       data: [
         {
           id: "competition-1",
+          organizer_id: "organizer-1",
           start_time: "2026-04-25T06:00:00.000Z",
         },
       ],
@@ -79,6 +90,12 @@ describe("scheduled competition start helper and cron route", () => {
     expect(rpc).toHaveBeenCalledWith("start_competition", {
       p_competition_id: "competition-1",
       p_request_idempotency_token: token,
+    });
+    expect(dispatchCompetitionStartedNotifications).toHaveBeenCalledWith({
+      actorId: null,
+      competitionId: "competition-1",
+      organizerId: "organizer-1",
+      requestIdempotencyToken: token,
     });
     expect(result).toEqual({
       attempted: 1,

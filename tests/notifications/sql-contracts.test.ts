@@ -33,6 +33,8 @@ describe("branch 15 notification SQL contracts", () => {
 
   test("exposes trusted enqueue and owner read-state RPCs", () => {
     expect(migration).toContain("create or replace function public.enqueue_notification");
+    expect(migration).toContain("when 'competition_started' then 'registration_reminders'");
+    expect(migration).toContain("p_link_path = '/mathlete/teams/invites'");
     expect(migration).toContain("on conflict on constraint notifications_recipient_event_identity_uq");
     expect(migration).toContain("create or replace function public.mark_notification_read");
     expect(migration).toContain("where n.id = p_notification_id");
