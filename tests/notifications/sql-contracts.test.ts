@@ -9,6 +9,10 @@ const forwardFixMigration = readFileSync(
   "supabase/migrations/20260507133000_15_notification_start_and_invite_forward_fix.sql",
   "utf8",
 );
+const mandatoryInboxMigration = readFileSync(
+  "supabase/migrations/20260507162000_15_mandatory_invite_and_start_inbox.sql",
+  "utf8",
+);
 
 describe("branch 15 notification SQL contracts", () => {
   test("creates inbox table with recipient event identity idempotency", () => {
@@ -60,6 +64,15 @@ describe("branch 15 notification SQL contracts", () => {
     expect(forwardFixMigration).toContain("create or replace function public.is_allowed_notification_link_path");
     expect(forwardFixMigration).toContain("p_link_path = '/mathlete/teams/invites'");
     expect(forwardFixMigration).toContain("grant execute on function public.notification_preference_key");
+  });
+
+  test("keeps actionable invite and start events in inbox even when category preferences are off", () => {
+    expect(mandatoryInboxMigration).toContain("create or replace function public.notification_requires_mandatory_inbox");
+    expect(mandatoryInboxMigration).toContain("'team_invite_sent'");
+    expect(mandatoryInboxMigration).toContain("'competition_started'");
+    expect(mandatoryInboxMigration).toContain("if public.notification_requires_mandatory_inbox(p_type) then");
+    expect(mandatoryInboxMigration).toContain("v_inbox_allowed := true");
+    expect(mandatoryInboxMigration).toContain("create or replace function public.enqueue_notification");
   });
 
   test("enforces owner-only RLS for inbox and preferences", () => {

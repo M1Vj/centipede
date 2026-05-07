@@ -140,6 +140,12 @@ const EVENT_CHANNEL_CLASSES: Record<CanonicalNotificationEvent, NotificationChan
   organizer_application_rejected: "in_app_only",
 };
 
+const MANDATORY_INBOX_EVENTS = new Set<CanonicalNotificationEvent>([
+  "team_invite_sent",
+  "competition_started",
+  "competition_announcement_posted",
+]);
+
 const EVENT_TEMPLATES: Record<CanonicalNotificationEvent, { title: string; body: string }> = {
   team_invite_sent: {
     title: "Team invite received",
@@ -284,7 +290,7 @@ export async function dispatchNotification(
     actorId: input.actorId ?? null,
     channelClass,
     preferenceKey,
-    mandatoryInbox: channelClass === "in_app_only" || eventType === "competition_announcement_posted",
+    mandatoryInbox: channelClass === "in_app_only" || MANDATORY_INBOX_EVENTS.has(eventType),
     email,
   };
 
@@ -317,7 +323,11 @@ export async function dispatchNotification(
     skipped: !row.inserted,
     notificationId: row.notificationId,
     email,
-    reason: row.inserted ? undefined : "duplicate_event_identity",
+    reason: row.inserted
+      ? undefined
+      : row.inboxAllowed
+        ? "duplicate_event_identity"
+        : "preferences_disabled",
   };
 }
 
@@ -375,19 +385,30 @@ function getEmailDecision(channelClass: NotificationChannelClass): NotificationE
   };
 }
 
-function normalizeEnqueueResult(data: unknown): { notificationId: string | null; inserted: boolean } {
+function normalizeEnqueueResult(data: unknown): {
+  inboxAllowed: boolean;
+  notificationId: string | null;
+  inserted: boolean;
+} {
   const row = Array.isArray(data) ? data[0] : data;
   if (!row || typeof row !== "object") {
-    return { notificationId: null, inserted: true };
+    return { inboxAllowed: true, notificationId: null, inserted: true };
   }
 
   const result = row as {
+    inbox_allowed?: unknown;
+    inboxAllowed?: unknown;
     notification_id?: unknown;
     notificationId?: unknown;
     inserted?: unknown;
   };
 
   return {
+    inboxAllowed: typeof result.inbox_allowed === "boolean"
+      ? result.inbox_allowed
+      : typeof result.inboxAllowed === "boolean"
+        ? result.inboxAllowed
+        : true,
     notificationId: typeof result.notification_id === "string"
       ? result.notification_id
       : typeof result.notificationId === "string"

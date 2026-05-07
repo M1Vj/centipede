@@ -644,7 +644,7 @@ Default contract: `in_app_enabled = true`, `email_enabled = false`, and all even
 Deterministic channel-precedence contract:
 
 - Mandatory inbox class events (`in_app_only`) must always write exactly one inbox row per `(recipient_id, event_identity_key)` regardless of `in_app_enabled`.
-- `competition_announcement_posted` must always write exactly one inbox row per `(recipient_id, event_identity_key)` for resolved recipients; email remains preference-governed.
+- `team_invite_sent`, `competition_started`, and `competition_announcement_posted` must always write exactly one inbox row per `(recipient_id, event_identity_key)` for resolved recipients; email remains preference-governed.
 - `email_eligible` events outside mandatory inbox classes write inbox only when `in_app_enabled = true` and the mapped event-category toggle is enabled.
 - Email delivery always requires `email_enabled = true` and the mapped event-category toggle enabled.
 - Branch 15 dispatch supports the canonical events in `.agent/features/2026-05-09-UR11b-UR13/15-B-notifications-polish.md`; existing producer aliases `competition_leaderboard_published` and `competition_problem_dispute_resolved` normalize to `leaderboard_published` and `dispute_resolved`.
