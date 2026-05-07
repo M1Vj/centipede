@@ -1,4 +1,7 @@
+import Image from "next/image";
 import { AlertCircle, Check, ChevronRight, MailOpen } from "lucide-react";
+import { MathleteWorkspaceNav } from "@/components/mathlete/workspace-nav";
+import { OrganizerNav } from "@/components/organizer/organizer-nav";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/ui/feedback-states";
@@ -11,6 +14,7 @@ type NotificationInboxShellProps = {
   markAllAction: () => Promise<void> | void;
   markReadAction: (formData: FormData) => Promise<void> | void;
   notifications: NotificationItem[];
+  role?: string | null;
   unreadCount: number;
   warning?: string | null;
 };
@@ -36,14 +40,47 @@ export function NotificationInboxShell({
   markAllAction,
   markReadAction,
   notifications,
+  role,
   unreadCount,
   warning,
 }: NotificationInboxShellProps) {
   const safeUnreadCount = Math.max(0, unreadCount);
+  const workspaceLabel = role === "organizer" ? "Organizer" : role === "mathlete" ? "Mathlete" : "Workspace";
 
   return (
-    <section className="shell py-10 md:py-14">
-      <div className="mx-auto flex max-w-5xl flex-col gap-6">
+    <div className="min-h-screen bg-[#fafafb] text-[#1a1e2e]">
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(circle_at_top,rgba(244,151,0,0.18),transparent_48%)]" />
+        <div className="absolute inset-x-0 top-0 h-[220px] bg-[linear-gradient(180deg,rgba(26,30,46,0.06),transparent)]" />
+      </div>
+      <header className="sticky top-0 z-40 flex justify-center px-4 pt-4">
+        <nav className="relative flex w-full max-w-[1024px] items-center justify-between rounded-full border border-white/5 bg-[#1a1e2e] px-5 py-3 shadow-2xl backdrop-blur-md">
+          <ProgressLink
+            href={role === "organizer" ? "/organizer" : role === "mathlete" ? "/mathlete" : "/"}
+            className="flex items-center gap-2 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1e2e]"
+          >
+            <Image
+              src="/mathwiz-logo.svg"
+              alt="MathWiz"
+              width={28}
+              height={28}
+              className="object-contain"
+            />
+            <span className="text-[14px] font-bold tracking-wide text-[#f49700]">
+              {workspaceLabel}
+            </span>
+          </ProgressLink>
+
+          {role === "organizer" ? (
+            <OrganizerNav isOrganizer isAuthenticated unreadCount={safeUnreadCount} />
+          ) : role === "mathlete" ? (
+            <MathleteWorkspaceNav unreadCount={safeUnreadCount} />
+          ) : null}
+        </nav>
+      </header>
+
+      <section className="shell py-10 md:py-14">
+        <div className="mx-auto flex max-w-5xl flex-col gap-6">
         <div className="flex flex-col gap-4 rounded-[28px] border border-slate-200 bg-white/90 p-5 shadow-[0_24px_70px_-48px_rgba(15,23,42,0.55)] md:flex-row md:items-end md:justify-between md:p-7">
           <div className="space-y-2">
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#f49700]">
@@ -176,6 +213,7 @@ export function NotificationInboxShell({
           <ChevronRight className="size-4" />
         </ProgressLink>
       </div>
-    </section>
+      </section>
+    </div>
   );
 }

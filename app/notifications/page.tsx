@@ -18,6 +18,7 @@ type RawNotificationRow = {
 type InboxSnapshot = {
   error: string | null;
   notifications: NotificationItem[];
+  role: string | null;
   unreadCount: number;
   warning: string | null;
 };
@@ -60,6 +61,7 @@ async function fetchInboxSnapshot(): Promise<InboxSnapshot> {
     return {
       error: "Notifications require Supabase environment variables.",
       notifications: [],
+      role: null,
       unreadCount: 0,
       warning: null,
     };
@@ -86,16 +88,24 @@ async function fetchInboxSnapshot(): Promise<InboxSnapshot> {
     return {
       error: "Notifications are temporarily unavailable.",
       notifications: [],
+      role: null,
       unreadCount: 0,
       warning: null,
     };
   }
 
-  const unreadResult = await supabase
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("recipient_id", user.id)
-    .is("read_at", null);
+  const [unreadResult, profileResult] = await Promise.all([
+    supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("recipient_id", user.id)
+      .is("read_at", null),
+    supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle<{ role?: string | null }>(),
+  ]);
 
   const notifications = (notificationsResult.data ?? [])
     .map(normalizeNotification)
@@ -104,6 +114,7 @@ async function fetchInboxSnapshot(): Promise<InboxSnapshot> {
   return {
     error: null,
     notifications,
+    role: profileResult.data?.role ?? null,
     unreadCount: unreadResult.count ?? notifications.filter((notification) => !notification.readAt).length,
     warning: unreadResult.error ? "Unread count is temporarily unavailable." : null,
   };
@@ -173,6 +184,7 @@ export default async function NotificationsPage() {
       markAllAction={markAllNotificationsRead}
       markReadAction={markNotificationRead}
       notifications={snapshot.notifications}
+      role={snapshot.role}
       unreadCount={snapshot.unreadCount}
       warning={snapshot.warning}
     />

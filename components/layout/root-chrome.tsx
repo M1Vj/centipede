@@ -10,7 +10,7 @@ import { ProgressLink } from "@/components/ui/progress-link";
 
 const WORKSPACE_PREFIXES = ["/admin", "/mathlete", "/organizer", "/protected"];
 const CHROMELESS_PREFIXES = ["/auth"];
-const CHROMELESS_EXACT_PATHS = ["/profile/complete"];
+const CHROMELESS_EXACT_PATHS = ["/notifications", "/profile/complete"];
 
 function shouldHideGlobalChrome(pathname: string) {
   return (
