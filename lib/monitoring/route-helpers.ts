@@ -14,6 +14,7 @@ import {
   normalizeMonitoringControlResult,
 } from "./api";
 import type { MonitoringAnnouncementAudience, MonitoringControlResult } from "./types";
+import type { CompetitionRecord } from "@/lib/competition/types";
 
 type AdminActorProfile = {
   id: string;
@@ -101,6 +102,7 @@ export async function runOrganizerControl(
     reason: string;
     token: string;
     body: Record<string, unknown>;
+    competition: CompetitionRecord;
   }) => Record<string, unknown> | Response,
 ) {
   const sameOriginError = requireSameOriginMutation(request);
@@ -139,21 +141,22 @@ export async function runOrganizerControl(
     return jsonError("deleted", "Competition is already deleted.", 404);
   }
 
-  const adminResult = requireCompetitionAdminClient();
-  if ("response" in adminResult) {
-    return adminResult.response;
-  }
-
   const rpcArgs = buildArgs({
     competitionId,
     actorUserId: actorResult.actor.userId,
     reason,
     token,
     body: body ?? {},
+    competition: competitionResult.competition,
   });
 
   if (rpcArgs instanceof Response) {
     return rpcArgs;
+  }
+
+  const adminResult = requireCompetitionAdminClient();
+  if ("response" in adminResult) {
+    return adminResult.response;
   }
 
   const rpcResult = await adminResult.adminClient.rpc(rpcName, rpcArgs);

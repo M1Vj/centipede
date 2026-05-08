@@ -7,7 +7,6 @@ import { getCompetitionOffenses } from "@/lib/anti-cheat/queries";
 import {
   loadOrganizerCompetitionForManagement,
 } from "../../_data";
-import { startDueScheduledCompetitionsSafely } from "@/lib/competition/scheduled-start";
 import { listOrganizerCompetitionRegistrations } from "@/lib/registrations/api";
 
 interface PageProps {
@@ -19,7 +18,6 @@ export default async function OrganizerCompetitionParticipantsPage({ params, sea
   const { profile } = await getWorkspaceContext({ requireRole: "organizer" });
   const { competitionId } = await params;
   const query = await searchParams;
-  await startDueScheduledCompetitionsSafely();
   const competition = await loadOrganizerCompetitionForManagement(
     competitionId,
     profile?.id ?? "",

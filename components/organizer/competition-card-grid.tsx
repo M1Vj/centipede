@@ -109,6 +109,7 @@ function CompetitionCard({
   const isCompleted = competition.status === "ended" || competition.status === "archived";
   const isDeleting = deletingCompetitionId === competition.id;
   const deleteButtonLabel = isDraft ? "Delete draft competition" : "Delete competition unavailable";
+  const monitoringHref = `/organizer/competition/${competition.id}/participants`;
 
   const cardBase = isDraft
     ? "bg-white rounded-2xl border-2 border-dashed border-[#e2e8f0] p-5 flex flex-col relative h-[260px] hover:bg-slate-50/50 transition-colors"
@@ -177,27 +178,32 @@ function CompetitionCard({
         {isLive && (
           <>
             <ProgressLink
-              href={`/organizer/competition/${competition.id}`}
+              href={monitoringHref}
               className="flex-1 bg-[#10182b] hover:bg-slate-800 text-white py-3 rounded-xl font-bold text-[14px] transition-colors text-center"
             >
               Live View
             </ProgressLink>
-            <button className="w-12 h-12 shrink-0 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center text-slate-700 transition-colors">
+            <ProgressLink
+              href={monitoringHref}
+              aria-label="Open live monitoring controls"
+              className="w-12 h-12 shrink-0 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center text-slate-700 transition-colors"
+            >
               <Pause className="w-5 h-5" />
-            </button>
+            </ProgressLink>
           </>
         )}
 
         {isPaused && (
           <>
             <ProgressLink
-              href={`/organizer/competition/${competition.id}`}
+              href={monitoringHref}
               className="flex-1 bg-slate-100 hover:bg-slate-200 text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2"
             >
               <Play className="w-4 h-4" /> Resume
             </ProgressLink>
             <ProgressLink
-              href={`/organizer/competition/${competition.id}`}
+              href={monitoringHref}
+              aria-label="Open paused monitoring controls"
               className="w-12 h-12 shrink-0 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center text-slate-500 transition-colors"
             >
               <Eye className="w-5 h-5" />

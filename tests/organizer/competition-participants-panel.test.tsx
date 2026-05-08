@@ -297,6 +297,21 @@ describe("CompetitionParticipantsPanel", () => {
     expect(await screen.findByText("Pause request accepted.")).toBeInTheDocument();
   });
 
+  test("blocks organizer pause for scheduled competitions while keeping monitoring controls visible", () => {
+    renderPanel({
+      competition: {
+        ...competition,
+        type: "scheduled",
+      },
+    });
+
+    const pauseButton = screen.getByRole("button", { name: "Pause competition" });
+    expect(pauseButton).toBeDisabled();
+    expect(screen.getByText("Organizer pause is available only for open live competitions.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Extend time" })).toBeEnabled();
+    expect(screen.getAllByRole("button", { name: "Reset disconnect" })[0]).toBeEnabled();
+  });
+
   test("disconnect reset requires objective evidence and posts canonical reset payload", async () => {
     const user = userEvent.setup();
     renderPanel();

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { dispatchCompetitionStartedNotifications } from "@/lib/notifications/competition-start";
@@ -24,6 +26,21 @@ beforeEach(() => {
 });
 
 describe("scheduled competition start helper and cron route", () => {
+  test("scheduled start runner is only invoked from the authorized cron surface", () => {
+    const organizerListPage = readFileSync(join(process.cwd(), "app/organizer/competition/page.tsx"), "utf8");
+    const organizerParticipantsPage = readFileSync(
+      join(process.cwd(), "app/organizer/competition/[competitionId]/participants/page.tsx"),
+      "utf8",
+    );
+    const mathleteCalendarPage = readFileSync(join(process.cwd(), "app/mathlete/competition/calendar/page.tsx"), "utf8");
+    const cronRoute = readFileSync(join(process.cwd(), "app/api/cron/competitions/start-due/route.ts"), "utf8");
+
+    expect(organizerListPage).not.toContain("startDueScheduledCompetitionsSafely");
+    expect(organizerParticipantsPage).not.toContain("startDueScheduledCompetitionsSafely");
+    expect(mathleteCalendarPage).not.toContain("startDueScheduledCompetitionsSafely");
+    expect(cronRoute).toContain("startDueScheduledCompetitions(new Date())");
+  });
+
   test("startDueScheduledCompetitions starts each due scheduled competition with deterministic token", async () => {
     const dueAt = new Date("2026-04-25T06:10:00.000Z");
     const token = "scheduled-start:competition-1:2026-04-25T06:00:00.000Z";

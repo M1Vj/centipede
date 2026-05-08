@@ -344,6 +344,27 @@ describe("participant monitoring routes", () => {
     });
   });
 
+  test("organizer pause rejects scheduled competitions before service-role RPC", async () => {
+    const rpc = vi.fn();
+    vi.mocked(createClient).mockResolvedValue(
+      makeActorClient(ORGANIZER_ID, "organizer", { type: "scheduled" }) as never,
+    );
+    vi.mocked(createAdminClient).mockReturnValue(makeAdminClient(rpc) as never);
+
+    const response = (await pause(
+      makePostRequest(`/api/organizer/competitions/${COMPETITION_ID}/monitoring/pause`, {
+        reason: "Proctor incident.",
+      }),
+      { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
+    ))!;
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.code).toBe("forbidden");
+    expect(body.message).toBe("Organizer pause is available only for open live competitions.");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   test("admin force-pause calls service-role RPC with admin actor and no organizer-only endpoints", async () => {
     const rpc = vi.fn().mockResolvedValue({
       data: [{

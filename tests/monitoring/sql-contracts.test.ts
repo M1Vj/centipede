@@ -84,6 +84,7 @@ describe("participant monitoring sql contracts", () => {
     expect(sql).toContain("p_actor_role text default 'organizer'");
     expect(sql).toContain("p_actor_role = 'admin'");
     expect(sql).toContain("then 'force_pause_competition'");
+    expect(sql).toContain("v_competition.organizer_id <> p_actor_user_id or v_competition.type <> 'open'::public.competition_type");
     expect(sql).toContain("'moderate_delete_competition'");
     expect(sql).not.toContain("control_action = 'admin_resume_competition'");
     expect(sql).not.toContain("control_action = 'admin_extend_competition'");

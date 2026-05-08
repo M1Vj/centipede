@@ -177,7 +177,12 @@ function controlCopy(action: ControlAction) {
   }
 }
 
-function actionAllowed(action: ControlAction, status: CompetitionStatus, mode: PanelMode) {
+function actionAllowed(
+  action: ControlAction,
+  status: CompetitionStatus,
+  mode: PanelMode,
+  competitionType: CompetitionRecord["type"],
+) {
   if (mode === "admin") {
     if (action === "force-pause") {
       return status === "live";
@@ -186,7 +191,7 @@ function actionAllowed(action: ControlAction, status: CompetitionStatus, mode: P
   }
 
   if (action === "pause") {
-    return status === "live";
+    return status === "live" && competitionType === "open";
   }
   if (action === "resume") {
     return status === "paused";
@@ -197,8 +202,13 @@ function actionAllowed(action: ControlAction, status: CompetitionStatus, mode: P
   return status === "live" || status === "paused";
 }
 
-function disabledReason(action: ControlAction, status: CompetitionStatus, mode: PanelMode) {
-  if (actionAllowed(action, status, mode)) {
+function disabledReason(
+  action: ControlAction,
+  status: CompetitionStatus,
+  mode: PanelMode,
+  competitionType: CompetitionRecord["type"],
+) {
+  if (actionAllowed(action, status, mode, competitionType)) {
     return null;
   }
 
@@ -209,6 +219,9 @@ function disabledReason(action: ControlAction, status: CompetitionStatus, mode: 
     return "Moderation delete is unavailable for draft competitions.";
   }
   if (action === "pause") {
+    if (status === "live" && competitionType !== "open") {
+      return "Organizer pause is available only for open live competitions.";
+    }
     return "Pause is available only while competition is live.";
   }
   if (action === "resume") {
@@ -412,7 +425,7 @@ export function CompetitionParticipantsPanel({
                 </p>
               ) : (
                 <p className="font-semibold text-slate-600">
-                  Organizer controls: pause, resume, extend, and eligible disconnect reset.
+                  Organizer controls: open pause, resume, extend, and eligible disconnect reset.
                 </p>
               )}
               {controlMessage ? <p role="status" className="font-semibold text-emerald-700">{controlMessage}</p> : null}
@@ -422,14 +435,44 @@ export function CompetitionParticipantsPanel({
           <div className="flex flex-wrap gap-2">
             {mode === "admin" ? (
               <>
-                <GuardedControlButton action="force-pause" status={status} mode={mode} onOpen={openControl} />
-                <GuardedControlButton action="moderation-delete" status={status} mode={mode} onOpen={openControl} />
+                <GuardedControlButton
+                  action="force-pause"
+                  status={status}
+                  mode={mode}
+                  competitionType={competition.type}
+                  onOpen={openControl}
+                />
+                <GuardedControlButton
+                  action="moderation-delete"
+                  status={status}
+                  mode={mode}
+                  competitionType={competition.type}
+                  onOpen={openControl}
+                />
               </>
             ) : (
               <>
-                <GuardedControlButton action="pause" status={status} mode={mode} onOpen={openControl} />
-                <GuardedControlButton action="resume" status={status} mode={mode} onOpen={openControl} />
-                <GuardedControlButton action="extend" status={status} mode={mode} onOpen={openControl} />
+                <GuardedControlButton
+                  action="pause"
+                  status={status}
+                  mode={mode}
+                  competitionType={competition.type}
+                  onOpen={openControl}
+                />
+                <GuardedControlButton
+                  action="resume"
+                  status={status}
+                  mode={mode}
+                  competitionType={competition.type}
+                  onOpen={openControl}
+                />
+                <GuardedControlButton
+                  action="extend"
+                  status={status}
+                  mode={mode}
+                  competitionType={competition.type}
+                  onOpen={openControl}
+                />
               </>
             )}
           </div>
@@ -574,14 +617,16 @@ function GuardedControlButton({
   action,
   status,
   mode,
+  competitionType,
   onOpen,
 }: {
   action: ControlAction;
   status: CompetitionStatus;
   mode: PanelMode;
+  competitionType: CompetitionRecord["type"];
   onOpen: (action: ControlAction) => void;
 }) {
-  const reason = disabledReason(action, status, mode);
+  const reason = disabledReason(action, status, mode, competitionType);
   const Icon =
     action === "pause" || action === "force-pause"
       ? Pause
