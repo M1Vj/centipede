@@ -94,7 +94,7 @@ export function TeamJoinForm() {
 
   return (
     <form className="space-y-6" onSubmit={handleSubmit} aria-busy={isSubmitting}>
-      <div className="rounded-[2rem] border border-slate-200/80 bg-[#fcfaf6] p-5 sm:p-6">
+      <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-5 transition-all duration-300 hover:border-[#f49700]/50 hover:shadow-md sm:p-6">
         <div className="flex h-14 w-14 items-center justify-center rounded-[1.35rem] bg-[#f49700]/12 text-[#f49700]">
           <KeyRound className="size-6" />
         </div>
@@ -140,7 +140,7 @@ export function TeamJoinForm() {
           type="submit"
           pending={isSubmitting}
           pendingText="Joining..."
-          className="h-12 rounded-full bg-[#f49700] px-8 text-sm font-bold text-white hover:bg-[#e68b00]"
+          className="h-12 rounded-full bg-primary px-8 text-sm font-bold text-primary-foreground hover:bg-primary/90"
         >
           Join Team
         </Button>

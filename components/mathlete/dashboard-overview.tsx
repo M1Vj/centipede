@@ -219,7 +219,7 @@ export function MathleteDashboardOverview({
               {resolvedLiveCards.length > 0 ? resolvedLiveCards.map((card) => (
                 <article
                   key={card.id}
-                  className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:border-slate-200 hover:shadow-[0_24px_44px_-32px_rgba(15,23,42,0.28)]"
+                  className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:border-[#f49700]/50 hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="inline-flex items-center gap-2 rounded-full bg-[#f49700]/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#f49700]">
@@ -287,7 +287,7 @@ export function MathleteDashboardOverview({
               {registrationCards.length > 0 ? registrationCards.map((card) => (
                 <article
                   key={card.id}
-                  className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm"
+                  className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:border-[#f49700]/50 hover:shadow-md"
                 >
                   <div className="space-y-3">
                     <span className="inline-flex rounded-full bg-[#f49700]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#f49700]">
@@ -342,7 +342,7 @@ export function MathleteDashboardOverview({
               {resolvedUpcomingCards.length > 0 ? resolvedUpcomingCards.map((card) => (
                 <article
                   key={card.id}
-                  className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:border-slate-200 hover:shadow-[0_24px_44px_-32px_rgba(15,23,42,0.28)]"
+                  className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:border-[#f49700]/50 hover:shadow-md"
                 >
                   <div className="space-y-4">
                     <h3 className="text-[1.25rem] font-black leading-tight tracking-normal text-[#0f1c2c]">

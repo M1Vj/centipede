@@ -146,7 +146,7 @@ export function SignUpForm({
           trailing={
             <button
               type="button"
-              className="inline-flex items-center justify-center text-slate-400 transition hover:text-[#0f172a]"
+              className="inline-flex items-center justify-center text-slate-400 transition hover:text-foreground"
               onClick={() => setShowPassword((value) => !value)}
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
@@ -168,7 +168,7 @@ export function SignUpForm({
           trailing={
             <button
               type="button"
-              className="inline-flex items-center justify-center text-slate-400 transition hover:text-[#0f172a]"
+              className="inline-flex items-center justify-center text-slate-400 transition hover:text-foreground"
               onClick={() => setShowRepeatPassword((value) => !value)}
               aria-label={showRepeatPassword ? "Hide password confirmation" : "Show password confirmation"}
             >
@@ -187,7 +187,7 @@ export function SignUpForm({
 
         <Button
           type="submit"
-          className="h-12 w-full rounded-xl bg-[#f49701] text-base font-bold text-white hover:bg-[#df8e00]"
+          className="h-12 w-full rounded-xl bg-primary text-base font-bold text-primary-foreground hover:bg-primary/90"
           pending={pendingAction === "email"}
           pendingText="Creating an account..."
           disabled={pendingAction === "google"}

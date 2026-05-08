@@ -54,7 +54,7 @@ export function HeaderAuthNav() {
               <ProgressLink
                 key={item.id}
                 href={onHomeRoute ? `#${item.id}` : `/#${item.id}`}
-                className="rounded-full px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f172a]"
+                className="rounded-full px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/80 focus-visible:ring-offset-2 focus-visible:ring-offset-secondary"
               >
                 {item.label}
               </ProgressLink>
@@ -97,7 +97,7 @@ export function HeaderAuthNav() {
             <Button
               asChild
               size="sm"
-              className="bg-[#f49700] text-[#0f172a] hover:bg-[#f6ac2c]"
+              className="bg-primary text-secondary hover:bg-primary/90"
             >
               <ProgressLink href="/auth/sign-up">Start Free Trial</ProgressLink>
             </Button>
