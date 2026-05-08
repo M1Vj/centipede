@@ -255,7 +255,7 @@ export function MathleteDashboardOverview({
                     {card.href ? (
                       <Button
                         asChild
-                        className="h-12 w-full rounded-xl bg-[#1a1e2e] text-sm font-bold text-white shadow-lg shadow-[#0f1c2c]/20 hover:bg-[#0f121a]"
+                        className="h-12 w-full rounded-xl bg-[#1a1e2e] text-sm font-bold text-white hover:bg-[#0f121a]"
                       >
                         <ProgressLink href={card.href}>{card.action}</ProgressLink>
                       </Button>
@@ -315,7 +315,7 @@ export function MathleteDashboardOverview({
                     </span>
                     <Button
                       asChild
-                      className="h-10 rounded-xl bg-[#1a1e2e] px-5 text-sm font-bold text-white shadow-lg shadow-[#0f1c2c]/20 hover:bg-[#0f121a]"
+                      className="h-10 rounded-xl bg-[#1a1e2e] px-5 text-sm font-bold text-white hover:bg-[#0f121a]"
                     >
                       <ProgressLink href={card.href}>View details</ProgressLink>
                     </Button>
@@ -371,7 +371,7 @@ export function MathleteDashboardOverview({
                       {card.href ? (
                         <Button
                           asChild
-                          className="h-11 rounded-xl bg-[#f49700] px-5 text-sm font-black uppercase tracking-[0.14em] text-white shadow-xl shadow-[#f49700]/30 hover:bg-[#e08900]"
+                          className="h-11 rounded-xl bg-[#f49700] px-5 text-sm font-black uppercase tracking-[0.14em] text-white hover:bg-[#e08900]"
                         >
                           <ProgressLink href={card.href} className="inline-flex items-center gap-2">
                             View details
@@ -523,7 +523,7 @@ export function MathleteDashboardOverview({
             <div className="mt-6">
               <Button
                 asChild
-                className="h-12 w-full rounded-xl bg-[#1a1e2e] text-sm font-bold text-white shadow-lg shadow-[#0f1c2c]/20 hover:bg-[#0f121a]"
+                className="h-12 w-full rounded-xl bg-[#1a1e2e] text-sm font-bold text-white hover:bg-[#0f121a]"
               >
                 <ProgressLink href={profileComplete ? "/mathlete/teams" : "/mathlete/settings"}>
                   {profileComplete ? "Open Team Workspace" : "Finish Profile Setup"}

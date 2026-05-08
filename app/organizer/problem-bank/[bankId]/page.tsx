@@ -117,7 +117,7 @@ export default async function OrganizerProblemBankDetailPage({ params }: PagePro
                 <ImportCsvModal bankId={bank.id} />
                 <ProgressLink
                   href={`/organizer/problem-bank/${bank.id}/problem/new`}
-                  className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-5 py-2.5 rounded-xl font-bold text-[14px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2 shadow-sm"
+                  className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-5 py-2.5 rounded-xl font-bold text-[14px] transition-all flex items-center gap-2"
                 >
                   <Plus className="w-5 h-5" /> Add New Problem
                 </ProgressLink>

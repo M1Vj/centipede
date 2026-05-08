@@ -144,7 +144,7 @@ export function TeamList() {
                 <p className="mt-2 text-base font-semibold text-[#13233b]">Invite and manage</p>
               </div>
             </div>
-            <Button asChild className="mt-8 h-12 rounded-xl bg-[#f49700] text-sm font-bold text-[#1a1e2e] shadow-[0_14px_30px_-18px_rgba(244,151,0,0.8)] hover:bg-[#e68b00] hover:text-[#1a1e2e]">
+            <Button asChild className="mt-8 h-12 rounded-xl bg-[#f49700] text-sm font-bold text-[#1a1e2e] hover:bg-[#e68b00] hover:text-[#1a1e2e]">
               <ProgressLink href="/mathlete/teams/create">Create Team</ProgressLink>
             </Button>
           </article>

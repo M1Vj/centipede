@@ -97,7 +97,7 @@ export function HeaderAuthNav() {
             <Button
               asChild
               size="sm"
-              className="bg-[#f49700] text-[#0f172a] shadow-[0_18px_42px_-24px_rgba(244,151,0,0.9)] hover:bg-[#f6ac2c]"
+              className="bg-[#f49700] text-[#0f172a] hover:bg-[#f6ac2c]"
             >
               <ProgressLink href="/auth/sign-up">Start Free Trial</ProgressLink>
             </Button>

@@ -73,7 +73,7 @@ export function MathleteWorkspaceNav({ unreadCount = 0 }: MathleteWorkspaceNavPr
           <button
             type="button"
             onClick={() => setMenuOpen((current) => !current)}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f49700] text-[13px] font-bold text-white shadow-md transition-colors hover:bg-[#e08900]"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f49700] text-[13px] font-bold text-white transition-colors hover:bg-[#e08900]"
             aria-expanded={menuOpen}
             aria-haspopup="menu"
           >

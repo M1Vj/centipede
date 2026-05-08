@@ -93,7 +93,7 @@ export function LandingPage() {
           <div className="mb-16 flex flex-col items-center gap-4 sm:flex-row">
             <ProgressLink
               href="/auth/sign-up"
-              className="flex items-center gap-2 rounded-xl bg-[#f59700] px-6 py-3 text-base font-bold text-white shadow-xl shadow-[#f59700]/30 transition-all hover:scale-105 hover:bg-[#e08900]"
+              className="flex items-center gap-2 rounded-xl bg-[#f59700] px-6 py-3 text-base font-bold text-white transition-all hover:scale-105 hover:bg-[#e08900]"
             >
               Start Free Trial <ArrowRight size={18} />
             </ProgressLink>
@@ -226,7 +226,7 @@ export function LandingPage() {
               className={[
                 "relative flex flex-col overflow-hidden rounded-2xl p-6",
                 tier.featured
-                  ? "border-2 border-orange-400 bg-[#f59700] shadow-2xl shadow-[#f59700]/20 md:-translate-y-3"
+                  ? "border-2 border-orange-400 bg-[#f59700] md:-translate-y-3"
                   : "group border border-slate-700 bg-[#1e293b] transition-colors hover:border-slate-500",
               ].join(" ")}
             >
@@ -387,9 +387,9 @@ function DashboardPreview() {
 function FeatureStackIcon() {
   return (
     <>
-      <div className="absolute h-28 w-20 -rotate-6 rounded-lg bg-[#f59700]/40 shadow-lg transition-transform duration-500 group-hover:scale-110" />
-      <div className="absolute h-28 w-20 rotate-3 rounded-lg bg-[#f59700]/70 shadow-lg transition-transform delay-75 duration-500 group-hover:scale-105" />
-      <div className="relative flex h-28 w-20 items-center justify-center rounded-lg bg-[#f59700] shadow-xl transition-transform delay-150 duration-500 group-hover:-translate-y-2">
+      <div className="absolute h-28 w-20 -rotate-6 rounded-lg bg-[#f59700]/40 transition-transform duration-500 group-hover:scale-110" />
+      <div className="absolute h-28 w-20 rotate-3 rounded-lg bg-[#f59700]/70 transition-transform delay-75 duration-500 group-hover:scale-105" />
+      <div className="relative flex h-28 w-20 items-center justify-center rounded-lg bg-[#f59700] transition-transform delay-150 duration-500 group-hover:-translate-y-2">
         <Shield size={28} className="text-white" />
       </div>
     </>

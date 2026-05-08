@@ -306,7 +306,7 @@ export function BankForm({
         <button
           type="submit"
           disabled={isSaving || isDeleting}
-          className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-8 py-4 rounded-xl font-bold text-[15px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2 disabled:opacity-60"
+          className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-8 py-4 rounded-xl font-bold text-[15px] transition-all flex items-center gap-2 disabled:opacity-60"
         >
           {isSaving ? "Saving..." : submitLabel}
         </button>

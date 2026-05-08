@@ -281,7 +281,7 @@ export function TeamRoster({ teamId }: TeamRosterProps) {
         <div className="rounded-[1.9rem] bg-[#1a1e2e] p-6 text-white shadow-[0_28px_60px_-42px_rgba(26,30,46,0.9)] md:p-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="flex items-start gap-4">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.25rem] bg-[#f49700] text-white shadow-[0_12px_28px_-12px_rgba(244,151,0,0.65)]">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.25rem] bg-[#f49700] text-white">
                 {isRosterLocked ? <Lock className="size-6" strokeWidth={2.4} /> : <Sparkles className="size-6" strokeWidth={2.4} />}
               </div>
               <div className="space-y-2">
@@ -400,7 +400,7 @@ export function TeamRoster({ teamId }: TeamRosterProps) {
                           className={cn(
                             "rounded-full px-4 py-2 text-xs font-black uppercase tracking-[0.14em]",
                             member.role === "leader"
-                              ? "bg-[#f49700] text-[#1a1e2e] shadow-[0_10px_24px_-18px_rgba(244,151,0,0.8)]"
+                              ? "bg-[#f49700] text-[#1a1e2e]"
                               : "bg-slate-100 text-slate-500",
                           )}
                         >
@@ -437,7 +437,7 @@ export function TeamRoster({ teamId }: TeamRosterProps) {
         </section>
 
         <aside className="space-y-6">
-          <div className="relative overflow-hidden rounded-[1.9rem] bg-[#f49700] p-7 text-white shadow-[0_30px_64px_-42px_rgba(244,151,0,0.55)]">
+          <div className="relative overflow-hidden rounded-[1.9rem] bg-[#f49700] p-7 text-white">
             <div className="pointer-events-none absolute -bottom-10 -right-10 h-36 w-36 rounded-full bg-white/10" />
             <div className="pointer-events-none absolute -right-6 top-8 h-16 w-16 rotate-12 rounded-3xl border border-white/20" />
             <div className="relative space-y-4">

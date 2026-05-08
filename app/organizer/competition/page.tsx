@@ -56,7 +56,7 @@ export default async function OrganizerCompetitionPage() {
           </div>
           <ProgressLink
             href="/organizer/competition/create"
-            className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3.5 rounded-xl font-bold text-[15px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2 self-start md:self-auto no-underline"
+            className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3.5 rounded-xl font-bold text-[15px] transition-all flex items-center gap-2 self-start md:self-auto no-underline"
           >
             <PlusCircle className="w-5 h-5" /> Create New Competition
           </ProgressLink>
@@ -83,7 +83,7 @@ export default async function OrganizerCompetitionPage() {
             </p>
             <ProgressLink
               href="/organizer/competition/create"
-              className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3 rounded-xl font-bold text-[14px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2 no-underline"
+              className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3 rounded-xl font-bold text-[14px] transition-all flex items-center gap-2 no-underline"
             >
               <PlusCircle className="w-5 h-5" /> Create Draft
             </ProgressLink>

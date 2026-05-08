@@ -69,7 +69,7 @@ const MATHLIVE_SURFACE_STYLE = {
 } as CSSProperties;
 
 const ACTIVE_MODE_BUTTON_CLASS =
-  "rounded-xl border border-[#f49700] bg-[#f49700] text-[#1A1E2E] shadow-sm hover:bg-[#e08900] hover:text-[#1A1E2E] focus-visible:ring-[#f49700]/30";
+  "rounded-xl border border-[#f49700] bg-[#f49700] text-[#1A1E2E] hover:bg-[#e08900] hover:text-[#1A1E2E] focus-visible:ring-[#f49700]/30";
 const INACTIVE_MODE_BUTTON_CLASS =
   "rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:border-[#f49700]/40 hover:bg-slate-50 hover:text-[#1A1E2E] focus-visible:ring-[#f49700]/30";
 const SYMBOL_BUTTON_CLASS =

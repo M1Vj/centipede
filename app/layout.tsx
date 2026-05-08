@@ -99,8 +99,9 @@ export default function RootLayout({
       <body className={`${poppinsSans.variable} ${poppinsDisplay.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="light"
+          forcedTheme="light"
+          enableSystem={false}
           disableTransitionOnChange
         >
           <NavigationFeedbackProvider>

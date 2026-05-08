@@ -358,7 +358,7 @@ export default async function AdminUsersPage({
         </div>
         <button
           type="submit"
-          className="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90"
+          className="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
         >
           Search
         </button>

@@ -292,7 +292,7 @@ export function CompetitionRegistrationPanel({
           disabled={!canRegister || (shouldSelectTeam && !selectedTeam)}
           pending={isSubmitting}
           pendingText="Submitting..."
-          className="h-11 rounded-xl bg-[#f49700] px-6 text-sm font-black uppercase tracking-[0.14em] text-white shadow-xl shadow-[#f49700]/30 hover:bg-[#e08900]"
+          className="h-11 rounded-xl bg-[#f49700] px-6 text-sm font-black uppercase tracking-[0.14em] text-white hover:bg-[#e08900]"
         >
           Register now
         </Button>

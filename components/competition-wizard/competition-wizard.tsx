@@ -1066,7 +1066,7 @@ export function CompetitionWizard({
           </div>
           <div className="mb-6 h-3 w-full overflow-hidden rounded-full bg-slate-100">
             <div
-              className="h-full rounded-full bg-[#f49700] shadow-[0_0_12px_rgba(244,151,0,0.45)] transition-all duration-500"
+              className="h-full rounded-full bg-[#f49700] transition-all duration-500"
               style={{ width: `${stepProgress.percentage}%` }}
             />
           </div>
@@ -1568,9 +1568,7 @@ export function CompetitionWizard({
                           key={group.bankId}
                           className={cn(
                             "overflow-hidden rounded-[22px] border bg-white shadow-sm transition-all",
-                            selectedInBank > 0
-                              ? "border-[#f49700]/35 shadow-[0_12px_30px_rgba(244,151,0,0.08)]"
-                              : "border-slate-200",
+                            selectedInBank > 0 ? "border-[#f49700]/35" : "border-slate-200",
                           )}
                         >
                           <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -2273,7 +2271,7 @@ export function CompetitionWizard({
                   }}
                 />
 
-                <div className="rounded-[28px] border border-[#f49700]/20 bg-[#f49700]/5 p-5 shadow-sm">
+                <div className="rounded-[28px] border border-[#f49700]/20 bg-[#f49700]/5 p-5">
                   <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-[#f49700]">
                     Snapshot reminder
                   </p>
@@ -2469,7 +2467,7 @@ export function CompetitionWizard({
                   ) : (
                     reviewPreviewProblems.map((problem, index) => (
                       <div key={problem.id} className="relative rounded-[24px] border border-slate-200 p-6 shadow-sm">
-                        <div className="absolute -top-3 left-6 rounded-full bg-[#f49700] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-sm">
+                        <div className="absolute -top-3 left-6 rounded-full bg-[#f49700] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white">
                           {problem.bankName}
                         </div>
                         <p className="text-[18px] font-black text-[#10182b]">
@@ -2533,7 +2531,7 @@ export function CompetitionWizard({
                                 className={cn(
                                   "flex h-9 w-9 items-center justify-center rounded-xl text-[14px] font-bold transition-all",
                                   page === normalizedReviewProblemPage
-                                    ? "bg-[#f49700] text-[#10182b] shadow-sm shadow-[#f49700]/20"
+                                    ? "bg-[#f49700] text-[#10182b]"
                                     : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-[#10182b]",
                                 )}
                                 aria-label={`Go to review page ${page}`}
@@ -2807,7 +2805,7 @@ export function CompetitionWizard({
             <button
               type="button"
               onClick={() => setActiveStep(stepNav.nextStep!)}
-              className="flex items-center gap-2 rounded-xl bg-[#f49700] px-8 py-3.5 text-[15px] font-bold text-[#10182b] shadow-sm transition-all hover:bg-[#e08900] hover:shadow-lg hover:shadow-[#f49700]/30"
+              className="flex items-center gap-2 rounded-xl bg-[#f49700] px-8 py-3.5 text-[15px] font-bold text-[#10182b] transition-all hover:bg-[#e08900]"
             >
               Continue to {stepNav.nextLabel ?? "Next"} <ArrowRight className="w-4 h-4" />
             </button>

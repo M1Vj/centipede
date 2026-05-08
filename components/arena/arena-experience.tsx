@@ -1131,7 +1131,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
 
             <Button
               type="button"
-              className="mt-auto h-auto w-full rounded-xl bg-[#f49700] py-5 text-sm font-black uppercase tracking-[0.18em] text-white shadow-xl shadow-[#f49700]/25 hover:bg-[#e08900]"
+              className="mt-auto h-auto w-full rounded-xl bg-[#f49700] py-5 text-sm font-black uppercase tracking-[0.18em] text-white hover:bg-[#e08900]"
               onClick={() => void startOrResumeAttempt()}
               pending={requestState === "pending"}
               pendingText="Opening arena"
@@ -1404,7 +1404,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                       className={cn(
                         "flex aspect-square w-full items-center justify-center rounded-lg border text-[13px] font-bold transition hover:scale-105",
                         getProblemStatusClassName(statusFlag),
-                        isCurrent ? "border-2 border-[#f49700] shadow-md shadow-[#f49700]/30" : "border-transparent",
+                        isCurrent ? "border-2 border-[#f49700]" : "border-transparent",
                       )}
                     >
                       {problem.orderIndex}
@@ -1432,7 +1432,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
 
             <Button
               type="button"
-              className="mt-auto h-auto w-full rounded-xl bg-[#f49700] py-5 text-sm font-black uppercase tracking-[0.18em] text-white shadow-xl shadow-[#f49700]/30 hover:bg-[#e08900]"
+              className="mt-auto h-auto w-full rounded-xl bg-[#f49700] py-5 text-sm font-black uppercase tracking-[0.18em] text-white hover:bg-[#e08900]"
               disabled={!pageData.registration?.actorCanWrite}
               onClick={() => void openReviewPage()}
             >

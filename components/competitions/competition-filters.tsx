@@ -23,7 +23,7 @@ export function CompetitionFilters({ actionPath, filters, total }: CompetitionFi
         </div>
         <Button
           type="submit"
-          className="h-11 rounded-xl bg-[#f49700] px-5 text-sm font-black uppercase tracking-[0.14em] text-white shadow-xl shadow-[#f49700]/30 hover:bg-[#e08900]"
+          className="h-11 rounded-xl bg-[#f49700] px-5 text-sm font-black uppercase tracking-[0.14em] text-white hover:bg-[#e08900]"
         >
           Apply filters
         </Button>

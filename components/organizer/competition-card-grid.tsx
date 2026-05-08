@@ -235,7 +235,7 @@ function CompetitionCard({
           <>
             <ProgressLink
               href={`/organizer/competition/${competition.id}`}
-              className="flex-1 bg-[#f49700] hover:bg-[#e08900] text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2 shadow-sm"
+              className="flex-1 bg-[#f49700] hover:bg-[#e08900] text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2"
             >
               <Edit3 className="w-4 h-4" /> Edit Draft
             </ProgressLink>

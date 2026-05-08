@@ -81,7 +81,7 @@ export function OrganizerNav({ isOrganizer, isAuthenticated, unreadCount = 0 }: 
             <button
               type="button"
               onClick={() => setMenuOpen((current) => !current)}
-              className="w-8 h-8 rounded-full bg-[#f49700] shadow-md cursor-pointer hover:bg-[#e08900] transition-colors flex items-center justify-center text-white font-bold text-[13px]"
+              className="w-8 h-8 rounded-full bg-[#f49700] cursor-pointer hover:bg-[#e08900] transition-colors flex items-center justify-center text-white font-bold text-[13px]"
               aria-expanded={menuOpen}
               aria-haspopup="menu"
             >

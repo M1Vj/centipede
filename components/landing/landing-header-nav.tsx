@@ -61,7 +61,7 @@ export function LandingHeaderNav() {
         <div className="hidden shrink-0 items-center gap-[8px] lg:flex">
           <ProgressLink
             href="/auth/sign-up"
-            className="flex flex-col items-center justify-center rounded-[9999px] bg-[#f49700] px-[20px] py-[8px] shadow-[0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] transition-colors hover:bg-[#e08900]"
+            className="flex flex-col items-center justify-center rounded-[9999px] bg-[#f49700] px-[20px] py-[8px] transition-colors hover:bg-[#e08900]"
           >
             <span className="text-center text-[14px] font-bold leading-[20px] text-white">
               Start Now
