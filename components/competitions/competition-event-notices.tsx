@@ -8,14 +8,14 @@ type CompetitionEventNoticesProps = {
 
 function getNoticeToneClasses(tone: CompetitionEventNotice["tone"]) {
   if (tone === "error") {
-    return "border-rose-100 bg-rose-50 text-rose-700";
+    return "border-red-200 bg-red-50 text-red-700";
   }
 
   if (tone === "warning") {
-    return "border-amber-100 bg-amber-50 text-amber-700";
+    return "border-[#f49700]/30 bg-[#fff7e8] text-[#8a5400]";
   }
 
-  return "border-sky-100 bg-sky-50 text-sky-700";
+  return "border-[#1a1e2e]/15 bg-slate-50 text-[#1a1e2e]";
 }
 
 export function CompetitionEventNotices({ notices }: CompetitionEventNoticesProps) {

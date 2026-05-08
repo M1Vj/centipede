@@ -108,6 +108,10 @@ function getBadgeStatusClassName(status: AnswerStatusFlag) {
   return "border-slate-100 bg-slate-50 text-slate-400";
 }
 
+function formatOptionMarker(index: number) {
+  return String.fromCharCode(65 + index);
+}
+
 function formatCompetitionWindow(label: string, value: string | null) {
   if (!value) {
     return `${label}: Flexible`;
@@ -893,10 +897,10 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
             "mt-4 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm",
             pageData.competition.logTabSwitch
               ? antiCheatStatus.status === "active"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                ? "border-[#1a1e2e]/15 bg-slate-50 text-[#1a1e2e]"
                 : antiCheatStatus.status === "error"
                   ? "border-red-200 bg-red-50 text-red-900"
-                  : "border-amber-200 bg-amber-50 text-amber-950"
+                  : "border-[#f49700]/30 bg-[#fff7e8] text-[#8a5400]"
               : "border-slate-200 bg-slate-50 text-slate-500",
           )}
           role="status"
@@ -942,7 +946,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
           className={cn(
             "mt-4 border-2",
             terminalAttemptNotice.tone === "warning"
-              ? "border-amber-300 bg-amber-50 text-amber-950"
+              ? "border-[#f49700]/40 bg-[#fff7e8] text-[#8a5400]"
               : "",
           )}
           role="alert"
@@ -997,7 +1001,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                     {pageData.latestAttempt ? `, latest attempt ${pageData.latestAttempt.status}` : ""}.
                   </p>
                   {!pageData.registration.actorCanStart ? (
-                    <p className="mt-2 text-amber-700">
+                    <p className="mt-2 text-[#8a5400]">
                       Only active team leader can start or submit team attempts.
                     </p>
                   ) : null}
@@ -1037,7 +1041,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
 
             <div className="mt-8 space-y-4">
               {safeExamBrowserRequired ? (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950">
+                <div className="rounded-2xl border border-[#f49700]/30 bg-[#fff7e8] p-5 text-[#8a5400]">
                   <div className="flex items-start gap-3">
                     <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
                     <div className="space-y-2">
@@ -1204,6 +1208,8 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
               <KatexPreview
                 latex={selectedProblem.contentLatex}
                 className="min-h-24 text-base leading-7 md:text-lg"
+                label={null}
+                variant="arena"
                 fallbackText="Problem statement unavailable."
               />
             </div>
@@ -1221,35 +1227,40 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
 
             {selectedProblem.type === "mcq" || selectedProblem.type === "tf" ? (
               <div className="mb-10 grid gap-4">
-                {selectedProblem.options.map((option) => {
+                {selectedProblem.options.map((option, optionIndex) => {
                   const selected = (selectedAnswer?.localValue ?? "") === option.id;
+                  const optionMarker = formatOptionMarker(optionIndex);
                   return (
                     <button
                       key={option.id}
                       type="button"
                       className={cn(
-                        "flex w-full items-start gap-4 rounded-2xl border-2 p-5 text-left transition",
+                        "flex w-full items-start gap-4 rounded-[20px] border-2 p-5 text-left transition",
                         selected
-                          ? "border-[#f49700] bg-[#f49700]/5 text-[#1a1e2e]"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+                          ? "border-[#f49700] bg-[#fff7e8] text-[#1a1e2e] shadow-sm"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-[#f49700]/40 hover:bg-slate-50",
                       )}
                       aria-pressed={selected}
+                      aria-label={`Option ${optionMarker}`}
                       disabled={!canWrite}
                       onClick={() => updateAnswer(selectedProblem, option.id)}
                     >
                       <span
                         className={cn(
-                          "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black",
-                          selected ? "border-[#f49700]" : "border-slate-300",
+                          "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black",
+                          selected
+                            ? "border-[#f49700] bg-[#f49700] text-white"
+                            : "border-slate-300 bg-white text-slate-500",
                         )}
                       >
-                        {selected ? <span className="h-3 w-3 rounded-full bg-[#f49700]" /> : null}
+                        {optionMarker}
                       </span>
-                      <span className="flex min-w-0 flex-1 items-start gap-3 text-base md:text-lg">
-                        <span className="shrink-0 font-black opacity-60">{option.id}.</span>
+                      <span className="min-w-0 flex-1 text-base md:text-lg">
                         <KatexPreview
                           latex={option.label}
-                          className={cn("min-w-0 flex-1 leading-6", selected ? "font-bold" : "")}
+                          label={null}
+                          variant="choice"
+                          className={cn("min-w-0 leading-6", selected ? "font-bold" : "")}
                           fallbackText={option.label}
                         />
                       </span>
@@ -1267,7 +1278,9 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                   preferredInitialMode={selectedProblem.type === "identification" ? "text" : "math"}
                   onChange={(nextValue) => updateAnswer(selectedProblem, nextValue)}
                   description="Answers autosave after a short idle window and on visibility changes."
+                  previewLabel="Answer preview"
                   showPreviewToggle
+                  variant="arena"
                 />
               </div>
             )}

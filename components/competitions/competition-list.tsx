@@ -33,7 +33,7 @@ function formatStatusBadge(status: string | null) {
   }
 
   if (status === "ineligible") {
-    return { label: "Ineligible", className: "bg-amber-100 text-amber-700" };
+    return { label: "Ineligible", className: "bg-[#f49700]/10 text-[#8a5400]" };
   }
 
   if (status === "withdrawn") {

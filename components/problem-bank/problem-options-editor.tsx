@@ -72,8 +72,9 @@ export function ProblemOptionsEditor({
       <div className="flex flex-col gap-3">
         {type === "mcq" && (
           <>
-            {mcqOptions.map((opt) => {
+            {mcqOptions.map((opt, index) => {
               const isCorrect = correctOptionIds.includes(opt.id);
+              const optionMarker = String.fromCharCode(65 + index);
               return (
                 <div
                   key={opt._reactKey}
@@ -99,6 +100,7 @@ export function ProblemOptionsEditor({
                       onChange={(val) => onUpdateMcqOption(opt.id, "label", val)}
                       placeholder="Enter option..."
                       className="bg-transparent border-none outline-none text-[#10182b] font-medium text-[15px] placeholder:text-slate-400 w-full"
+                      previewLabel={`Option ${optionMarker} preview`}
                       showPreviewToggle={true}
                     />
                   </div>
@@ -152,6 +154,7 @@ export function ProblemOptionsEditor({
                     onChange={(val) => onUpdateTfOptionLabel(opt.id, val)}
                     className="flex-1 bg-transparent border-none outline-none text-[#10182b] font-medium text-[15px] placeholder:text-slate-400 w-full"
                     placeholder="True / False"
+                    previewLabel={`${opt.label || "True/false option"} preview`}
                     showPreviewToggle={true}
                   />
                 </div>
@@ -177,6 +180,7 @@ export function ProblemOptionsEditor({
                     preferredInitialMode="math"
                     placeholder="Enter accepted answer..."
                     className="bg-transparent border-none outline-none text-[#10182b] font-medium text-[15px] placeholder:text-slate-400 w-full"
+                    previewLabel={`Accepted answer ${index + 1} preview`}
                     showPreviewToggle={true}
                   />
                 </div>

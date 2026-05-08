@@ -220,8 +220,8 @@ async function UsersList({ role, status, search }: FilterParams) {
                     variant="outline"
                     className={
                       user.is_active
-                        ? "text-green-600 bg-green-500/5 border-green-500/20"
-                        : "text-amber-600 bg-amber-500/10 border-amber-500/20"
+                        ? "border-[#1a1e2e]/20 bg-[#1a1e2e]/5 text-[#1a1e2e]"
+                        : "border-[#f49700]/30 bg-[#f49700]/10 text-[#8a5400]"
                     }
                   >
                     {user.is_active ? "Active" : "Suspended"}
