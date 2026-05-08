@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   dispatchCompetitionNotification,
+  dispatchTeamNotification,
   getDefaultNotificationPreferences,
   getNotificationChannelClass,
   getNotificationPreferenceKey,
@@ -37,6 +38,7 @@ describe("notification dispatch helpers", () => {
   test("maps canonical events to one preference key and one channel class", () => {
     expect(getNotificationPreferenceKey("competition_announcement_posted")).toBe("announcements");
     expect(getNotificationPreferenceKey("leaderboard_published")).toBe("leaderboard_publication");
+    expect(getNotificationPreferenceKey("competition_started")).toBe("registration_reminders");
     expect(getNotificationPreferenceKey("score_recalculated")).toBe("score_recalculation");
     expect(getNotificationPreferenceKey("organizer_application_approved")).toBe("organizer_decisions");
 
@@ -62,6 +64,13 @@ describe("notification dispatch helpers", () => {
     expect(sanitizeNotificationLinkPath(`/mathlete/competition/${COMPETITION_ID}/leaderboard`)).toBe(
       `/mathlete/competition/${COMPETITION_ID}/leaderboard`,
     );
+    expect(sanitizeNotificationLinkPath(`/mathlete/competition/${COMPETITION_ID}`)).toBe(
+      `/mathlete/competition/${COMPETITION_ID}`,
+    );
+    expect(sanitizeNotificationLinkPath(`/organizer/competition/${COMPETITION_ID}`)).toBe(
+      `/organizer/competition/${COMPETITION_ID}`,
+    );
+    expect(sanitizeNotificationLinkPath("/mathlete/teams/invites")).toBe("/mathlete/teams/invites");
     expect(sanitizeNotificationLinkPath("/organizer/status")).toBe("/organizer/status");
     expect(sanitizeNotificationLinkPath("https://example.com/phish")).toBeNull();
     expect(sanitizeNotificationLinkPath("/admin/users")).toBeNull();
@@ -114,6 +123,73 @@ describe("notification dispatch helpers", () => {
         },
         requestIdempotencyToken: "idem-1",
       }),
+    });
+  });
+
+  test("marks invite and start events as mandatory inbox while keeping email preference-governed", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{
+        inbox_allowed: true,
+        inserted: true,
+        notification_id: "33333333-3333-3333-3333-333333333333",
+      }],
+      error: null,
+    });
+    vi.mocked(createAdminClient).mockReturnValue(makeAdminClient(rpc) as never);
+
+    await dispatchCompetitionNotification({
+      event: "competition_started",
+      eventIdentityKey: "competition_started:competition-1:organizer",
+      recipientId: RECIPIENT_ID,
+      competitionId: COMPETITION_ID,
+    });
+    await dispatchTeamNotification({
+      event: "team_invite_sent",
+      eventIdentityKey: "team_invite_sent:invite-1",
+      recipientId: RECIPIENT_ID,
+      teamId: "team-1",
+      inviteId: "invite-1",
+    });
+
+    expect(rpc).toHaveBeenCalledWith("enqueue_notification", expect.objectContaining({
+      p_metadata_json: expect.objectContaining({
+        channelClass: "email_eligible",
+        mandatoryInbox: true,
+        preferenceKey: "registration_reminders",
+      }),
+    }));
+    expect(rpc).toHaveBeenCalledWith("enqueue_notification", expect.objectContaining({
+      p_metadata_json: expect.objectContaining({
+        channelClass: "email_eligible",
+        mandatoryInbox: true,
+        preferenceKey: "team_invites",
+      }),
+    }));
+  });
+
+  test("reports preference-suppressed nonmandatory events as skipped", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{
+        inbox_allowed: false,
+        inserted: false,
+        notification_id: null,
+      }],
+      error: null,
+    });
+    vi.mocked(createAdminClient).mockReturnValue(makeAdminClient(rpc) as never);
+
+    const result = await dispatchCompetitionNotification({
+      event: "leaderboard_published",
+      eventIdentityKey: "leaderboard_published:competition-1",
+      recipientId: RECIPIENT_ID,
+      competitionId: COMPETITION_ID,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      skipped: true,
+      notificationId: null,
+      reason: "preferences_disabled",
     });
   });
 

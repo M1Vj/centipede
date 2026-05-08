@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 interface OrganizerNavProps {
   isOrganizer: boolean;
   isAuthenticated: boolean;
+  unreadCount?: number | null;
 }
 
 const organizerItems = [
@@ -25,7 +26,7 @@ const guestItems = [
   { href: "/organizer/status", label: "Status" },
 ];
 
-export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps) {
+export function OrganizerNav({ isOrganizer, isAuthenticated, unreadCount = 0 }: OrganizerNavProps) {
   const pathname = usePathname() ?? "";
   const [menuOpen, setMenuOpen] = useState(false);
   const navItems = isAuthenticated && isOrganizer ? organizerItems : guestItems;
@@ -76,7 +77,7 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
       {isAuthenticated ? (
         <div className="relative hidden md:block">
           <div className="flex items-center gap-4 rounded-full bg-[#0f121a] py-1 pl-6 pr-2">
-            <NotificationBellDropdown label="Organizer notifications" />
+            <NotificationBellDropdown label="Organizer notifications" unreadCount={unreadCount} />
             <button
               type="button"
               onClick={() => setMenuOpen((current) => !current)}

@@ -156,6 +156,7 @@ as $$
     when 'team_roster_invalidated' then 'team_invites'
     when 'competition_registration_confirmed' then 'registration_reminders'
     when 'competition_registration_withdrawn' then 'registration_reminders'
+    when 'competition_started' then 'registration_reminders'
     when 'competition_announcement_posted' then 'announcements'
     when 'leaderboard_published' then 'leaderboard_publication'
     when 'dispute_resolved' then 'leaderboard_publication'
@@ -188,8 +189,11 @@ immutable
 as $$
   select p_link_path is null
     or p_link_path = '/organizer/status'
+    or p_link_path = '/mathlete/teams/invites'
     or p_link_path = '/mathlete/history'
     or p_link_path = '/organizer/history'
+    or p_link_path ~ '^/mathlete/competition/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    or p_link_path ~ '^/organizer/competition/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
     or p_link_path ~ '^/mathlete/competition/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/leaderboard$'
     or p_link_path ~ '^/organizer/competition/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/leaderboard$'
     or p_link_path ~ '^/organizer/competition/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/participants$'

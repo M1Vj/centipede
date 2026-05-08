@@ -17,6 +17,7 @@ export type CanonicalNotificationEvent =
   | "team_roster_invalidated"
   | "competition_registration_confirmed"
   | "competition_registration_withdrawn"
+  | "competition_started"
   | "competition_announcement_posted"
   | "leaderboard_published"
   | "dispute_resolved"
@@ -59,6 +60,7 @@ export type TeamNotificationEvent =
 export type CompetitionNotificationEvent =
   | "competition_registration_confirmed"
   | "competition_registration_withdrawn"
+  | "competition_started"
   | "competition_announcement_posted"
   | "competition_leaderboard_published"
   | "competition_problem_dispute_resolved"
@@ -111,6 +113,7 @@ const EVENT_PREFERENCE_KEYS: Record<CanonicalNotificationEvent, NotificationPref
   team_roster_invalidated: "team_invites",
   competition_registration_confirmed: "registration_reminders",
   competition_registration_withdrawn: "registration_reminders",
+  competition_started: "registration_reminders",
   competition_announcement_posted: "announcements",
   leaderboard_published: "leaderboard_publication",
   dispute_resolved: "leaderboard_publication",
@@ -127,6 +130,7 @@ const EVENT_CHANNEL_CLASSES: Record<CanonicalNotificationEvent, NotificationChan
   team_roster_invalidated: "email_eligible",
   competition_registration_confirmed: "email_eligible",
   competition_registration_withdrawn: "email_eligible",
+  competition_started: "email_eligible",
   competition_announcement_posted: "email_eligible",
   leaderboard_published: "email_eligible",
   dispute_resolved: "email_eligible",
@@ -136,10 +140,16 @@ const EVENT_CHANNEL_CLASSES: Record<CanonicalNotificationEvent, NotificationChan
   organizer_application_rejected: "in_app_only",
 };
 
+const MANDATORY_INBOX_EVENTS = new Set<CanonicalNotificationEvent>([
+  "team_invite_sent",
+  "competition_started",
+  "competition_announcement_posted",
+]);
+
 const EVENT_TEMPLATES: Record<CanonicalNotificationEvent, { title: string; body: string }> = {
   team_invite_sent: {
-    title: "Team invite sent",
-    body: "A team invitation was sent.",
+    title: "Team invite received",
+    body: "You have a pending team invitation.",
   },
   team_invite_accepted: {
     title: "Team invite accepted",
@@ -160,6 +170,10 @@ const EVENT_TEMPLATES: Record<CanonicalNotificationEvent, { title: string; body:
   competition_registration_withdrawn: {
     title: "Registration withdrawn",
     body: "Your competition registration was withdrawn.",
+  },
+  competition_started: {
+    title: "Competition started",
+    body: "A competition you registered for is now live.",
   },
   competition_announcement_posted: {
     title: "Competition announcement",
@@ -194,6 +208,9 @@ const EVENT_TEMPLATES: Record<CanonicalNotificationEvent, { title: string; body:
 const UUID_SEGMENT = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 const ALLOWED_LINK_PATTERNS = [
   /^\/organizer\/status$/,
+  /^\/mathlete\/teams\/invites$/,
+  new RegExp(`^/mathlete/competition/${UUID_SEGMENT}$`),
+  new RegExp(`^/organizer/competition/${UUID_SEGMENT}$`),
   new RegExp(`^/mathlete/competition/${UUID_SEGMENT}/leaderboard$`),
   new RegExp(`^/organizer/competition/${UUID_SEGMENT}/leaderboard$`),
   new RegExp(`^/organizer/competition/${UUID_SEGMENT}/participants$`),
@@ -273,7 +290,7 @@ export async function dispatchNotification(
     actorId: input.actorId ?? null,
     channelClass,
     preferenceKey,
-    mandatoryInbox: channelClass === "in_app_only" || eventType === "competition_announcement_posted",
+    mandatoryInbox: channelClass === "in_app_only" || MANDATORY_INBOX_EVENTS.has(eventType),
     email,
   };
 
@@ -306,7 +323,11 @@ export async function dispatchNotification(
     skipped: !row.inserted,
     notificationId: row.notificationId,
     email,
-    reason: row.inserted ? undefined : "duplicate_event_identity",
+    reason: row.inserted
+      ? undefined
+      : row.inboxAllowed
+        ? "duplicate_event_identity"
+        : "preferences_disabled",
   };
 }
 
@@ -364,19 +385,30 @@ function getEmailDecision(channelClass: NotificationChannelClass): NotificationE
   };
 }
 
-function normalizeEnqueueResult(data: unknown): { notificationId: string | null; inserted: boolean } {
+function normalizeEnqueueResult(data: unknown): {
+  inboxAllowed: boolean;
+  notificationId: string | null;
+  inserted: boolean;
+} {
   const row = Array.isArray(data) ? data[0] : data;
   if (!row || typeof row !== "object") {
-    return { notificationId: null, inserted: true };
+    return { inboxAllowed: true, notificationId: null, inserted: true };
   }
 
   const result = row as {
+    inbox_allowed?: unknown;
+    inboxAllowed?: unknown;
     notification_id?: unknown;
     notificationId?: unknown;
     inserted?: unknown;
   };
 
   return {
+    inboxAllowed: typeof result.inbox_allowed === "boolean"
+      ? result.inbox_allowed
+      : typeof result.inboxAllowed === "boolean"
+        ? result.inboxAllowed
+        : true,
     notificationId: typeof result.notification_id === "string"
       ? result.notification_id
       : typeof result.notificationId === "string"

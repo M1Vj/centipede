@@ -12,6 +12,7 @@ export default async function OrganizerLayout({
   const { data: { user } } = await supabase.auth.getUser();
 
   let isOrganizer = false;
+  let unreadCount = 0;
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
@@ -19,6 +20,13 @@ export default async function OrganizerLayout({
       .eq("id", user.id)
       .maybeSingle<{ role: string }>();
     isOrganizer = profile?.role === "organizer";
+
+    const { count } = await supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("recipient_id", user.id)
+      .is("read_at", null);
+    unreadCount = count ?? 0;
   }
   
   return (
@@ -45,7 +53,11 @@ export default async function OrganizerLayout({
           </ProgressLink>
 
           {/* Nav + Actions */}
-          <OrganizerNav isOrganizer={isOrganizer} isAuthenticated={Boolean(user)} />
+          <OrganizerNav
+            isOrganizer={isOrganizer}
+            isAuthenticated={Boolean(user)}
+            unreadCount={unreadCount}
+          />
         </nav>
       </header>
       {children}

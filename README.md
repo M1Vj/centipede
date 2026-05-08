@@ -9,6 +9,7 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 
 | Release Code | Date Released |
 | ------------ | ------------- |
+| CP.010.010   | 2026-05-06    |
 | CP.010.009   | 2026-05-05    |
 | CP.010.008   | 2026-04-25    |
 | CP.010.007   | 2026-04-16    |
@@ -18,6 +19,19 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 | CP.010.003   | 2026-03-28    |
 | CP.010.002   | 2026-03-14    |
 | CP.010.001   | 2026-02-28    |
+
+---
+
+## CP.010.010 Release Notes
+
+- Added mathlete review and final submission flows with persisted answer status counts, review jump links, confirmation handling, and reload-safe summary state.
+- Added answer-key review and dispute workflows, including visibility gates, snapshotted problem review pages, participant dispute creation, and organizer dispute resolution follow-through.
+- Added leaderboard history across organizer and mathlete workspaces, including publish visibility controls, result pages, score recalculation after accepted disputes, and history views.
+- Added organizer export workflows for leaderboard/history data with queued job status, scoped download signing, and expanded backend SQL/API coverage.
+
+Known Issues:
+
+- None at this time.
 
 ---
 
