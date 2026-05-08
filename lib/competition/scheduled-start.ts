@@ -1,8 +1,10 @@
 import { normalizeCompetitionLifecycleResult } from "@/lib/competition/api";
+import { dispatchCompetitionStartedNotifications } from "@/lib/notifications/competition-start";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type DueCompetitionRow = {
   id?: string | null;
+  organizer_id?: string | null;
   start_time?: string | null;
   startTime?: string | null;
   end_time?: string | null;
@@ -95,7 +97,7 @@ export async function startDueScheduledCompetitions(now = new Date()): Promise<S
 
   const { data, error } = await admin
     .from("competitions")
-    .select("id, start_time")
+    .select("id, organizer_id, start_time")
     .eq("type", "scheduled")
     .eq("status", "published")
     .eq("is_deleted", false)
@@ -113,9 +115,10 @@ export async function startDueScheduledCompetitions(now = new Date()): Promise<S
 
   for (const row of rows) {
     const competitionId = typeof row.id === "string" ? row.id : "";
+    const organizerId = typeof row.organizer_id === "string" ? row.organizer_id : "";
     const startTime = normalizeStartTime(row);
 
-    if (!competitionId || !startTime) {
+    if (!competitionId || !organizerId || !startTime) {
       skipped += 1;
       continue;
     }
@@ -164,6 +167,12 @@ export async function startDueScheduledCompetitions(now = new Date()): Promise<S
     });
 
     if (normalized.machineCode === "ok") {
+      await dispatchCompetitionStartedNotifications({
+        actorId: null,
+        competitionId,
+        organizerId,
+        requestIdempotencyToken,
+      });
       started += 1;
     } else {
       skipped += 1;

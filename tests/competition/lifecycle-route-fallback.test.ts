@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { POST as startCompetition } from "@/app/api/organizer/competitions/[competitionId]/start/route";
 import { POST as endCompetition } from "@/app/api/organizer/competitions/[competitionId]/end/route";
 import { POST as archiveCompetition } from "@/app/api/organizer/competitions/[competitionId]/archive/route";
+import { dispatchCompetitionStartedNotifications } from "@/lib/notifications/competition-start";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,6 +12,15 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(),
+}));
+
+vi.mock("@/lib/notifications/competition-start", () => ({
+  dispatchCompetitionStartedNotifications: vi.fn().mockResolvedValue({
+    attempted: 2,
+    sent: 2,
+    skipped: 0,
+    failed: 0,
+  }),
 }));
 
 const ORGANIZER_ID = "organizer-1";
@@ -132,7 +142,7 @@ describe("lifecycle route legacy fallback compatibility", () => {
 
   test("start route allows idempotent replay responses from lifecycle RPC", async () => {
     vi.mocked(createClient).mockResolvedValue(
-      makeSupabaseClient([makeCompetitionRow("live"), makeCompetitionRow("live")]) as never,
+      makeSupabaseClient([makeCompetitionRow("published"), makeCompetitionRow("live")]) as never,
     );
 
     const rpc = vi.fn().mockResolvedValue({
@@ -165,6 +175,44 @@ describe("lifecycle route legacy fallback compatibility", () => {
     expect(rpc).toHaveBeenCalledWith("start_competition", {
       p_competition_id: COMPETITION_ID,
       p_request_idempotency_token: "idem-token-123",
+    });
+    expect(dispatchCompetitionStartedNotifications).toHaveBeenCalledWith({
+      actorId: ORGANIZER_ID,
+      competitionId: COMPETITION_ID,
+      organizerId: ORGANIZER_ID,
+      requestIdempotencyToken: "idem-token-123",
+    });
+  });
+
+  test("start route backfills notifications when competition is already live", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseClient([makeCompetitionRow("live")]) as never,
+    );
+
+    const rpc = vi.fn();
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc,
+    } as never);
+
+    const response = await startCompetition(makeMutationRequest("start"), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.lifecycle).toMatchObject({
+      machineCode: "ok",
+      status: "live",
+      replayed: true,
+      changed: false,
+    });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(dispatchCompetitionStartedNotifications).toHaveBeenCalledWith({
+      actorId: ORGANIZER_ID,
+      competitionId: COMPETITION_ID,
+      organizerId: ORGANIZER_ID,
+      requestIdempotencyToken: "idem-token-123",
     });
   });
 
