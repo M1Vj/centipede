@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -12,6 +12,7 @@ import {
   Play,
   RotateCcw,
   Search,
+  Square,
   TimerReset,
   Trash2,
   UserRound,
@@ -31,15 +32,17 @@ import { Label } from "@/components/ui/label";
 import { ProgressLink } from "@/components/ui/progress-link";
 import type { CompetitionRecord, CompetitionStatus } from "@/lib/competition/types";
 import type { OrganizerRegistrationDetail, RegistrationStatus } from "@/lib/registrations/types";
+import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 type PanelMode = "organizer" | "admin";
-type ControlAction = "pause" | "resume" | "extend" | "reset" | "force-pause" | "moderation-delete";
+type ControlAction = "pause" | "resume" | "extend" | "reset" | "end" | "force-pause" | "moderation-delete";
 
 interface CompetitionParticipantsPanelProps {
   competition: CompetitionRecord;
   registrations: OrganizerRegistrationDetail[];
   activeAttempts?: MonitoringAttemptSummary[];
+  finishedAttempts?: MonitoringAttemptSummary[];
   events?: MonitoringCompetitionEvent[];
   initialTab?: string | null;
   routePath?: string;
@@ -143,6 +146,10 @@ function controlEndpoint(mode: PanelMode, competitionId: string, action: Control
     return `/api/admin/competitions/${competitionId}/monitoring/moderate-delete`;
   }
 
+  if (action === "end") {
+    return `/api/organizer/competitions/${competitionId}/end`;
+  }
+
   const routeAction = action === "reset" ? "reset-disconnect" : action;
   return `/api/organizer/competitions/${competitionId}/monitoring/${routeAction}`;
 }
@@ -170,6 +177,8 @@ function controlCopy(action: ControlAction) {
       return { title: "Extend attempt window?", confirm: "Confirm extend", accepted: "Extension request accepted." };
     case "reset":
       return { title: "Reset disconnect attempt?", confirm: "Confirm reset", accepted: "Reset request accepted." };
+    case "end":
+      return { title: "End competition?", confirm: "Confirm end", accepted: "End request accepted." };
     case "force-pause":
       return { title: "Force pause competition?", confirm: "Confirm force pause", accepted: "Force-pause request accepted." };
     case "moderation-delete":
@@ -197,6 +206,9 @@ function actionAllowed(
     return status === "paused";
   }
   if (action === "extend") {
+    return status === "live" || status === "paused";
+  }
+  if (action === "end") {
     return status === "live" || status === "paused";
   }
   return status === "live" || status === "paused";
@@ -227,6 +239,9 @@ function disabledReason(
   if (action === "resume") {
     return "Resume is available only while competition is paused.";
   }
+  if (action === "end") {
+    return "End is available only while competition is live or paused.";
+  }
   return "Action requires live or paused competition state.";
 }
 
@@ -234,12 +249,14 @@ export function CompetitionParticipantsPanel({
   competition,
   registrations,
   activeAttempts = [],
+  finishedAttempts = [],
   events = [],
   initialTab,
   routePath = `/organizer/competition/${competition.id}/participants`,
   mode = "organizer",
 }: CompetitionParticipantsPanelProps) {
   const router = useRouter();
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeTab = normalizeTab(initialTab);
   const [status, setStatus] = useState(competition.status);
   const [search, setSearch] = useState("");
@@ -262,6 +279,56 @@ export function CompetitionParticipantsPanel({
     () => new Map(activeAttempts.map((attempt) => [attempt.registrationId, attempt])),
     [activeAttempts],
   );
+  useEffect(() => {
+    const supabase = createBrowserClient();
+    const channel = supabase
+      .channel(`organizer-monitoring-${competition.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "competition_attempts", filter: `competition_id=eq.${competition.id}` },
+        () => {
+          if (refreshTimerRef.current) {
+            clearTimeout(refreshTimerRef.current);
+          }
+          refreshTimerRef.current = setTimeout(() => {
+            router.refresh();
+          }, 300);
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "competition_registrations", filter: `competition_id=eq.${competition.id}` },
+        () => {
+          if (refreshTimerRef.current) {
+            clearTimeout(refreshTimerRef.current);
+          }
+          refreshTimerRef.current = setTimeout(() => {
+            router.refresh();
+          }, 300);
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "competition_events", filter: `competition_id=eq.${competition.id}` },
+        () => {
+          if (refreshTimerRef.current) {
+            clearTimeout(refreshTimerRef.current);
+          }
+          refreshTimerRef.current = setTimeout(() => {
+            router.refresh();
+          }, 300);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+      void supabase.removeChannel(channel);
+    };
+  }, [competition.id, router]);
+
   const filteredRegistrations = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return registrations.filter((registration) => {
@@ -344,6 +411,8 @@ export function CompetitionParticipantsPanel({
         setStatus("paused");
       } else if (controlAction === "resume") {
         setStatus("live");
+      } else if (controlAction === "end") {
+        setStatus("ended");
       }
       setControlMessage(controlCopy(controlAction).accepted);
       setControlAction(null);
@@ -425,7 +494,7 @@ export function CompetitionParticipantsPanel({
                 </p>
               ) : (
                 <p className="font-semibold text-slate-600">
-                  Organizer controls: open pause, resume, extend, and eligible disconnect reset.
+                  Organizer controls: open pause, resume, scheduled or open end, extend, and eligible disconnect reset.
                 </p>
               )}
               {controlMessage ? <p role="status" className="font-semibold text-emerald-700">{controlMessage}</p> : null}
@@ -468,6 +537,13 @@ export function CompetitionParticipantsPanel({
                 />
                 <GuardedControlButton
                   action="extend"
+                  status={status}
+                  mode={mode}
+                  competitionType={competition.type}
+                  onOpen={openControl}
+                />
+                <GuardedControlButton
+                  action="end"
                   status={status}
                   mode={mode}
                   competitionType={competition.type}
@@ -523,6 +599,10 @@ export function CompetitionParticipantsPanel({
             cancelled: cancelledCount,
           }}
         />
+      ) : null}
+
+      {activeTab === "participants" ? (
+        <FinishedMathletesPanel attempts={finishedAttempts} />
       ) : null}
 
       {activeTab === "announcements" ? (
@@ -636,7 +716,9 @@ function GuardedControlButton({
           ? TimerReset
           : action === "moderation-delete"
             ? Trash2
-            : RotateCcw;
+            : action === "end"
+              ? Square
+              : RotateCcw;
   const label =
     action === "force-pause"
       ? "Force pause"
@@ -644,8 +726,10 @@ function GuardedControlButton({
         ? "Moderation delete"
         : action === "pause"
           ? "Pause competition"
-          : action === "resume"
-            ? "Resume competition"
+        : action === "resume"
+          ? "Resume competition"
+          : action === "end"
+            ? "End competition"
             : "Extend time";
 
   return (
@@ -911,6 +995,50 @@ function AttemptSummary({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function FinishedMathletesPanel({ attempts }: { attempts: MonitoringAttemptSummary[] }) {
+  return (
+    <section className="border border-slate-200 bg-white shadow-sm">
+      <div className="grid gap-2 border-b border-slate-100 px-5 py-4 md:grid-cols-[1fr_auto] md:items-center">
+        <div>
+          <h2 className="text-lg font-black text-[#10182b]">Finished mathletes</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Submitted, auto-submitted, disqualified, and graded attempts separated from live attempt monitoring.
+          </p>
+        </div>
+        <Badge variant="outline">{attempts.length} finished</Badge>
+      </div>
+
+      {attempts.length === 0 ? (
+        <EmptyState icon={Clock3} title="No finished mathletes yet." />
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {attempts.map((attempt) => (
+            <article key={attempt.attemptId} className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-bold text-[#10182b]">{attempt.displayName}</h3>
+                  <Badge variant="outline" className="capitalize">
+                    {attempt.status.replaceAll("_", " ").replace(/^\w/, (letter) => letter.toUpperCase())}
+                  </Badge>
+                  <Badge variant="outline" className={riskClass(attempt.riskLevel)}>
+                    {attempt.riskLevel[0].toUpperCase() + attempt.riskLevel.slice(1)} risk
+                  </Badge>
+                </div>
+                <p className="mt-2 text-xs font-semibold text-slate-500">
+                  Seen {formatDateTime(attempt.lastSeenAt)} · Offenses {attempt.offenseCount}
+                </p>
+              </div>
+              <div className="text-sm font-bold text-slate-900">
+                {attempt.score === null ? "Score n/a" : `Score ${attempt.score} / ${attempt.maxScore ?? 100}`}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

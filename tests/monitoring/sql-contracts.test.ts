@@ -6,6 +6,10 @@ const PARTICIPANT_MONITORING_MIGRATION_PATH = join(
   process.cwd(),
   "supabase/migrations/20260506160000_16_participant_monitoring.sql",
 );
+const MONITORING_FOLLOW_UP_MIGRATION_PATH = join(
+  process.cwd(),
+  "supabase/migrations/20260508152500_monitoring_manual_end_realtime.sql",
+);
 
 describe("participant monitoring sql contracts", () => {
   test("live control RPCs are service-role security definer functions", () => {
@@ -100,5 +104,14 @@ describe("participant monitoring sql contracts", () => {
     expect(sql).toContain("insert into public.admin_audit_logs");
     expect(sql).toContain("'moderate_delete_competition_rejected'");
     expect(sql).toContain("'decision_outcome', 'invalid_transition'");
+  });
+
+  test("scheduled manual end and monitoring realtime are hardened by forward migration", () => {
+    const sql = readFileSync(MONITORING_FOLLOW_UP_MIGRATION_PATH, "utf8");
+
+    expect(sql).toContain("v_competition.type = 'scheduled'::public.competition_type");
+    expect(sql).toContain("v_transition_source = 'trusted_manual_action'");
+    expect(sql).toContain("alter publication supabase_realtime add table public.competition_registrations");
+    expect(sql).toContain("alter publication supabase_realtime add table public.competition_events");
   });
 });

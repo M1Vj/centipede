@@ -63,7 +63,7 @@ describe("cron route for due scheduled competitions", () => {
     }
   });
 
-  test("calls helper with current time when bearer token matches configured secret", async () => {
+  test("calls combined lifecycle helper with current time when bearer token matches configured secret", async () => {
     const previousCronSecret = process.env.CRON_SECRET;
     setCronSecret("cron-secret");
     const helper = vi.mocked(runDueScheduledCompetitionLifecycleSafely);

@@ -101,12 +101,13 @@ export async function loadMonitoringCompetition(competitionId: string): Promise<
 }
 
 export async function loadMonitoringData(competitionId: string, registrations: OrganizerRegistrationDetail[]) {
-  const [activeAttempts, events] = await Promise.all([
-    listMonitoringAttemptSummaries(competitionId, registrations),
+  const [activeAttempts, finishedAttempts, events] = await Promise.all([
+    listMonitoringAttemptSummaries(competitionId, registrations, ["in_progress"]),
+    listMonitoringAttemptSummaries(competitionId, registrations, ["submitted", "auto_submitted", "disqualified", "graded"]),
     listMonitoringCompetitionEvents(competitionId),
   ]);
 
-  return { activeAttempts, events };
+  return { activeAttempts, finishedAttempts, events };
 }
 
 export async function listCompetitionScopedRegistrations(competitionId: string) {
@@ -116,6 +117,7 @@ export async function listCompetitionScopedRegistrations(competitionId: string) 
 async function listMonitoringAttemptSummaries(
   competitionId: string,
   registrations: OrganizerRegistrationDetail[],
+  statuses: string[],
 ): Promise<MonitoringAttemptSummary[]> {
   const supabase = await createClient();
   const registrationNames = new Map(registrations.map((registration) => [registration.id, registration.displayName]));
@@ -125,7 +127,7 @@ async function listMonitoringAttemptSummaries(
       "id, registration_id, status, started_at, updated_at, total_time_seconds, final_score, raw_score, offense_count, effective_attempt_deadline_at, grade_summary_json",
     )
     .eq("competition_id", competitionId)
-    .eq("status", "in_progress")
+    .in("status", statuses)
     .order("started_at", { ascending: false })
     .limit(100);
 

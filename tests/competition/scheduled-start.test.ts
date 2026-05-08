@@ -216,9 +216,10 @@ describe("scheduled competition start helper and cron route", () => {
     });
   });
 
-  test("combined lifecycle does not end a competition it started in the same pass", async () => {
+  test("combined lifecycle pass does not end competitions started in the same pass", async () => {
     const now = new Date("2026-04-25T07:10:00.000Z");
     const startToken = "scheduled-start:competition-1:2026-04-25T06:00:00.000Z";
+    const endToken = "system_end:competition-2:2026-04-25T07:00:00.000Z";
 
     const startQuery = {
       select: vi.fn(),
@@ -257,21 +258,40 @@ describe("scheduled competition start helper and cron route", () => {
           end_time: "2026-04-25T07:00:00.000Z",
           duration_minutes: 60,
         },
+        {
+          id: "competition-2",
+          start_time: "2026-04-25T06:00:00.000Z",
+          end_time: "2026-04-25T07:00:00.000Z",
+          duration_minutes: 60,
+        },
       ],
       error: null,
     });
 
-    const rpc = vi.fn().mockResolvedValue({
-      data: {
-        machine_code: "ok",
-        status: "live",
-        event_id: "event-1",
-        request_idempotency_token: startToken,
-        replayed: false,
-        changed: true,
-      },
-      error: null,
-    });
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: {
+          machine_code: "ok",
+          status: "live",
+          event_id: "event-1",
+          request_idempotency_token: startToken,
+          replayed: false,
+          changed: true,
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          machine_code: "ok",
+          status: "ended",
+          event_id: "event-2",
+          request_idempotency_token: endToken,
+          replayed: false,
+          changed: true,
+        },
+        error: null,
+      });
 
     vi.mocked(createAdminClient)
       .mockReturnValueOnce({
@@ -297,13 +317,22 @@ describe("scheduled competition start helper and cron route", () => {
 
     const result = await runDueScheduledCompetitionLifecycleSafely(now);
 
-    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledTimes(2);
     expect(rpc).toHaveBeenCalledWith("start_competition", {
       p_competition_id: "competition-1",
       p_request_idempotency_token: startToken,
     });
+    expect(rpc).toHaveBeenCalledWith("end_competition", {
+      p_competition_id: "competition-2",
+      p_request_idempotency_token: endToken,
+      p_reason: null,
+      p_transition_source: "system_timer",
+    });
+    expect(rpc).not.toHaveBeenCalledWith("end_competition", expect.objectContaining({
+      p_competition_id: "competition-1",
+    }));
     expect(result.startSummary?.started).toBe(1);
-    expect(result.endSummary?.attempted).toBe(0);
-    expect(result.endSummary?.ended).toBe(0);
+    expect(result.endSummary?.attempted).toBe(1);
+    expect(result.endSummary?.ended).toBe(1);
   });
 });

@@ -41,6 +41,7 @@ export default async function OrganizerCompetitionParticipantsPage({ params, sea
           competition={competition}
           registrations={registrations}
           activeAttempts={monitoring.activeAttempts}
+          finishedAttempts={monitoring.finishedAttempts}
           events={monitoring.events}
           initialTab={query?.tab}
           routePath={`/organizer/competition/${competitionId}/participants`}

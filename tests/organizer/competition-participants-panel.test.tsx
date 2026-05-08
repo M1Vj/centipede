@@ -14,10 +14,22 @@ import type { OrganizerRegistrationDetail } from "@/lib/registrations/types";
 
 const routerRefreshMock = vi.fn();
 const fetchMock = vi.fn();
+const channelMock = {
+  on: vi.fn(() => channelMock),
+  subscribe: vi.fn(() => channelMock),
+};
+const removeChannelMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     refresh: routerRefreshMock,
+  }),
+}));
+
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({
+    channel: vi.fn(() => channelMock),
+    removeChannel: removeChannelMock,
   }),
 }));
 
@@ -199,6 +211,9 @@ describe("CompetitionParticipantsPanel", () => {
   beforeEach(() => {
     routerRefreshMock.mockReset();
     fetchMock.mockReset();
+    channelMock.on.mockClear();
+    channelMock.subscribe.mockClear();
+    removeChannelMock.mockClear();
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ code: "ok" }), {
         status: 200,
@@ -310,6 +325,74 @@ describe("CompetitionParticipantsPanel", () => {
     expect(screen.getByText("Organizer pause is available only for open live competitions.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Extend time" })).toBeEnabled();
     expect(screen.getAllByRole("button", { name: "Reset disconnect" })[0]).toBeEnabled();
+  });
+
+  test("exposes scheduled manual end control from participant monitoring", async () => {
+    const user = userEvent.setup();
+    renderPanel({
+      competition: {
+        ...competition,
+        type: "scheduled",
+      },
+    });
+
+    await user.click(screen.getByRole("button", { name: "End competition" }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByRole("button", { name: "Confirm end" })).toBeDisabled();
+
+    await user.type(within(dialog).getByLabelText("Control reason"), "Venue emergency");
+    await user.click(within(dialog).getByRole("button", { name: "Confirm end" }));
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/organizer/competitions/competition-1/end", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        "x-idempotency-key": "monitoring-token",
+      },
+      body: JSON.stringify({
+        reason: "Venue emergency",
+      }),
+    });
+    expect(await screen.findByText("End request accepted.")).toBeInTheDocument();
+  });
+
+  test("renders finished mathletes separately from active attempts", () => {
+    renderPanel({
+      finishedAttempts: [
+        {
+          ...activeAttempts[0],
+          attemptId: "attempt-finished-1",
+          status: "submitted",
+          score: 88,
+          progressPercent: 100,
+          remainingSeconds: 0,
+        },
+      ],
+    });
+
+    expect(screen.getByRole("heading", { name: "Finished mathletes" })).toBeInTheDocument();
+    expect(screen.getByText("Submitted")).toBeInTheDocument();
+    expect(screen.getByText("Score 88 / 100")).toBeInTheDocument();
+  });
+
+  test("subscribes to monitoring realtime changes and refreshes route", () => {
+    vi.useFakeTimers();
+    renderPanel();
+
+    expect(channelMock.on).toHaveBeenCalledWith(
+      "postgres_changes",
+      expect.objectContaining({ table: "competition_attempts", filter: "competition_id=eq.competition-1" }),
+      expect.any(Function),
+    );
+
+    const callback = channelMock.on.mock.calls[0]?.[2] as (() => void) | undefined;
+    callback?.();
+    vi.advanceTimersByTime(400);
+
+    expect(routerRefreshMock).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 
   test("disconnect reset requires objective evidence and posts canonical reset payload", async () => {

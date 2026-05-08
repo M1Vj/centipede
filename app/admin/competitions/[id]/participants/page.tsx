@@ -29,6 +29,7 @@ export default async function AdminCompetitionParticipantsPage({ params, searchP
         competition={competition}
         registrations={registrations}
         activeAttempts={monitoring.activeAttempts}
+        finishedAttempts={monitoring.finishedAttempts}
         events={monitoring.events}
         initialTab={query?.tab}
         routePath={`/admin/competitions/${competitionId}/participants`}

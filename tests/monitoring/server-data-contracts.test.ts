@@ -10,10 +10,17 @@ describe("monitoring server data contracts", () => {
     const serverData = readFileSync(SERVER_DATA_PATH, "utf8");
     const monitoringApi = readFileSync(API_PATH, "utf8");
 
-    expect(serverData).toContain('.eq("status", "in_progress")');
+    expect(serverData).toContain("listMonitoringAttemptSummaries(competitionId, registrations, [\"in_progress\"]");
     expect(monitoringApi).toContain('.eq("status", "in_progress")');
     expect(serverData).not.toContain('"paused"]');
     expect(monitoringApi).not.toContain('"paused"]');
+  });
+
+  test("server data loads finished mathlete attempts separately from active attempts", () => {
+    const serverData = readFileSync(SERVER_DATA_PATH, "utf8");
+
+    expect(serverData).toContain("finishedAttempts");
+    expect(serverData).toContain("listMonitoringAttemptSummaries(competitionId, registrations, [\"submitted\", \"auto_submitted\", \"disqualified\", \"graded\"]");
   });
 
   test("active attempt last-seen uses updated heartbeat timestamp before start fallback", () => {
