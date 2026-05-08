@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { dispatchCompetitionStartedNotifications } from "@/lib/notifications/competition-start";
 import {
   endDueScheduledCompetitions,
+  runDueScheduledCompetitionLifecycleSafely,
   startDueScheduledCompetitions,
 } from "@/lib/competition/scheduled-start";
 
@@ -24,6 +27,21 @@ beforeEach(() => {
 });
 
 describe("scheduled competition start helper and cron route", () => {
+  test("scheduled lifecycle runner is only invoked from the authorized cron surface", () => {
+    const organizerListPage = readFileSync(join(process.cwd(), "app/organizer/competition/page.tsx"), "utf8");
+    const organizerParticipantsPage = readFileSync(
+      join(process.cwd(), "app/organizer/competition/[competitionId]/participants/page.tsx"),
+      "utf8",
+    );
+    const mathleteCalendarPage = readFileSync(join(process.cwd(), "app/mathlete/competition/calendar/page.tsx"), "utf8");
+    const cronRoute = readFileSync(join(process.cwd(), "app/api/cron/competitions/start-due/route.ts"), "utf8");
+
+    expect(organizerListPage).not.toContain("startDueScheduledCompetitionsSafely");
+    expect(organizerParticipantsPage).not.toContain("startDueScheduledCompetitionsSafely");
+    expect(mathleteCalendarPage).not.toContain("startDueScheduledCompetitionsSafely");
+    expect(cronRoute).toContain("runDueScheduledCompetitionLifecycleSafely(new Date())");
+  });
+
   test("startDueScheduledCompetitions starts each due scheduled competition with deterministic token", async () => {
     const dueAt = new Date("2026-04-25T06:10:00.000Z");
     const token = "scheduled-start:competition-1:2026-04-25T06:00:00.000Z";
@@ -196,5 +214,125 @@ describe("scheduled competition start helper and cron route", () => {
         },
       ],
     });
+  });
+
+  test("combined lifecycle pass does not end competitions started in the same pass", async () => {
+    const now = new Date("2026-04-25T07:10:00.000Z");
+    const startToken = "scheduled-start:competition-1:2026-04-25T06:00:00.000Z";
+    const endToken = "system_end:competition-2:2026-04-25T07:00:00.000Z";
+
+    const startQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      lte: vi.fn(),
+      order: vi.fn(),
+    };
+    startQuery.select.mockImplementation(() => startQuery);
+    startQuery.eq.mockImplementation(() => startQuery);
+    startQuery.lte.mockImplementation(() => startQuery);
+    startQuery.order.mockResolvedValue({
+      data: [
+        {
+          id: "competition-1",
+          organizer_id: "organizer-1",
+          start_time: "2026-04-25T06:00:00.000Z",
+        },
+      ],
+      error: null,
+    });
+
+    const endQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      in: vi.fn(),
+      order: vi.fn(),
+    };
+    endQuery.select.mockImplementation(() => endQuery);
+    endQuery.eq.mockImplementation(() => endQuery);
+    endQuery.in.mockImplementation(() => endQuery);
+    endQuery.order.mockResolvedValue({
+      data: [
+        {
+          id: "competition-1",
+          start_time: "2026-04-25T06:00:00.000Z",
+          end_time: "2026-04-25T07:00:00.000Z",
+          duration_minutes: 60,
+        },
+        {
+          id: "competition-2",
+          start_time: "2026-04-25T06:00:00.000Z",
+          end_time: "2026-04-25T07:00:00.000Z",
+          duration_minutes: 60,
+        },
+      ],
+      error: null,
+    });
+
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: {
+          machine_code: "ok",
+          status: "live",
+          event_id: "event-1",
+          request_idempotency_token: startToken,
+          replayed: false,
+          changed: true,
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          machine_code: "ok",
+          status: "ended",
+          event_id: "event-2",
+          request_idempotency_token: endToken,
+          replayed: false,
+          changed: true,
+        },
+        error: null,
+      });
+
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce({
+        from: vi.fn((table: string) => {
+          if (table !== "competitions") {
+            throw new Error(`Unexpected table: ${table}`);
+          }
+
+          return startQuery;
+        }),
+        rpc,
+      } as never)
+      .mockReturnValueOnce({
+        from: vi.fn((table: string) => {
+          if (table !== "competitions") {
+            throw new Error(`Unexpected table: ${table}`);
+          }
+
+          return endQuery;
+        }),
+        rpc,
+      } as never);
+
+    const result = await runDueScheduledCompetitionLifecycleSafely(now);
+
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc).toHaveBeenCalledWith("start_competition", {
+      p_competition_id: "competition-1",
+      p_request_idempotency_token: startToken,
+    });
+    expect(rpc).toHaveBeenCalledWith("end_competition", {
+      p_competition_id: "competition-2",
+      p_request_idempotency_token: endToken,
+      p_reason: null,
+      p_transition_source: "system_timer",
+    });
+    expect(rpc).not.toHaveBeenCalledWith("end_competition", expect.objectContaining({
+      p_competition_id: "competition-1",
+    }));
+    expect(result.startSummary?.started).toBe(1);
+    expect(result.endSummary?.attempted).toBe(1);
+    expect(result.endSummary?.ended).toBe(1);
   });
 });

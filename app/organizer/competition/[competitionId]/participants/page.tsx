@@ -1,22 +1,23 @@
 import { notFound } from "next/navigation";
 import { CompetitionParticipantsPanel } from "@/components/organizer/competition-participants-panel";
+import { loadMonitoringData } from "@/components/monitoring/server-data";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import { OffenseLogsPanel } from "@/components/anti-cheat/offense-logs-panel";
 import { getCompetitionOffenses } from "@/lib/anti-cheat/queries";
 import {
   loadOrganizerCompetitionForManagement,
 } from "../../_data";
-import { startDueScheduledCompetitionsSafely } from "@/lib/competition/scheduled-start";
 import { listOrganizerCompetitionRegistrations } from "@/lib/registrations/api";
 
 interface PageProps {
   params: Promise<{ competitionId: string }>;
+  searchParams?: Promise<{ tab?: string }>;
 }
 
-export default async function OrganizerCompetitionParticipantsPage({ params }: PageProps) {
+export default async function OrganizerCompetitionParticipantsPage({ params, searchParams }: PageProps) {
   const { profile } = await getWorkspaceContext({ requireRole: "organizer" });
   const { competitionId } = await params;
-  await startDueScheduledCompetitionsSafely();
+  const query = await searchParams;
   const competition = await loadOrganizerCompetitionForManagement(
     competitionId,
     profile?.id ?? "",
@@ -30,6 +31,7 @@ export default async function OrganizerCompetitionParticipantsPage({ params }: P
     listOrganizerCompetitionRegistrations({ competitionId }),
     getCompetitionOffenses(competitionId, profile?.id ?? ""),
   ]);
+  const monitoring = await loadMonitoringData(competitionId, registrations);
 
   return (
     <div className="w-full px-4">
@@ -38,6 +40,12 @@ export default async function OrganizerCompetitionParticipantsPage({ params }: P
         <CompetitionParticipantsPanel
           competition={competition}
           registrations={registrations}
+          activeAttempts={monitoring.activeAttempts}
+          finishedAttempts={monitoring.finishedAttempts}
+          events={monitoring.events}
+          initialTab={query?.tab}
+          routePath={`/organizer/competition/${competitionId}/participants`}
+          mode="organizer"
         />
       </div>
     </div>

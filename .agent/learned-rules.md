@@ -162,3 +162,6 @@ If user explicitly forbids sub-agents for current task, execute directly in main
 
 ### 4.11
 Before deleting tracked components during cleanup, require direct project-owner confirmation or stronger evidence than missing current imports. Some tracked components can be intentionally retained for near-term reuse, templates, or branch continuity even when not referenced by the current route graph.
+
+### 4.12
+When a branch touches database behavior, RPC behavior, RLS, migrations, or Supabase-backed lifecycle semantics, verify the linked Supabase target before final handoff and push database migrations when a migration/schema delta exists. If no database delta exists, explicitly state why no database push was performed instead of leaving it implicit.

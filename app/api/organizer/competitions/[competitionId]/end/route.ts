@@ -44,13 +44,6 @@ export async function POST(request: Request, context: { params: Promise<{ compet
     return jsonError("not_found", "Requested resource was not found.", 404);
   }
 
-  if (competition.type !== "open") {
-    return jsonError("invalid_transition", "Only open competitions can be ended manually.", 409, {
-      currentType: competition.type,
-      currentStatus: competition.status,
-    });
-  }
-
   const adminClientResult = requireCompetitionAdminClient();
   if ("response" in adminClientResult) {
     return adminClientResult.response;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { startDueScheduledCompetitions } from "@/lib/competition/scheduled-start";
+import { runDueScheduledCompetitionLifecycleSafely } from "@/lib/competition/scheduled-start";
 
 function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         code: "service_unavailable",
-        message: "Scheduled competition start worker is unavailable.",
+        message: "Scheduled competition lifecycle worker is unavailable.",
       },
       { status: 503 },
     );
@@ -33,12 +33,12 @@ export async function GET(request: Request) {
     );
   }
 
-  const summary = await startDueScheduledCompetitions(new Date());
-  if (summary.serviceUnavailable) {
+  const summary = await runDueScheduledCompetitionLifecycleSafely(new Date());
+  if (summary.startSummary?.serviceUnavailable || summary.endSummary?.serviceUnavailable) {
     return NextResponse.json(
       {
         code: "service_unavailable",
-        message: "Scheduled competition start worker is unavailable.",
+        message: "Scheduled competition lifecycle worker is unavailable.",
         ...summary,
       },
       { status: 503 },

@@ -22,8 +22,18 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/ui/progress-link", () => ({
-  ProgressLink: ({ children, href, className }: { children: ReactNode; href: string; className?: string }) => (
-    <a href={href} className={className}>
+  ProgressLink: ({
+    children,
+    href,
+    className,
+    ...props
+  }: {
+    children: ReactNode;
+    href: string;
+    className?: string;
+    "aria-label"?: string;
+  }) => (
+    <a href={href} className={className} {...props}>
       {children}
     </a>
   ),
@@ -138,6 +148,30 @@ describe("CompetitionCardGrid delete flow", () => {
     expect(screen.getByRole("link", { name: /manage/i })).toHaveAttribute(
       "href",
       "/organizer/competition/published-competition/participants",
+    );
+  });
+
+  test("links live and paused competition operations to participant monitoring UI", () => {
+    render(
+      <CompetitionCardGrid
+        competitions={[
+          buildCompetition("live", { id: "live-competition", name: "Live Competition" }),
+          buildCompetition("paused", { id: "paused-competition", name: "Paused Competition" }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: /live view/i })).toHaveAttribute(
+      "href",
+      "/organizer/competition/live-competition/participants",
+    );
+    expect(screen.getByRole("link", { name: /resume/i })).toHaveAttribute(
+      "href",
+      "/organizer/competition/paused-competition/participants",
+    );
+    expect(screen.getByRole("link", { name: "Open paused monitoring controls" })).toHaveAttribute(
+      "href",
+      "/organizer/competition/paused-competition/participants",
     );
   });
 });

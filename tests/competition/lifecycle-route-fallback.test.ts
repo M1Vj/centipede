@@ -28,7 +28,7 @@ const COMPETITION_ID = "competition-1";
 
 type MockStatus = "draft" | "published" | "live" | "paused" | "ended" | "archived";
 
-function makeCompetitionRow(status: MockStatus) {
+function makeCompetitionRow(status: MockStatus, overrides: Record<string, unknown> = {}) {
   return {
     id: COMPETITION_ID,
     organizer_id: ORGANIZER_ID,
@@ -58,6 +58,7 @@ function makeCompetitionRow(status: MockStatus) {
     published: status !== "draft",
     is_paused: status === "paused",
     created_at: "2026-04-15T00:00:00.000Z",
+    ...overrides,
   };
 }
 
@@ -513,6 +514,47 @@ describe("lifecycle route legacy fallback compatibility", () => {
     expect(body.competition.status).toBe(targetStatus);
     expect(body.lifecycle.machineCode).toBe("ok");
     expect(rpc).toHaveBeenCalledWith(rpcName, rpcArgs);
+  });
+
+  test("end route allows scheduled competition manual end from monitoring control", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseClient([
+        makeCompetitionRow("live", { type: "scheduled" }),
+        makeCompetitionRow("ended", { type: "scheduled" }),
+      ]) as never,
+    );
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        machine_code: "ok",
+        status: "ended",
+        event_id: "event-1",
+        request_idempotency_token: "idem-token-123",
+        replayed: false,
+        changed: true,
+      },
+      error: null,
+    });
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc,
+      from: vi.fn(),
+    } as never);
+
+    const response = await endCompetition(makeMutationRequest("end"), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.competition.status).toBe("ended");
+    expect(rpc).toHaveBeenCalledWith("end_competition", {
+      p_competition_id: COMPETITION_ID,
+      p_request_idempotency_token: "idem-token-123",
+      p_reason: "manual",
+      p_transition_source: "trusted_manual_action",
+    });
   });
 
   test("returns service unavailable when fallback cannot persist lifecycle state", async () => {
