@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { dispatchCompetitionStartedNotifications } from "@/lib/notifications/competition-start";
 import {
   endDueScheduledCompetitions,
+  runDueScheduledCompetitionLifecycleSafely,
   startDueScheduledCompetitions,
 } from "@/lib/competition/scheduled-start";
 
@@ -26,7 +27,7 @@ beforeEach(() => {
 });
 
 describe("scheduled competition start helper and cron route", () => {
-  test("scheduled start runner is only invoked from the authorized cron surface", () => {
+  test("scheduled lifecycle runner is only invoked from the authorized cron surface", () => {
     const organizerListPage = readFileSync(join(process.cwd(), "app/organizer/competition/page.tsx"), "utf8");
     const organizerParticipantsPage = readFileSync(
       join(process.cwd(), "app/organizer/competition/[competitionId]/participants/page.tsx"),
@@ -38,7 +39,7 @@ describe("scheduled competition start helper and cron route", () => {
     expect(organizerListPage).not.toContain("startDueScheduledCompetitionsSafely");
     expect(organizerParticipantsPage).not.toContain("startDueScheduledCompetitionsSafely");
     expect(mathleteCalendarPage).not.toContain("startDueScheduledCompetitionsSafely");
-    expect(cronRoute).toContain("startDueScheduledCompetitions(new Date())");
+    expect(cronRoute).toContain("runDueScheduledCompetitionLifecycleSafely(new Date())");
   });
 
   test("startDueScheduledCompetitions starts each due scheduled competition with deterministic token", async () => {
@@ -213,5 +214,96 @@ describe("scheduled competition start helper and cron route", () => {
         },
       ],
     });
+  });
+
+  test("combined lifecycle does not end a competition it started in the same pass", async () => {
+    const now = new Date("2026-04-25T07:10:00.000Z");
+    const startToken = "scheduled-start:competition-1:2026-04-25T06:00:00.000Z";
+
+    const startQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      lte: vi.fn(),
+      order: vi.fn(),
+    };
+    startQuery.select.mockImplementation(() => startQuery);
+    startQuery.eq.mockImplementation(() => startQuery);
+    startQuery.lte.mockImplementation(() => startQuery);
+    startQuery.order.mockResolvedValue({
+      data: [
+        {
+          id: "competition-1",
+          organizer_id: "organizer-1",
+          start_time: "2026-04-25T06:00:00.000Z",
+        },
+      ],
+      error: null,
+    });
+
+    const endQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      in: vi.fn(),
+      order: vi.fn(),
+    };
+    endQuery.select.mockImplementation(() => endQuery);
+    endQuery.eq.mockImplementation(() => endQuery);
+    endQuery.in.mockImplementation(() => endQuery);
+    endQuery.order.mockResolvedValue({
+      data: [
+        {
+          id: "competition-1",
+          start_time: "2026-04-25T06:00:00.000Z",
+          end_time: "2026-04-25T07:00:00.000Z",
+          duration_minutes: 60,
+        },
+      ],
+      error: null,
+    });
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        machine_code: "ok",
+        status: "live",
+        event_id: "event-1",
+        request_idempotency_token: startToken,
+        replayed: false,
+        changed: true,
+      },
+      error: null,
+    });
+
+    vi.mocked(createAdminClient)
+      .mockReturnValueOnce({
+        from: vi.fn((table: string) => {
+          if (table !== "competitions") {
+            throw new Error(`Unexpected table: ${table}`);
+          }
+
+          return startQuery;
+        }),
+        rpc,
+      } as never)
+      .mockReturnValueOnce({
+        from: vi.fn((table: string) => {
+          if (table !== "competitions") {
+            throw new Error(`Unexpected table: ${table}`);
+          }
+
+          return endQuery;
+        }),
+        rpc,
+      } as never);
+
+    const result = await runDueScheduledCompetitionLifecycleSafely(now);
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("start_competition", {
+      p_competition_id: "competition-1",
+      p_request_idempotency_token: startToken,
+    });
+    expect(result.startSummary?.started).toBe(1);
+    expect(result.endSummary?.attempted).toBe(0);
+    expect(result.endSummary?.ended).toBe(0);
   });
 });

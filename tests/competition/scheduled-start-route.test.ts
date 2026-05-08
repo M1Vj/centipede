@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { GET } from "@/app/api/cron/competitions/start-due/route";
-import { startDueScheduledCompetitions } from "@/lib/competition/scheduled-start";
+import { runDueScheduledCompetitionLifecycleSafely } from "@/lib/competition/scheduled-start";
 
 vi.mock("@/lib/competition/scheduled-start", () => ({
-  startDueScheduledCompetitions: vi.fn(),
+  runDueScheduledCompetitionLifecycleSafely: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -26,7 +26,7 @@ describe("cron route for due scheduled competitions", () => {
   ])("fails closed with 503 when CRON_SECRET is %s", async (_, cronSecret) => {
     const previousCronSecret = process.env.CRON_SECRET;
     setCronSecret(cronSecret);
-    const helper = vi.mocked(startDueScheduledCompetitions);
+    const helper = vi.mocked(runDueScheduledCompetitionLifecycleSafely);
 
     try {
       const request = new Request("http://localhost:3000/api/cron/competitions/start-due", {
@@ -66,12 +66,20 @@ describe("cron route for due scheduled competitions", () => {
   test("calls helper with current time when bearer token matches configured secret", async () => {
     const previousCronSecret = process.env.CRON_SECRET;
     setCronSecret("cron-secret");
-    const helper = vi.mocked(startDueScheduledCompetitions);
+    const helper = vi.mocked(runDueScheduledCompetitionLifecycleSafely);
     helper.mockResolvedValue({
-      attempted: 1,
-      started: 1,
-      skipped: 0,
-      results: [],
+      startSummary: {
+        attempted: 1,
+        started: 1,
+        skipped: 0,
+        results: [],
+      },
+      endSummary: {
+        attempted: 1,
+        ended: 1,
+        skipped: 0,
+        results: [],
+      },
     } as never);
 
     try {
@@ -88,8 +96,10 @@ describe("cron route for due scheduled competitions", () => {
       expect(helper).toHaveBeenCalledTimes(1);
       expect(helper.mock.calls[0]?.[0]).toBeInstanceOf(Date);
       expect(response.status).toBe(200);
-      expect(body.attempted).toBe(1);
-      expect(body.started).toBe(1);
+      expect(body.startSummary.attempted).toBe(1);
+      expect(body.startSummary.started).toBe(1);
+      expect(body.endSummary.attempted).toBe(1);
+      expect(body.endSummary.ended).toBe(1);
     } finally {
       setCronSecret(previousCronSecret);
     }
