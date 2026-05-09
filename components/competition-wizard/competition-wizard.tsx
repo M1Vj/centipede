@@ -61,7 +61,7 @@ const STEP_PROGRESS_CONFIG: Record<CompetitionWizardStep, { visualStep: number; 
   review: { visualStep: 5, totalSteps: 5, percentage: 99, title: "Competition Review", description: "Review all settings and publish your competition." },
 };
 
-const STEP_ORDER: CompetitionWizardStep[] = ["overview", "schedule", "format", "problems", "scoring", "review"];
+const STEP_ORDER: CompetitionWizardStep[] = ["overview", "schedule", "problems", "scoring", "review"];
 
 function getStepNavigation(currentStep: CompetitionWizardStep) {
   const currentIndex = STEP_ORDER.indexOf(currentStep);
@@ -991,7 +991,7 @@ export function CompetitionWizard({
     }
   }
 
-  const expandedSectionMode = true;
+  const expandedSectionMode = false;
   const isImmersiveStep =
     !expandedSectionMode &&
     (activeStep === "problems" || activeStep === "scoring" || activeStep === "review");
@@ -2391,7 +2391,7 @@ export function CompetitionWizard({
                     </h3>
                     <button
                       type="button"
-                      onClick={() => setActiveStep(draftState.type === "scheduled" ? "schedule" : "format")}
+                      onClick={() => setActiveStep("schedule")}
                       className="text-[13px] font-bold text-[#f49700] transition-colors hover:text-[#d87d00]"
                     >
                       Edit
@@ -2633,16 +2633,6 @@ export function CompetitionWizard({
                     </div>
                   ) : (
                     <div className="flex flex-wrap items-center gap-3">
-                      <Button
-                        type="button"
-                        onClick={() => void submitCreateDraft()}
-                        pending={savingAction === "create"}
-                        pendingText="Creating..."
-                        className="rounded-xl bg-[#10182b] text-white hover:bg-[#0f121a]"
-                      >
-                        <Sparkles className="size-4" />
-                        Create draft
-                      </Button>
                       <ProgressLink
                         href="/organizer/competition"
                         className="text-sm font-semibold text-[#f49700] underline-offset-4 hover:underline"
@@ -2789,7 +2779,7 @@ export function CompetitionWizard({
         )}
 
         {/* Step Navigation Footer */}
-        <div className="mb-8 mt-4 flex w-full items-center justify-between">
+        <div aria-label="Wizard navigation" className="mb-8 mt-4 flex w-full items-center justify-between">
           {stepNav.prevStep ? (
             <button
               type="button"
@@ -2809,6 +2799,17 @@ export function CompetitionWizard({
             >
               Continue to {stepNav.nextLabel ?? "Next"} <ArrowRight className="w-4 h-4" />
             </button>
+          ) : mode === "create" && activeStep === "review" ? (
+            <Button
+              type="button"
+              onClick={() => void submitCreateDraft()}
+              pending={savingAction === "create"}
+              pendingText="Creating..."
+              className="rounded-xl bg-[#10182b] text-white hover:bg-[#0f121a]"
+            >
+              <Sparkles className="size-4" />
+              Create draft
+            </Button>
           ) : null}
         </div>
       </div>

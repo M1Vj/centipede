@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { CompetitionWizard } from "@/components/competition-wizard/competition-wizard";
@@ -60,6 +60,41 @@ describe("CompetitionWizard schedule behavior", () => {
     expect(endTimeInput.value).toBe("10:30");
     expect(endDateInput).toHaveAttribute("readonly");
     expect(endTimeInput).toHaveAttribute("readonly");
+  });
+
+  test("renders the draft flow as one wizard phase at a time", () => {
+    renderWizard();
+
+    expect(screen.getAllByText("Competition Overview").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Schedule & Timing")).not.toBeInTheDocument();
+    expect(screen.queryByText("Available problems")).not.toBeInTheDocument();
+    expect(screen.queryByText("Competition Scoring")).not.toBeInTheDocument();
+    expect(screen.queryByText("Problem bank preview")).not.toBeInTheDocument();
+
+    openScheduleStep();
+
+    expect(screen.queryByText("Competition Overview")).not.toBeInTheDocument();
+    expect(screen.getByText("Schedule & Timing")).toBeInTheDocument();
+    expect(screen.getByText("Competition Format")).toBeInTheDocument();
+    expect(screen.queryByText("Available problems")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Problems/i }));
+
+    expect(screen.queryByText("Schedule & Timing")).not.toBeInTheDocument();
+    expect(screen.queryByText("Competition Format")).not.toBeInTheDocument();
+    expect(screen.getByText("Available problems")).toBeInTheDocument();
+  });
+
+  test("places create draft in the final navigation row", () => {
+    renderWizard();
+
+    expect(screen.queryByRole("button", { name: "Create draft" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+
+    const navigation = screen.getByLabelText("Wizard navigation");
+    expect(within(navigation).getByRole("button", { name: "Scoring" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("button", { name: "Create draft" })).toBeInTheDocument();
   });
 
   test("toggles between default and manual registration timing", () => {
