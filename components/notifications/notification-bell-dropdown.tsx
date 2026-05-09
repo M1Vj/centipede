@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, Settings } from "lucide-react";
+import { Bell, Check, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ProgressLink } from "@/components/ui/progress-link";
 import {
   DropdownMenu,
@@ -14,6 +15,7 @@ import type { NotificationItem } from "@/components/notifications/types";
 
 type NotificationBellDropdownProps = {
   label?: string;
+  markAllAction?: () => Promise<void> | void;
   notifications?: NotificationItem[] | null;
   unreadCount?: number | null;
 };
@@ -36,6 +38,7 @@ function formatPreviewDate(value: string | null) {
 
 export function NotificationBellDropdown({
   label = "Notifications",
+  markAllAction,
   notifications,
   unreadCount,
 }: NotificationBellDropdownProps) {
@@ -88,7 +91,26 @@ export function NotificationBellDropdown({
             </ProgressLink>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator className="my-1 bg-slate-100" />
+        {markAllAction ? (
+          <>
+            <form action={markAllAction} className="px-2 pb-2">
+              <Button
+                type="submit"
+                variant="outline"
+                size="sm"
+                className="w-full rounded-xl border-slate-200 text-slate-700"
+                disabled={!hasUnread}
+                aria-label="Mark all notifications as read"
+              >
+                <Check className="size-3.5" />
+                Mark all read
+              </Button>
+            </form>
+            <DropdownMenuSeparator className="my-1 bg-slate-100" />
+          </>
+        ) : (
+          <DropdownMenuSeparator className="my-1 bg-slate-100" />
+        )}
         {hasPreviewNotifications ? (
           <div
             className="space-y-1 py-1"

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 interface OrganizerNavProps {
   isOrganizer: boolean;
   isAuthenticated: boolean;
+  markAllNotificationsRead?: () => Promise<void> | void;
   notifications?: NotificationItem[] | null;
   unreadCount?: number | null;
 }
@@ -31,6 +32,7 @@ const guestItems = [
 export function OrganizerNav({
   isOrganizer,
   isAuthenticated,
+  markAllNotificationsRead,
   notifications,
   unreadCount = 0,
 }: OrganizerNavProps) {
@@ -86,6 +88,7 @@ export function OrganizerNav({
           <div className="flex items-center gap-4 rounded-full bg-[#0f121a] py-1 pl-6 pr-2">
             <NotificationBellDropdown
               label="Organizer notifications"
+              markAllAction={markAllNotificationsRead}
               notifications={notifications}
               unreadCount={unreadCount}
             />

@@ -142,6 +142,59 @@ describe("arena page data", () => {
     });
   });
 
+  test("uses the joined team name when Supabase returns a single related team object", async () => {
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return resolvedQuery({
+            ...competitionRow,
+            format: "team",
+            participants_per_team: 3,
+            max_teams: 10,
+            max_participants: null,
+          });
+        }
+
+        if (table === "team_memberships") {
+          return resolvedQuery([
+            {
+              team_id: "team-1",
+              role: "member",
+              teams: { id: "team-1", name: "Team One" },
+            },
+          ]);
+        }
+
+        if (table === "competition_registrations") {
+          return resolvedQuery([
+            {
+              id: "registration-1",
+              competition_id: "competition-1",
+              profile_id: null,
+              team_id: "team-1",
+              status: "registered",
+              status_reason: null,
+              registered_at: "2026-05-02T00:00:00.000Z",
+              updated_at: "2026-05-02T00:00:00.000Z",
+            },
+          ]);
+        }
+
+        return resolvedQuery([]);
+      }),
+    } as never);
+
+    const data = await loadArenaPageData("competition-1", "mathlete-1");
+
+    expect(data?.registration?.teamName).toBe("Team One");
+    expect(data?.eligibleTeams).toContainEqual(
+      expect.objectContaining({
+        id: "team-1",
+        name: "Team One",
+      }),
+    );
+  });
+
   test("scopes team attempts to the signed-in member instead of the shared team registration", async () => {
     const attemptEqCalls: Array<[string, unknown]> = [];
     const attemptQuery = {

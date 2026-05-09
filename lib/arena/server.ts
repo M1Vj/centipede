@@ -87,7 +87,7 @@ type ProblemTypeRow = {
 type TeamMembershipRow = {
   team_id: string;
   role: string;
-  teams: Array<{ id: string; name: string }> | null;
+  teams: { id: string; name: string } | Array<{ id: string; name: string }> | null;
 };
 type RpcLifecycleRow = {
   machine_code: string;
@@ -198,9 +198,17 @@ async function fetchEligibleTeams(admin: AdminClient, actorUserId: string) {
 
   return rows.map((row) => ({
     id: row.team_id,
-    name: row.teams?.[0]?.name ?? "Unnamed team",
+    name: resolveTeamName(row.teams),
     role: row.role,
   })) satisfies EligibleTeamSummary[];
+}
+
+function resolveTeamName(team: TeamMembershipRow["teams"]) {
+  if (Array.isArray(team)) {
+    return team[0]?.name ?? "Unnamed team";
+  }
+
+  return team?.name ?? "Unnamed team";
 }
 
 async function fetchRegistrations(

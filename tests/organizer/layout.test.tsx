@@ -4,10 +4,19 @@ import { render, screen, within } from "@testing-library/react";
 import { type ReactNode } from "react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import OrganizerLayout from "@/app/organizer/layout";
+import { fetchNotificationPreviewSnapshot } from "@/lib/notifications/preview";
 import { createClient } from "@/lib/supabase/server";
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
+}));
+
+vi.mock("@/lib/notifications/actions", () => ({
+  markAllNotificationsRead: vi.fn(),
+}));
+
+vi.mock("@/lib/notifications/preview", () => ({
+  fetchNotificationPreviewSnapshot: vi.fn(),
 }));
 
 vi.mock("@/components/ui/progress-link", () => ({
@@ -65,6 +74,11 @@ describe("organizer layout navigation", () => {
   test("keeps organizer IA and applies mobile-friendly nav spacing for organizer users", async () => {
     const client = createSupabaseClientMock({ userId: "organizer-1", role: "organizer" });
     vi.mocked(createClient).mockResolvedValue(client as never);
+    vi.mocked(fetchNotificationPreviewSnapshot).mockResolvedValue({
+      notifications: [],
+      unreadCount: 3,
+      userId: "organizer-1",
+    });
 
     render(
       await OrganizerLayout({
@@ -89,13 +103,17 @@ describe("organizer layout navigation", () => {
     }
 
     expect(client.mocks.from).toHaveBeenCalledWith("profiles");
-    expect(client.mocks.from).toHaveBeenCalledWith("notifications");
-    expect(client.mocks.is).toHaveBeenCalledWith("read_at", null);
+    expect(fetchNotificationPreviewSnapshot).toHaveBeenCalled();
   });
 
   test("keeps guest organizer IA links for unauthenticated sessions", async () => {
     const client = createSupabaseClientMock({ userId: null });
     vi.mocked(createClient).mockResolvedValue(client as never);
+    vi.mocked(fetchNotificationPreviewSnapshot).mockResolvedValue({
+      notifications: [],
+      unreadCount: 0,
+      userId: null,
+    });
 
     render(
       await OrganizerLayout({

@@ -30,11 +30,13 @@ function isItemActive(pathname: string, href: string) {
 }
 
 type MathleteWorkspaceNavProps = {
+  markAllNotificationsRead?: () => Promise<void> | void;
   notifications?: NotificationItem[] | null;
   unreadCount?: number | null;
 };
 
 export function MathleteWorkspaceNav({
+  markAllNotificationsRead,
   notifications,
   unreadCount = 0,
 }: MathleteWorkspaceNavProps) {
@@ -76,6 +78,7 @@ export function MathleteWorkspaceNav({
         <div className="flex items-center gap-4 rounded-full bg-[#0f121a] py-1 pl-6 pr-2">
           <NotificationBellDropdown
             label="Mathlete notifications"
+            markAllAction={markAllNotificationsRead}
             notifications={notifications}
             unreadCount={unreadCount}
           />

@@ -75,11 +75,13 @@ export function NotificationInboxShell({
             <OrganizerNav
               isOrganizer
               isAuthenticated
+              markAllNotificationsRead={markAllAction}
               notifications={notifications}
               unreadCount={safeUnreadCount}
             />
           ) : role === "mathlete" ? (
             <MathleteWorkspaceNav
+              markAllNotificationsRead={markAllAction}
               notifications={notifications}
               unreadCount={safeUnreadCount}
             />

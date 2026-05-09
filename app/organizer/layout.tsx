@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { OrganizerNav } from "@/components/organizer/organizer-nav";
+import { markAllNotificationsRead } from "@/lib/notifications/actions";
 import { fetchNotificationPreviewSnapshot } from "@/lib/notifications/preview";
 import { createClient } from "@/lib/supabase/server";
 
@@ -49,6 +50,7 @@ export default async function OrganizerLayout({
           <OrganizerNav
             isOrganizer={isOrganizer}
             isAuthenticated={Boolean(notificationSnapshot.userId)}
+            markAllNotificationsRead={markAllNotificationsRead}
             notifications={notificationSnapshot.notifications}
             unreadCount={notificationSnapshot.unreadCount}
           />

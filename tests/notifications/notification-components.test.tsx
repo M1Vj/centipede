@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { NotificationInboxShell } from "@/components/notifications/notification-inbox-shell";
@@ -52,6 +52,36 @@ describe("notification components", () => {
     ).toHaveAttribute("href", "/mathlete/history");
     expect(screen.getByRole("button", { name: "Mark Leaderboard published as read" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mark all notifications as read" })).toBeInTheDocument();
+  });
+
+  test("passes mark-all action to the inbox header notification bell", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NotificationInboxShell
+        notifications={[
+          {
+            id: "notification-1",
+            title: "Team invite",
+            body: "Join Team One.",
+            createdAt: "2026-05-05T02:00:00.000Z",
+            linkPath: "/mathlete/teams/invites",
+            readAt: null,
+            type: "team_invite_created",
+          },
+        ]}
+        role="mathlete"
+        unreadCount={1}
+        markAllAction={async () => {}}
+        markReadAction={async () => {}}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Mathlete notifications, 1 unread" }));
+
+    const menu = screen.getByRole("menu");
+    expect(within(menu).getByRole("link", { name: "View inbox" })).toBeInTheDocument();
+    expect(within(menu).getByRole("button", { name: "Mark all notifications as read" })).toBeEnabled();
   });
 
   test("renders inbox empty and unavailable states accessibly", () => {
@@ -134,11 +164,13 @@ describe("notification components", () => {
 
   test("bell dropdown shows recent notification previews and deep-links to notification routes", async () => {
     const user = userEvent.setup();
+    const markAllAction = vi.fn();
 
     render(
       <NotificationBellDropdown
         unreadCount={3}
         label="Organizer notifications"
+        markAllAction={markAllAction}
         notifications={[
           {
             id: "notification-1",
@@ -160,9 +192,27 @@ describe("notification components", () => {
       screen.getByText("Room assignments are now available in the competition overview."),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View inbox" })).toHaveAttribute("href", "/notifications");
+    expect(screen.getByRole("button", { name: "Mark all notifications as read" })).toBeEnabled();
     expect(screen.getByRole("menuitem", { name: "Notification settings" })).toHaveAttribute(
       "href",
       "/settings/notifications",
     );
+  });
+
+  test("bell dropdown disables mark-all when there are no unread notifications", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NotificationBellDropdown
+        unreadCount={0}
+        label="Mathlete notifications"
+        markAllAction={async () => {}}
+        notifications={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Mathlete notifications" }));
+
+    expect(screen.getByRole("button", { name: "Mark all notifications as read" })).toBeDisabled();
   });
 });

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { MathleteWorkspaceNav } from "@/components/mathlete/workspace-nav";
+import { markAllNotificationsRead } from "@/lib/notifications/actions";
 import { fetchNotificationPreviewSnapshot } from "@/lib/notifications/preview";
 
 export default async function MathleteLayout({
@@ -37,6 +38,7 @@ export default async function MathleteLayout({
           </ProgressLink>
 
           <MathleteWorkspaceNav
+            markAllNotificationsRead={markAllNotificationsRead}
             notifications={notificationSnapshot.notifications}
             unreadCount={notificationSnapshot.unreadCount}
           />
