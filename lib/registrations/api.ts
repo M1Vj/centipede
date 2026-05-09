@@ -10,6 +10,7 @@ import {
 import type { CompetitionRecord } from "@/lib/competition/types";
 import type {
   RegistrationDetail,
+  RegistrationCompetitionSummary,
   OrganizerRegistrationDetail,
   RegistrationRow,
   RegistrationRpcResult,
@@ -306,6 +307,7 @@ export async function listMyRegistrations(input: {
 export async function listMyRegistrationDetails(input: {
   statuses?: RegistrationStatus[];
   limit?: number;
+  competitionTypes?: Array<RegistrationCompetitionSummary["type"]>;
 } = {}): Promise<RegistrationDetail[]> {
   const supabase = await createClient();
   const {
@@ -325,7 +327,9 @@ export async function listMyRegistrationDetails(input: {
     query.in("status", input.statuses);
   }
 
-  if (input.limit && input.limit > 0) {
+  const hasCompetitionTypeFilter = Boolean(input.competitionTypes?.length);
+
+  if (input.limit && input.limit > 0 && !hasCompetitionTypeFilter) {
     query.limit(input.limit);
   }
 
@@ -385,7 +389,7 @@ export async function listMyRegistrationDetails(input: {
       });
   }
 
-  return registrations.map((registration) => {
+  let details: RegistrationDetail[] = registrations.map((registration) => {
     const competition = competitionsById.get(registration.competition_id) ?? null;
 
     return {
@@ -411,6 +415,20 @@ export async function listMyRegistrationDetails(input: {
         : null,
     };
   });
+
+  if (input.competitionTypes?.length) {
+    const competitionTypes = new Set(input.competitionTypes);
+    details = details.filter(
+      (registration) =>
+        registration.competition !== null && competitionTypes.has(registration.competition.type),
+    );
+  }
+
+  if (input.limit && input.limit > 0 && hasCompetitionTypeFilter) {
+    details = details.slice(0, input.limit);
+  }
+
+  return details;
 }
 
 export async function listOrganizerCompetitionRegistrations(input: {

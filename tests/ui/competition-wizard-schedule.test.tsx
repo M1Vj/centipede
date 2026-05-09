@@ -85,6 +85,39 @@ describe("CompetitionWizard schedule behavior", () => {
     expect(screen.getByText("Available problems")).toBeInTheDocument();
   });
 
+  test("labels the phase indicator as current position instead of completion percent", () => {
+    renderWizard();
+
+    expect(screen.getByText("Phase 1/5")).toBeInTheDocument();
+    expect(screen.getByText("Current step")).toBeInTheDocument();
+    expect(screen.queryByText("Step 1 of 5")).not.toBeInTheDocument();
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument();
+    expect(screen.queryByText("20%")).not.toBeInTheDocument();
+
+    openScheduleStep();
+
+    expect(screen.getByText("Phase 2/5")).toBeInTheDocument();
+    expect(screen.queryByText("40%")).not.toBeInTheDocument();
+  });
+
+  test("scrolls to the wizard top when continuing between phases", () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+
+    renderWizard();
+
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Schedule/i }));
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Problems/i }));
+
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+  });
+
   test("places create draft in the final navigation row", () => {
     renderWizard();
 

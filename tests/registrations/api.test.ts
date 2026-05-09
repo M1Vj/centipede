@@ -186,6 +186,72 @@ describe("registration api helpers", () => {
     ]);
   });
 
+  test("listMyRegistrationDetails filters by competition type before applying the limit", async () => {
+    const { client, registrationQuery } = createSupabaseMock({
+      registrations: {
+        data: [
+          {
+            id: "registration-open",
+            competition_id: "competition-open",
+            team_id: null,
+            status: "registered",
+            status_reason: null,
+            registered_at: "2026-04-25T02:00:00.000Z",
+            updated_at: "2026-04-25T02:00:00.000Z",
+          },
+          {
+            id: "registration-scheduled",
+            competition_id: "competition-scheduled",
+            team_id: null,
+            status: "registered",
+            status_reason: null,
+            registered_at: "2026-04-25T01:00:00.000Z",
+            updated_at: "2026-04-25T01:00:00.000Z",
+          },
+        ],
+        error: null,
+      },
+      competitions: {
+        data: [
+          {
+            ...currentCompetitionRow,
+            id: "competition-open",
+            type: "open",
+            name: "Open Practice Arena",
+            start_time: null,
+            registration_start: null,
+            registration_end: null,
+          },
+          {
+            ...currentCompetitionRow,
+            id: "competition-scheduled",
+            name: "Scheduled Invitational",
+          },
+        ],
+        error: null,
+      },
+    });
+    vi.mocked(createClient).mockResolvedValue(client as never);
+
+    const details = await listMyRegistrationDetails({
+      statuses: ["registered"],
+      competitionTypes: ["scheduled"],
+      limit: 1,
+    });
+
+    expect(registrationQuery.limit).not.toHaveBeenCalled();
+    expect(details).toEqual([
+      expect.objectContaining({
+        id: "registration-scheduled",
+        competition_id: "competition-scheduled",
+        competition: expect.objectContaining({
+          id: "competition-scheduled",
+          type: "scheduled",
+        }),
+      }),
+    ]);
+  });
+
   test("listMyRegistrationDetails falls back to legacy competition columns when current schema columns are missing", async () => {
     const { client, competitionQueries } = createSupabaseMock({
       registrations: {
