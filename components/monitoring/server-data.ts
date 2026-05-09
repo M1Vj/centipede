@@ -19,6 +19,8 @@ type SupabaseError = {
 type AttemptRow = {
   id?: unknown;
   registration_id?: unknown;
+  participant_profile_id?: unknown;
+  attempt_no?: unknown;
   status?: unknown;
   started_at?: unknown;
   updated_at?: unknown;
@@ -124,7 +126,7 @@ async function listMonitoringAttemptSummaries(
   const { data, error } = await supabase
     .from("competition_attempts")
     .select(
-      "id, registration_id, status, started_at, updated_at, total_time_seconds, final_score, raw_score, offense_count, effective_attempt_deadline_at, grade_summary_json",
+      "id, registration_id, participant_profile_id, attempt_no, status, started_at, updated_at, total_time_seconds, final_score, raw_score, offense_count, effective_attempt_deadline_at, grade_summary_json",
     )
     .eq("competition_id", competitionId)
     .in("status", statuses)
@@ -166,6 +168,8 @@ async function listMonitoringAttemptSummaries(
     return {
       attemptId,
       registrationId,
+      participantProfileId: readString(row.participant_profile_id),
+      attemptNo: readNumber(row.attempt_no),
       displayName: registrationNames.get(registrationId) ?? "Unknown participant",
       status: readString(row.status) ?? "in_progress",
       score,

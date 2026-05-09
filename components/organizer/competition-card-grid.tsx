@@ -109,7 +109,10 @@ function CompetitionCard({
   const isCompleted = competition.status === "ended" || competition.status === "archived";
   const isDeleting = deletingCompetitionId === competition.id;
   const deleteButtonLabel = isDraft ? "Delete draft competition" : "Delete competition unavailable";
-  const monitoringHref = `/organizer/competition/${competition.id}/participants`;
+  const monitoringHref =
+    competition.status === "live" && competition.format === "team"
+      ? `/organizer/competition/${competition.id}/live-teams`
+      : `/organizer/competition/${competition.id}/participants`;
   const showCompetitionMetadata = competition.type === "scheduled";
 
   const cardBase = isDraft

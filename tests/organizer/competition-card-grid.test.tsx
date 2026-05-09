@@ -175,6 +175,31 @@ describe("CompetitionCardGrid delete flow", () => {
       "/organizer/competition/paused-competition/participants",
     );
   });
+
+  test("links live team competitions to the team live monitoring UI", () => {
+    render(
+      <CompetitionCardGrid
+        competitions={[
+          buildCompetition("live", {
+            id: "live-team-competition",
+            name: "Live Team Competition",
+            format: "team",
+            participantsPerTeam: 2,
+            maxTeams: 8,
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: /live view/i })).toHaveAttribute(
+      "href",
+      "/organizer/competition/live-team-competition/live-teams",
+    );
+    expect(screen.getByRole("link", { name: "Open live monitoring controls" })).toHaveAttribute(
+      "href",
+      "/organizer/competition/live-team-competition/live-teams",
+    );
+  });
 });
 
 describe("CompetitionCardGrid scheduled lifecycle refresh", () => {
