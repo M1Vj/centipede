@@ -15,7 +15,7 @@ export interface OrganizerCompetitionRow {
   status: CompetitionStatus;
   registrationCount: number;
   capacity: number | null;
-  dateLabel: string;
+  dateLabel: string | null;
   href: string;
 }
 

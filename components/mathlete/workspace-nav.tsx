@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Menu, Settings, UserCircle2 } from "lucide-react";
+import { Menu, Settings } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
 import { NotificationBellDropdown } from "@/components/notifications/notification-bell-dropdown";
@@ -95,15 +95,6 @@ export function MathleteWorkspaceNav({
             className="absolute right-0 top-[calc(100%+12px)] w-60 rounded-3xl border border-slate-200 bg-white p-2.5 text-slate-900 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.45)]"
             role="menu"
           >
-            <ProgressLink
-              href="/mathlete"
-              className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              role="menuitem"
-              onClick={() => setMenuOpen(false)}
-            >
-              <UserCircle2 className="size-4" />
-              Dashboard
-            </ProgressLink>
             <ProgressLink
               href="/mathlete/settings"
               className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"

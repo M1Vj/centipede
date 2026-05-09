@@ -47,6 +47,9 @@ function getEffectiveRegistrationEnd(competition: DiscoverableCompetition) {
 }
 
 export function CompetitionDetailPanel({ competition }: CompetitionDetailPanelProps) {
+  const isScheduledCompetition = competition.type === "scheduled";
+  const showOverviewStart = Boolean(isScheduledCompetition && competition.startTime);
+
   return (
     <section className="space-y-6">
       <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
@@ -67,19 +70,21 @@ export function CompetitionDetailPanel({ competition }: CompetitionDetailPanelPr
             <Timer className="size-4 text-[#f49700]" />
             {competition.durationMinutes} minutes
           </div>
-          <div className="flex items-center gap-2">
-            <CalendarDays className="size-4 text-[#f49700]" />
-            <LocalDateTime
-              value={competition.startTime}
-              options={{
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-              }}
-            />
-          </div>
+          {showOverviewStart ? (
+            <div className="flex items-center gap-2">
+              <CalendarDays className="size-4 text-[#f49700]" />
+              <LocalDateTime
+                value={competition.startTime}
+                options={{
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                }}
+              />
+            </div>
+          ) : null}
           <div className="flex items-center gap-2">
             <ShieldCheck className="size-4 text-[#f49700]" />
             {formatCapacityLabel(competition)}
@@ -94,51 +99,53 @@ export function CompetitionDetailPanel({ competition }: CompetitionDetailPanelPr
         </p>
       </div>
 
-      <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Schedule</p>
-        <div className="mt-3 grid gap-3 text-sm text-slate-500">
-          <div className="flex items-center justify-between">
-            <span>Registration opens</span>
-            <LocalDateTime
-              value={competition.registrationStart}
-              fallback={formatRegistrationStartFallback(competition)}
-              options={{
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-              }}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <span>Registration closes</span>
-            <LocalDateTime
-              value={getEffectiveRegistrationEnd(competition)}
-              options={{
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-              }}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <span>Competition start</span>
-            <LocalDateTime
-              value={competition.startTime}
-              options={{
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-              }}
-            />
+      {isScheduledCompetition ? (
+        <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Schedule</p>
+          <div className="mt-3 grid gap-3 text-sm text-slate-500">
+            <div className="flex items-center justify-between">
+              <span>Registration opens</span>
+              <LocalDateTime
+                value={competition.registrationStart}
+                fallback={formatRegistrationStartFallback(competition)}
+                options={{
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Registration closes</span>
+              <LocalDateTime
+                value={getEffectiveRegistrationEnd(competition)}
+                options={{
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Competition start</span>
+              <LocalDateTime
+                value={competition.startTime}
+                options={{
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                }}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
     </section>
   );
 }

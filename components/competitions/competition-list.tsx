@@ -57,6 +57,11 @@ export function CompetitionList({ competitions, registrationLookup }: Competitio
       {competitions.map((competition) => {
         const registration = registrationLookup[competition.id];
         const badge = formatStatusBadge(registration?.status ?? null);
+        const showFormat = competition.type !== "open";
+        const showScheduleDate = Boolean(
+          competition.type === "scheduled" && (competition.startTime || competition.registrationStart),
+        );
+        const showMetadata = showFormat || showScheduleDate;
 
         return (
           <article
@@ -84,19 +89,25 @@ export function CompetitionList({ competitions, registrationLookup }: Competitio
               ) : null}
             </div>
 
-            <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-slate-500">
-              <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-slate-500 ring-1 ring-slate-200">
-                <Users2 className="size-4" />
-                {formatFormatLabel(competition)}
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-slate-500 ring-1 ring-slate-200">
-                <CalendarDays className="size-4" />
-                <LocalDateTime
-                  value={competition.startTime ?? competition.registrationStart}
-                  options={{ month: "short", day: "numeric", year: "numeric" }}
-                />
-              </span>
-            </div>
+            {showMetadata ? (
+              <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-slate-500">
+                {showFormat ? (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-slate-500 ring-1 ring-slate-200">
+                    <Users2 className="size-4" />
+                    {formatFormatLabel(competition)}
+                  </span>
+                ) : null}
+                {showScheduleDate ? (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-slate-500 ring-1 ring-slate-200">
+                    <CalendarDays className="size-4" />
+                    <LocalDateTime
+                      value={competition.startTime ?? competition.registrationStart}
+                      options={{ month: "short", day: "numeric", year: "numeric" }}
+                    />
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
