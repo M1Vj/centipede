@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { POST as startCompetition } from "@/app/api/organizer/competitions/[competitionId]/start/route";
 import { POST as endCompetition } from "@/app/api/organizer/competitions/[competitionId]/end/route";
 import { POST as archiveCompetition } from "@/app/api/organizer/competitions/[competitionId]/archive/route";
+import { dispatchCompetitionStartedNotifications } from "@/lib/notifications/competition-start";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,12 +14,21 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(),
 }));
 
+vi.mock("@/lib/notifications/competition-start", () => ({
+  dispatchCompetitionStartedNotifications: vi.fn().mockResolvedValue({
+    attempted: 2,
+    sent: 2,
+    skipped: 0,
+    failed: 0,
+  }),
+}));
+
 const ORGANIZER_ID = "organizer-1";
 const COMPETITION_ID = "competition-1";
 
 type MockStatus = "draft" | "published" | "live" | "paused" | "ended" | "archived";
 
-function makeCompetitionRow(status: MockStatus) {
+function makeCompetitionRow(status: MockStatus, overrides: Record<string, unknown> = {}) {
   return {
     id: COMPETITION_ID,
     organizer_id: ORGANIZER_ID,
@@ -48,6 +58,7 @@ function makeCompetitionRow(status: MockStatus) {
     published: status !== "draft",
     is_paused: status === "paused",
     created_at: "2026-04-15T00:00:00.000Z",
+    ...overrides,
   };
 }
 
@@ -132,7 +143,7 @@ describe("lifecycle route legacy fallback compatibility", () => {
 
   test("start route allows idempotent replay responses from lifecycle RPC", async () => {
     vi.mocked(createClient).mockResolvedValue(
-      makeSupabaseClient([makeCompetitionRow("live"), makeCompetitionRow("live")]) as never,
+      makeSupabaseClient([makeCompetitionRow("published"), makeCompetitionRow("live")]) as never,
     );
 
     const rpc = vi.fn().mockResolvedValue({
@@ -165,6 +176,44 @@ describe("lifecycle route legacy fallback compatibility", () => {
     expect(rpc).toHaveBeenCalledWith("start_competition", {
       p_competition_id: COMPETITION_ID,
       p_request_idempotency_token: "idem-token-123",
+    });
+    expect(dispatchCompetitionStartedNotifications).toHaveBeenCalledWith({
+      actorId: ORGANIZER_ID,
+      competitionId: COMPETITION_ID,
+      organizerId: ORGANIZER_ID,
+      requestIdempotencyToken: "idem-token-123",
+    });
+  });
+
+  test("start route backfills notifications when competition is already live", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseClient([makeCompetitionRow("live")]) as never,
+    );
+
+    const rpc = vi.fn();
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc,
+    } as never);
+
+    const response = await startCompetition(makeMutationRequest("start"), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.lifecycle).toMatchObject({
+      machineCode: "ok",
+      status: "live",
+      replayed: true,
+      changed: false,
+    });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(dispatchCompetitionStartedNotifications).toHaveBeenCalledWith({
+      actorId: ORGANIZER_ID,
+      competitionId: COMPETITION_ID,
+      organizerId: ORGANIZER_ID,
+      requestIdempotencyToken: "idem-token-123",
     });
   });
 
@@ -465,6 +514,47 @@ describe("lifecycle route legacy fallback compatibility", () => {
     expect(body.competition.status).toBe(targetStatus);
     expect(body.lifecycle.machineCode).toBe("ok");
     expect(rpc).toHaveBeenCalledWith(rpcName, rpcArgs);
+  });
+
+  test("end route allows scheduled competition manual end from monitoring control", async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseClient([
+        makeCompetitionRow("live", { type: "scheduled" }),
+        makeCompetitionRow("ended", { type: "scheduled" }),
+      ]) as never,
+    );
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        machine_code: "ok",
+        status: "ended",
+        event_id: "event-1",
+        request_idempotency_token: "idem-token-123",
+        replayed: false,
+        changed: true,
+      },
+      error: null,
+    });
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc,
+      from: vi.fn(),
+    } as never);
+
+    const response = await endCompetition(makeMutationRequest("end"), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(body.competition.status).toBe("ended");
+    expect(rpc).toHaveBeenCalledWith("end_competition", {
+      p_competition_id: COMPETITION_ID,
+      p_request_idempotency_token: "idem-token-123",
+      p_reason: "manual",
+      p_transition_source: "trusted_manual_action",
+    });
   });
 
   test("returns service unavailable when fallback cannot persist lifecycle state", async () => {

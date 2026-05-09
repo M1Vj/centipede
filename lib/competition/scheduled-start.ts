@@ -1,8 +1,10 @@
 import { normalizeCompetitionLifecycleResult } from "@/lib/competition/api";
+import { dispatchCompetitionStartedNotifications } from "@/lib/notifications/competition-start";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type DueCompetitionRow = {
   id?: string | null;
+  organizer_id?: string | null;
   start_time?: string | null;
   startTime?: string | null;
   end_time?: string | null;
@@ -35,6 +37,10 @@ export type ScheduledEndSummary = {
   skipped: number;
   results: ScheduledStartLifecycleResult[];
   serviceUnavailable?: boolean;
+};
+
+type ScheduledEndOptions = {
+  excludeCompetitionIds?: Iterable<string>;
 };
 
 function normalizeStartTime(row: DueCompetitionRow) {
@@ -95,7 +101,7 @@ export async function startDueScheduledCompetitions(now = new Date()): Promise<S
 
   const { data, error } = await admin
     .from("competitions")
-    .select("id, start_time")
+    .select("id, organizer_id, start_time")
     .eq("type", "scheduled")
     .eq("status", "published")
     .eq("is_deleted", false)
@@ -113,9 +119,10 @@ export async function startDueScheduledCompetitions(now = new Date()): Promise<S
 
   for (const row of rows) {
     const competitionId = typeof row.id === "string" ? row.id : "";
+    const organizerId = typeof row.organizer_id === "string" ? row.organizer_id : "";
     const startTime = normalizeStartTime(row);
 
-    if (!competitionId || !startTime) {
+    if (!competitionId || !organizerId || !startTime) {
       skipped += 1;
       continue;
     }
@@ -164,6 +171,12 @@ export async function startDueScheduledCompetitions(now = new Date()): Promise<S
     });
 
     if (normalized.machineCode === "ok") {
+      await dispatchCompetitionStartedNotifications({
+        actorId: null,
+        competitionId,
+        organizerId,
+        requestIdempotencyToken,
+      });
       started += 1;
     } else {
       skipped += 1;
@@ -187,7 +200,10 @@ export async function startDueScheduledCompetitionsSafely(now = new Date()) {
   }
 }
 
-export async function endDueScheduledCompetitions(now = new Date()): Promise<ScheduledEndSummary> {
+export async function endDueScheduledCompetitions(
+  now = new Date(),
+  options: ScheduledEndOptions = {},
+): Promise<ScheduledEndSummary> {
   const admin = createAdminClient();
   if (!admin) {
     return {
@@ -211,7 +227,13 @@ export async function endDueScheduledCompetitions(now = new Date()): Promise<Sch
     throw error;
   }
 
+  const excludedCompetitionIds = new Set(options.excludeCompetitionIds ?? []);
   const rows = ((data ?? []) as DueCompetitionRow[]).filter((row) => {
+    const competitionId = typeof row.id === "string" ? row.id : "";
+    if (competitionId && excludedCompetitionIds.has(competitionId)) {
+      return false;
+    }
+
     const endTime = resolveScheduledEndTime(row);
     const endTimestamp = endTime ? new Date(endTime).getTime() : Number.NaN;
     return !Number.isNaN(endTimestamp) && endTimestamp <= now.getTime();
@@ -289,9 +311,12 @@ export async function endDueScheduledCompetitions(now = new Date()): Promise<Sch
   };
 }
 
-export async function endDueScheduledCompetitionsSafely(now = new Date()) {
+export async function endDueScheduledCompetitionsSafely(
+  now = new Date(),
+  options: ScheduledEndOptions = {},
+) {
   try {
-    return await endDueScheduledCompetitions(now);
+    return await endDueScheduledCompetitions(now, options);
   } catch (error) {
     console.error("Failed to end due scheduled competitions:", error);
     return null;
@@ -300,7 +325,12 @@ export async function endDueScheduledCompetitionsSafely(now = new Date()) {
 
 export async function runDueScheduledCompetitionLifecycleSafely(now = new Date()) {
   const startSummary = await startDueScheduledCompetitionsSafely(now);
-  const endSummary = await endDueScheduledCompetitionsSafely(now);
+  const startedThisPass = (startSummary?.results ?? [])
+    .filter((result) => result.machineCode === "ok" && result.status === "live" && result.changed)
+    .map((result) => result.competitionId);
+  const endSummary = await endDueScheduledCompetitionsSafely(now, {
+    excludeCompetitionIds: startedThisPass,
+  });
 
   return { startSummary, endSummary };
 }

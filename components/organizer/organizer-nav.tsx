@@ -1,22 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Menu, Settings, UserCircle2 } from "lucide-react";
+import { Menu, Settings, UserCircle2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
+import { NotificationBellDropdown } from "@/components/notifications/notification-bell-dropdown";
 import { ProgressLink } from "@/components/ui/progress-link";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 interface OrganizerNavProps {
   isOrganizer: boolean;
   isAuthenticated: boolean;
+  unreadCount?: number | null;
 }
 
 const organizerItems = [
@@ -31,7 +26,7 @@ const guestItems = [
   { href: "/organizer/status", label: "Status" },
 ];
 
-export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps) {
+export function OrganizerNav({ isOrganizer, isAuthenticated, unreadCount = 0 }: OrganizerNavProps) {
   const pathname = usePathname() ?? "";
   const [menuOpen, setMenuOpen] = useState(false);
   const navItems = isAuthenticated && isOrganizer ? organizerItems : guestItems;
@@ -82,27 +77,7 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
       {isAuthenticated ? (
         <div className="relative hidden md:block">
           <div className="flex items-center gap-4 rounded-full bg-[#0f121a] py-1 pl-6 pr-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="relative mr-2 text-[#f49700] transition-colors hover:text-white"
-                  aria-label="Notifications"
-                >
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute right-0 top-0 h-2 w-2 rounded-full bg-red-500" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72 rounded-3xl border-slate-200 p-2.5">
-                <DropdownMenuLabel className="px-3 py-2 text-sm font-semibold text-slate-900">
-                  Notifications
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <div className="px-3 py-4 text-sm text-slate-500">
-                  No notifications yet. Organizer updates will appear here.
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <NotificationBellDropdown label="Organizer notifications" unreadCount={unreadCount} />
             <button
               type="button"
               onClick={() => setMenuOpen((current) => !current)}
@@ -185,6 +160,13 @@ export function OrganizerNav({ isOrganizer, isAuthenticated }: OrganizerNavProps
             )}
             {isAuthenticated ? (
               <>
+                <ProgressLink
+                  href="/notifications"
+                  className="block rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Notifications
+                </ProgressLink>
                 <ProgressLink
                   href="/organizer/profile"
                   className="block rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"

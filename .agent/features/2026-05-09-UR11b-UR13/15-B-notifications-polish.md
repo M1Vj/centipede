@@ -77,19 +77,20 @@ Unblocks: `16-participant-monitoring` and release readiness.
 | Event | Channel class | Delivery rule |
 | --- | --- | --- |
 | `score_recalculated` | `in_app_only` | Write inbox item only; never send email. |
-| `team_invite_sent`, `team_invite_accepted`, `team_invite_declined`, `team_roster_invalidated`, `competition_registration_confirmed`, `competition_registration_withdrawn`, `dispute_resolved`, `leaderboard_published` | `email_eligible` | Write inbox item and send email only when the user's preference row allows that event. |
+| `team_invite_sent`, `competition_started` | `email_eligible` | Always write inbox item for resolved recipients; send email only when the user's preference row allows that event. |
+| `team_invite_accepted`, `team_invite_declined`, `team_roster_invalidated`, `competition_registration_confirmed`, `competition_registration_withdrawn`, `dispute_resolved`, `leaderboard_published` | `email_eligible` | Write inbox item and send email only when the user's preference row allows that event. |
 | `competition_announcement_posted` | `email_eligible` | Always write inbox item for resolved recipients; send email only when announcement preference and email channel settings allow it. |
 | `organizer_application_submitted`, `organizer_application_approved`, `organizer_application_rejected` | `in_app_only` | Write inbox item only; branch 15 never sends organizer-lifecycle email because applicant transactional lifecycle-email ownership is branch 05. |
 
 - Allowed channel classes are fixed to `in_app_only`, `email_eligible`, and `email_required`.
 - `email_required` is reserved for future regulated-event flows and must not be introduced without process-flow and DB contract updates in the same branch.
-- `competition_announcement_posted` has a deterministic minimum: write an inbox item whenever a valid producer event is consumed; email follows the mapped channel class policy.
+- `team_invite_sent`, `competition_started`, and `competition_announcement_posted` have a deterministic minimum: write an inbox item whenever a valid producer event is consumed; email follows the mapped channel class policy.
 - New notification events must map to one existing channel class in this matrix; do not invent ad hoc delivery policy in code.
 
 ### Channel-Precedence Rules (Deterministic)
 
 - Mandatory inbox class events (`in_app_only`) always write exactly one inbox row per `(recipient_id, event_identity_key)` regardless of `in_app_enabled`.
-- `competition_announcement_posted` always writes exactly one inbox row per `(recipient_id, event_identity_key)` for resolved recipients; email remains preference-governed.
+- `team_invite_sent`, `competition_started`, and `competition_announcement_posted` always write exactly one inbox row per `(recipient_id, event_identity_key)` for resolved recipients; email remains preference-governed.
 - For `email_eligible` events outside mandatory inbox classes, inbox delivery requires `in_app_enabled = true` and the mapped category toggle enabled.
 - Email delivery always requires `email_enabled = true` and the mapped category toggle enabled.
 

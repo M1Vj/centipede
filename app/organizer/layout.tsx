@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { OrganizerNav } from "@/components/organizer/organizer-nav";
 import { createClient } from "@/lib/supabase/server";
@@ -11,6 +12,7 @@ export default async function OrganizerLayout({
   const { data: { user } } = await supabase.auth.getUser();
 
   let isOrganizer = false;
+  let unreadCount = 0;
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
@@ -18,6 +20,13 @@ export default async function OrganizerLayout({
       .eq("id", user.id)
       .maybeSingle<{ role: string }>();
     isOrganizer = profile?.role === "organizer";
+
+    const { count } = await supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("recipient_id", user.id)
+      .is("read_at", null);
+    unreadCount = count ?? 0;
   }
   
   return (
@@ -30,10 +39,13 @@ export default async function OrganizerLayout({
             href="/organizer"
             className="flex items-center gap-2 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1e2e]"
           >
-            <img
+            <Image
               src="/mathwiz-logo.svg"
               alt="MathWiz"
-              className="h-7 w-auto object-contain"
+              width={96}
+              height={28}
+              className="object-contain"
+              style={{ width: "auto", height: "28px" }}
             />
             <span className="text-[#f49700] font-bold text-[14px] tracking-wide">
               Organizer
@@ -41,7 +53,11 @@ export default async function OrganizerLayout({
           </ProgressLink>
 
           {/* Nav + Actions */}
-          <OrganizerNav isOrganizer={isOrganizer} isAuthenticated={Boolean(user)} />
+          <OrganizerNav
+            isOrganizer={isOrganizer}
+            isAuthenticated={Boolean(user)}
+            unreadCount={unreadCount}
+          />
         </nav>
       </header>
       {children}

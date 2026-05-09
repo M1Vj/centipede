@@ -86,12 +86,20 @@ async function CompetitionsList() {
                   <span>Max: {comp.max_participants || "∞"}</span>
                </div>
             </div>
-            <Button asChild variant="outline" size="sm" className="w-full gap-2 font-semibold">
-              <ProgressLink href={`/admin/competitions/${comp.id}`}>
-                View & Manage
-                <ArrowRight className="size-3" />
-              </ProgressLink>
-            </Button>
+            <div className="grid gap-2">
+              <Button asChild variant="outline" size="sm" className="w-full gap-2 font-semibold">
+                <ProgressLink href={`/admin/competitions/${comp.id}`}>
+                  View & Manage
+                  <ArrowRight className="size-3" />
+                </ProgressLink>
+              </Button>
+              <Button asChild size="sm" className="w-full gap-2 font-semibold">
+                <ProgressLink href={`/admin/competitions/${comp.id}/participants`}>
+                  Live support
+                  <ArrowRight className="size-3" />
+                </ProgressLink>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ))}

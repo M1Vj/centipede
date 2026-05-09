@@ -7,6 +7,7 @@ import {
   History,
   LayoutDashboard,
   Library,
+  Bell,
   Menu,
   Settings,
   Trophy,
@@ -19,6 +20,7 @@ import { ProgressLink } from "@/components/ui/progress-link";
 
 const navItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Users", href: "/admin/users", icon: Users },
   { label: "Applications", href: "/admin/applications", icon: FileText },
   { label: "Problem Banks", href: "/admin/problem-banks", icon: Library },

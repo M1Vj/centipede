@@ -39,8 +39,9 @@ vi.mock("@/components/logout-button", () => ({
 
 describe("MathleteWorkspaceNav", () => {
   test("omits dashboard anchor shortcuts from primary navigation", () => {
-    render(<MathleteWorkspaceNav />);
+    render(<MathleteWorkspaceNav unreadCount={4} />);
 
+    expect(screen.getByRole("button", { name: "Mathlete notifications, 4 unread" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/mathlete");
     expect(screen.getByRole("link", { name: "Competitions" })).toHaveAttribute(
       "href",

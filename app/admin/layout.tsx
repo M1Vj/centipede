@@ -2,6 +2,7 @@ import { connection } from "next/server";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import {
   LayoutDashboard,
+  Bell,
   Users,
   FileText,
   Library,
@@ -19,6 +20,7 @@ async function getAdminProfile() {
 
 const navItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Users", href: "/admin/users", icon: Users },
   { label: "Applications", href: "/admin/applications", icon: FileText },
   { label: "Problem Banks", href: "/admin/problem-banks", icon: Library },
