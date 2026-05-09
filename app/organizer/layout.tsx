@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { OrganizerNav } from "@/components/organizer/organizer-nav";
+import { fetchNotificationPreviewSnapshot } from "@/lib/notifications/preview";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function OrganizerLayout({
@@ -8,25 +9,17 @@ export default async function OrganizerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const notificationSnapshot = await fetchNotificationPreviewSnapshot();
 
   let isOrganizer = false;
-  let unreadCount = 0;
-  if (user) {
+  if (notificationSnapshot.userId) {
+    const supabase = await createClient();
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", user.id)
+      .eq("id", notificationSnapshot.userId)
       .maybeSingle<{ role: string }>();
     isOrganizer = profile?.role === "organizer";
-
-    const { count } = await supabase
-      .from("notifications")
-      .select("id", { count: "exact", head: true })
-      .eq("recipient_id", user.id)
-      .is("read_at", null);
-    unreadCount = count ?? 0;
   }
   
   return (
@@ -55,8 +48,9 @@ export default async function OrganizerLayout({
           {/* Nav + Actions */}
           <OrganizerNav
             isOrganizer={isOrganizer}
-            isAuthenticated={Boolean(user)}
-            unreadCount={unreadCount}
+            isAuthenticated={Boolean(notificationSnapshot.userId)}
+            notifications={notificationSnapshot.notifications}
+            unreadCount={notificationSnapshot.unreadCount}
           />
         </nav>
       </header>

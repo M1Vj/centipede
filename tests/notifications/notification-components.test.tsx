@@ -132,14 +132,34 @@ describe("notification components", () => {
     expect(screen.getByLabelText("Team invites")).toBeChecked();
   });
 
-  test("bell dropdown deep-links to notification routes and shows unread count", async () => {
+  test("bell dropdown shows recent notification previews and deep-links to notification routes", async () => {
     const user = userEvent.setup();
 
-    render(<NotificationBellDropdown unreadCount={3} label="Organizer notifications" />);
+    render(
+      <NotificationBellDropdown
+        unreadCount={3}
+        label="Organizer notifications"
+        notifications={[
+          {
+            id: "notification-1",
+            title: "Competition announcement",
+            body: "Room assignments are now available in the competition overview.",
+            createdAt: "2026-05-05T02:00:00.000Z",
+            linkPath: "/mathlete/competition/00000000-0000-0000-0000-000000000000",
+            readAt: null,
+            type: "competition_announcement_posted",
+          },
+        ]}
+      />,
+    );
 
     await user.click(screen.getByRole("button", { name: "Organizer notifications, 3 unread" }));
 
-    expect(screen.getByRole("menuitem", { name: "View inbox" })).toHaveAttribute("href", "/notifications");
+    expect(screen.getByText("Competition announcement")).toBeInTheDocument();
+    expect(
+      screen.getByText("Room assignments are now available in the competition overview."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View inbox" })).toHaveAttribute("href", "/notifications");
     expect(screen.getByRole("menuitem", { name: "Notification settings" })).toHaveAttribute(
       "href",
       "/settings/notifications",

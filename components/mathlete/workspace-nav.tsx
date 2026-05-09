@@ -5,6 +5,7 @@ import { Menu, Settings, UserCircle2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
 import { NotificationBellDropdown } from "@/components/notifications/notification-bell-dropdown";
+import type { NotificationItem } from "@/components/notifications/types";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { cn } from "@/lib/utils";
 
@@ -29,10 +30,14 @@ function isItemActive(pathname: string, href: string) {
 }
 
 type MathleteWorkspaceNavProps = {
+  notifications?: NotificationItem[] | null;
   unreadCount?: number | null;
 };
 
-export function MathleteWorkspaceNav({ unreadCount = 0 }: MathleteWorkspaceNavProps) {
+export function MathleteWorkspaceNav({
+  notifications,
+  unreadCount = 0,
+}: MathleteWorkspaceNavProps) {
   const pathname = usePathname() ?? "";
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -69,7 +74,11 @@ export function MathleteWorkspaceNav({ unreadCount = 0 }: MathleteWorkspaceNavPr
 
       <div className="relative hidden md:block">
         <div className="flex items-center gap-4 rounded-full bg-[#0f121a] py-1 pl-6 pr-2">
-          <NotificationBellDropdown label="Mathlete notifications" unreadCount={unreadCount} />
+          <NotificationBellDropdown
+            label="Mathlete notifications"
+            notifications={notifications}
+            unreadCount={unreadCount}
+          />
           <button
             type="button"
             onClick={() => setMenuOpen((current) => !current)}
