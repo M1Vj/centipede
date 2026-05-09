@@ -72,9 +72,19 @@ export function NotificationInboxShell({
           </ProgressLink>
 
           {role === "organizer" ? (
-            <OrganizerNav isOrganizer isAuthenticated unreadCount={safeUnreadCount} />
+            <OrganizerNav
+              isOrganizer
+              isAuthenticated
+              markAllNotificationsRead={markAllAction}
+              notifications={notifications}
+              unreadCount={safeUnreadCount}
+            />
           ) : role === "mathlete" ? (
-            <MathleteWorkspaceNav unreadCount={safeUnreadCount} />
+            <MathleteWorkspaceNav
+              markAllNotificationsRead={markAllAction}
+              notifications={notifications}
+              unreadCount={safeUnreadCount}
+            />
           ) : null}
         </nav>
       </header>

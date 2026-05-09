@@ -83,7 +83,11 @@ export function AnswerKeyView({ data }: AnswerKeyViewProps) {
                     <Badge variant="outline">{problem.points ?? 0} points</Badge>
                   </div>
                   <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <KatexPreview latex={problem.contentLatex} fallbackText="Problem statement unavailable." />
+                    <KatexPreview
+                      latex={problem.contentLatex}
+                      label="Problem prompt"
+                      fallbackText="Problem statement unavailable."
+                    />
                   </div>
                 </div>
                 {data.canDispute ? (
@@ -101,8 +105,8 @@ export function AnswerKeyView({ data }: AnswerKeyViewProps) {
               </div>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                  <h2 className="text-sm font-black uppercase tracking-[0.16em] text-emerald-900">
+                <section className="rounded-2xl border border-[#f49700]/30 bg-[#fff7e8] p-4">
+                  <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[#8a5400]">
                     Accepted answers
                   </h2>
                   <div className="mt-3 space-y-2">
@@ -111,9 +115,9 @@ export function AnswerKeyView({ data }: AnswerKeyViewProps) {
                         <div
                           key={`${answer}-${index}`}
                           aria-label={`Accepted answer ${index + 1}`}
-                          className="rounded-xl border border-emerald-200 bg-white p-3 text-emerald-950"
+                          className="rounded-xl border border-[#f49700]/25 bg-white p-3 text-[#1a1e2e]"
                         >
-                          <KatexPreview latex={answer} fallbackText={answer} />
+                          <KatexPreview latex={answer} label={null} fallbackText={answer} />
                         </div>
                       ),
                     )}
@@ -127,6 +131,7 @@ export function AnswerKeyView({ data }: AnswerKeyViewProps) {
                   <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
                     <KatexPreview
                       latex={problem.explanationLatex}
+                      label={null}
                       fallbackText="No explanation snapshot provided."
                     />
                   </div>
@@ -134,7 +139,7 @@ export function AnswerKeyView({ data }: AnswerKeyViewProps) {
               </div>
 
               {hasSubmittedDispute ? (
-                <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+                <p className="mt-4 rounded-xl border border-[#f49700]/30 bg-[#fff7e8] p-3 text-sm font-semibold text-[#8a5400]">
                   Dispute submitted for organizer review.
                 </p>
               ) : null}

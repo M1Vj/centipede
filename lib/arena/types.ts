@@ -87,6 +87,7 @@ export interface ArenaAttemptSummary {
   id: string;
   competitionId: string;
   registrationId: string;
+  participantProfileId?: string | null;
   attemptNo: number;
   status: AttemptStatus;
   startedAt: string;

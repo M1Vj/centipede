@@ -1,7 +1,10 @@
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { NotificationInboxShell } from "@/components/notifications/notification-inbox-shell";
 import type { NotificationItem } from "@/components/notifications/types";
+import {
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/lib/notifications/actions";
 import { hasEnvVars } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,23 +25,6 @@ type InboxSnapshot = {
   unreadCount: number;
   warning: string | null;
 };
-
-async function getAuthenticatedUserId() {
-  if (!hasEnvVars) {
-    return null;
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
-
-  return user.id;
-}
 
 function normalizeNotification(row: RawNotificationRow): NotificationItem | null {
   if (!row.id || !row.title) {
@@ -118,61 +104,6 @@ async function fetchInboxSnapshot(): Promise<InboxSnapshot> {
     unreadCount: unreadResult.count ?? notifications.filter((notification) => !notification.readAt).length,
     warning: unreadResult.error ? "Unread count is temporarily unavailable." : null,
   };
-}
-
-async function markNotificationRead(formData: FormData) {
-  "use server";
-
-  const notificationId = String(formData.get("notification_id") ?? "");
-  if (!notificationId) {
-    return;
-  }
-
-  const userId = await getAuthenticatedUserId();
-  if (!userId) {
-    return;
-  }
-
-  const supabase = await createClient();
-  const rpcResult = await supabase.rpc("mark_notification_read", {
-    p_notification_id: notificationId,
-  });
-
-  if (rpcResult.error) {
-    await supabase
-      .from("notifications")
-      .update({ read_at: new Date().toISOString() })
-      .eq("id", notificationId)
-      .eq("recipient_id", userId);
-  }
-
-  revalidatePath("/notifications");
-  revalidatePath("/mathlete");
-  revalidatePath("/organizer");
-}
-
-async function markAllNotificationsRead() {
-  "use server";
-
-  const userId = await getAuthenticatedUserId();
-  if (!userId) {
-    return;
-  }
-
-  const supabase = await createClient();
-  const rpcResult = await supabase.rpc("mark_all_notifications_read");
-
-  if (rpcResult.error) {
-    await supabase
-      .from("notifications")
-      .update({ read_at: new Date().toISOString() })
-      .eq("recipient_id", userId)
-      .is("read_at", null);
-  }
-
-  revalidatePath("/notifications");
-  revalidatePath("/mathlete");
-  revalidatePath("/organizer");
 }
 
 export default async function NotificationsPage() {

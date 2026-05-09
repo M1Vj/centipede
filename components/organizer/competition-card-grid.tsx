@@ -109,7 +109,11 @@ function CompetitionCard({
   const isCompleted = competition.status === "ended" || competition.status === "archived";
   const isDeleting = deletingCompetitionId === competition.id;
   const deleteButtonLabel = isDraft ? "Delete draft competition" : "Delete competition unavailable";
-  const monitoringHref = `/organizer/competition/${competition.id}/participants`;
+  const monitoringHref =
+    competition.status === "live" && competition.format === "team"
+      ? `/organizer/competition/${competition.id}/live-teams`
+      : `/organizer/competition/${competition.id}/participants`;
+  const showCompetitionMetadata = competition.type === "scheduled";
 
   const cardBase = isDraft
     ? "bg-white rounded-2xl border-2 border-dashed border-[#e2e8f0] p-5 flex flex-col relative h-[260px] hover:bg-slate-50/50 transition-colors"
@@ -148,7 +152,7 @@ function CompetitionCard({
               <Edit3 className="w-4 h-4" /> Drafting Content
             </div>
           </div>
-        ) : (
+        ) : showCompetitionMetadata ? (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-slate-500 text-[13px] font-medium">
             <div className="flex items-center gap-1.5">
               {competition.format === "team" ? (
@@ -170,7 +174,7 @@ function CompetitionCard({
               </div>
             )}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Footer Actions */}
@@ -235,7 +239,7 @@ function CompetitionCard({
           <>
             <ProgressLink
               href={`/organizer/competition/${competition.id}`}
-              className="flex-1 bg-[#f49700] hover:bg-[#e08900] text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2 shadow-sm"
+              className="flex-1 bg-[#f49700] hover:bg-[#e08900] text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2"
             >
               <Edit3 className="w-4 h-4" /> Edit Draft
             </ProgressLink>

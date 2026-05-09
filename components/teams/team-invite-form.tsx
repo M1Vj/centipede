@@ -158,7 +158,7 @@ export function TeamInviteForm({
             pending={isSubmitting}
             pendingText="Sending..."
             disabled={rosterLocked}
-            className="h-12 rounded-full bg-[#f49700] px-6 text-sm font-bold text-white shadow-[0_16px_30px_-18px_rgba(244,151,0,0.8)] hover:bg-[#de8a00]"
+            className="h-12 rounded-full bg-[#f49700] px-6 text-sm font-bold text-white hover:bg-[#de8a00]"
           >
             {rosterLocked ? "Locked" : "Send invite"}
           </Button>

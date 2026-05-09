@@ -1,5 +1,11 @@
+import { randomUUID } from "node:crypto";
 import { jsonError, jsonOk, requireMathleteActor, requireSameOriginMutation } from "@/lib/arena/api";
-import { loadArenaPageData, registerForCompetition } from "@/lib/arena/server";
+import { loadArenaPageData } from "@/lib/arena/server";
+import { registerForCompetition } from "@/lib/registrations/api";
+
+function createRequestIdempotencyToken() {
+  return randomUUID();
+}
 
 export async function POST(
   request: Request,
@@ -21,9 +27,13 @@ export async function POST(
   }
 
   const payload = (await request.json().catch(() => ({}))) as { teamId?: string | null };
-  const result = await registerForCompetition(competitionId, actorId, payload.teamId ?? null);
+  const result = await registerForCompetition({
+    competitionId,
+    teamId: payload.teamId ?? null,
+    requestIdempotencyToken: createRequestIdempotencyToken(),
+  });
 
-  if (!result || result.machine_code !== "ok") {
+  if (!result || (result.machine_code !== "ok" && result.machine_code !== "already_registered")) {
     return jsonError("registration_failed", "Competition registration failed.", 409, {
       machineCode: result?.machine_code ?? "unknown",
     });

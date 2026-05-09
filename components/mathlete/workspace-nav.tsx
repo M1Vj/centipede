@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Menu, Settings, UserCircle2 } from "lucide-react";
+import { Menu, Settings } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
 import { NotificationBellDropdown } from "@/components/notifications/notification-bell-dropdown";
+import type { NotificationItem } from "@/components/notifications/types";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { cn } from "@/lib/utils";
 
@@ -29,10 +30,16 @@ function isItemActive(pathname: string, href: string) {
 }
 
 type MathleteWorkspaceNavProps = {
+  markAllNotificationsRead?: () => Promise<void> | void;
+  notifications?: NotificationItem[] | null;
   unreadCount?: number | null;
 };
 
-export function MathleteWorkspaceNav({ unreadCount = 0 }: MathleteWorkspaceNavProps) {
+export function MathleteWorkspaceNav({
+  markAllNotificationsRead,
+  notifications,
+  unreadCount = 0,
+}: MathleteWorkspaceNavProps) {
   const pathname = usePathname() ?? "";
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -69,11 +76,16 @@ export function MathleteWorkspaceNav({ unreadCount = 0 }: MathleteWorkspaceNavPr
 
       <div className="relative hidden md:block">
         <div className="flex items-center gap-4 rounded-full bg-[#0f121a] py-1 pl-6 pr-2">
-          <NotificationBellDropdown label="Mathlete notifications" unreadCount={unreadCount} />
+          <NotificationBellDropdown
+            label="Mathlete notifications"
+            markAllAction={markAllNotificationsRead}
+            notifications={notifications}
+            unreadCount={unreadCount}
+          />
           <button
             type="button"
             onClick={() => setMenuOpen((current) => !current)}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f49700] text-[13px] font-bold text-white shadow-md transition-colors hover:bg-[#e08900]"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f49700] text-[13px] font-bold text-white transition-colors hover:bg-[#e08900]"
             aria-expanded={menuOpen}
             aria-haspopup="menu"
           >
@@ -86,15 +98,6 @@ export function MathleteWorkspaceNav({ unreadCount = 0 }: MathleteWorkspaceNavPr
             className="absolute right-0 top-[calc(100%+12px)] w-60 rounded-3xl border border-slate-200 bg-white p-2.5 text-slate-900 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.45)]"
             role="menu"
           >
-            <ProgressLink
-              href="/mathlete"
-              className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              role="menuitem"
-              onClick={() => setMenuOpen(false)}
-            >
-              <UserCircle2 className="size-4" />
-              Dashboard
-            </ProgressLink>
             <ProgressLink
               href="/mathlete/settings"
               className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"

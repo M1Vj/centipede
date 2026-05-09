@@ -58,6 +58,10 @@ function renderWizard(initialState = createDefaultCompetitionDraftState()) {
   );
 }
 
+function openProblemsStep() {
+  fireEvent.click(screen.getByRole("button", { name: "Problems" }));
+}
+
 describe("CompetitionWizard selection and custom scoring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -65,16 +69,19 @@ describe("CompetitionWizard selection and custom scoring", () => {
 
   test("supports bulk visible selection and removes duplicate scoring explanation card", () => {
     renderWizard();
+    openProblemsStep();
 
     fireEvent.click(screen.getByRole("button", { name: "Select all visible" }));
 
     expect(screen.getByText("3 selected. Publish requires 10 to 100.")).toBeInTheDocument();
     expect(screen.queryByText("How your score is computed")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Scoring" }));
     expect(screen.getByText("Scoring summary")).toBeInTheDocument();
   });
 
   test("shows one expanded problem bank at a time", async () => {
     renderWizard();
+    openProblemsStep();
 
     await waitFor(() => {
       expect(screen.getByText("First problem")).toBeInTheDocument();
@@ -95,6 +102,7 @@ describe("CompetitionWizard selection and custom scoring", () => {
       scoringMode: "custom",
       selectedProblemIds: ["problem-1"],
     });
+    openProblemsStep();
 
     const pointsInput = screen.getByLabelText("Custom points for First problem");
     fireEvent.change(pointsInput, { target: { value: "7" } });

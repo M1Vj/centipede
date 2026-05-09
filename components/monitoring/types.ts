@@ -5,6 +5,8 @@ export type MonitoringRiskLevel = "low" | "medium" | "high";
 export type MonitoringAttemptSummary = {
   attemptId: string;
   registrationId: string;
+  participantProfileId?: string | null;
+  attemptNo?: number | null;
   displayName: string;
   status: string;
   score: number | null;

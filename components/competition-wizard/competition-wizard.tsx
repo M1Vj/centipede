@@ -52,16 +52,16 @@ const WIZARD_STEPS: Array<{ id: CompetitionWizardStep; title: string; descriptio
   { id: "review", title: "Review", description: "Check state before create or publish." },
 ];
 
-const STEP_PROGRESS_CONFIG: Record<CompetitionWizardStep, { visualStep: number; totalSteps: number; percentage: number; title: string; description: string }> = {
-  overview: { visualStep: 1, totalSteps: 5, percentage: 20, title: "Competition Overview", description: "Define the name, rules, and instructions for your competition." },
-  schedule: { visualStep: 2, totalSteps: 5, percentage: 40, title: "Format & Schedule", description: "Configure competition type, timing, and participant format." },
-  format: { visualStep: 2, totalSteps: 5, percentage: 40, title: "Format & Schedule", description: "Configure competition type, timing, and participant format." },
-  problems: { visualStep: 3, totalSteps: 5, percentage: 60, title: "Competition Problems", description: "Select, search, and order problems before publish." },
-  scoring: { visualStep: 4, totalSteps: 5, percentage: 80, title: "Competition Scoring", description: "Define scoring rules, penalties, and anti-cheat policies." },
-  review: { visualStep: 5, totalSteps: 5, percentage: 99, title: "Competition Review", description: "Review all settings and publish your competition." },
+const STEP_PROGRESS_CONFIG: Record<CompetitionWizardStep, { visualStep: number; totalSteps: number; title: string; description: string }> = {
+  overview: { visualStep: 1, totalSteps: 5, title: "Competition Overview", description: "Define the name, rules, and instructions for your competition." },
+  schedule: { visualStep: 2, totalSteps: 5, title: "Format & Schedule", description: "Configure competition type, timing, and participant format." },
+  format: { visualStep: 2, totalSteps: 5, title: "Format & Schedule", description: "Configure competition type, timing, and participant format." },
+  problems: { visualStep: 3, totalSteps: 5, title: "Competition Problems", description: "Select, search, and order problems before publish." },
+  scoring: { visualStep: 4, totalSteps: 5, title: "Competition Scoring", description: "Define scoring rules, penalties, and anti-cheat policies." },
+  review: { visualStep: 5, totalSteps: 5, title: "Competition Review", description: "Review all settings and publish your competition." },
 };
 
-const STEP_ORDER: CompetitionWizardStep[] = ["overview", "schedule", "format", "problems", "scoring", "review"];
+const STEP_ORDER: CompetitionWizardStep[] = ["overview", "schedule", "problems", "scoring", "review"];
 
 function getStepNavigation(currentStep: CompetitionWizardStep) {
   const currentIndex = STEP_ORDER.indexOf(currentStep);
@@ -509,6 +509,7 @@ export function CompetitionWizard({
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState<CompetitionWizardStep>("overview");
+  const wizardTopRef = useRef<HTMLDivElement | null>(null);
   const [reviewProblemPage, setReviewProblemPage] = useState(1);
   const [draftRevision, setDraftRevision] = useState<number>(initialCompetition?.draftRevision ?? 1);
   const [competitionStatus, setCompetitionStatus] = useState<CompetitionStatus>(initialCompetition?.status ?? "draft");
@@ -688,6 +689,14 @@ export function CompetitionWizard({
     setDraftState(nextState);
     setStatus("idle");
     setStatusMessage(null);
+  }
+
+  function navigateToStep(nextStep: CompetitionWizardStep) {
+    setActiveStep(nextStep);
+    const wizardTop = wizardTopRef.current;
+    if (typeof wizardTop?.scrollIntoView === "function") {
+      wizardTop.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
 
   function setCompetitionType(nextType: "open" | "scheduled") {
@@ -991,7 +1000,7 @@ export function CompetitionWizard({
     }
   }
 
-  const expandedSectionMode = true;
+  const expandedSectionMode = false;
   const isImmersiveStep =
     !expandedSectionMode &&
     (activeStep === "problems" || activeStep === "scoring" || activeStep === "review");
@@ -1033,9 +1042,11 @@ export function CompetitionWizard({
   ] as const;
   const stepProgress = STEP_PROGRESS_CONFIG[activeStep];
   const stepNav = getStepNavigation(activeStep);
+  const stepTrackWidth = `${(stepProgress.visualStep / stepProgress.totalSteps) * 100}%`;
 
   return (
     <div
+      ref={wizardTopRef}
       className={cn(
         "grid gap-8",
         isImmersiveStep ? "" : "2xl:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.88fr)]",
@@ -1045,9 +1056,6 @@ export function CompetitionWizard({
         <div className="w-full rounded-[30px] border border-[#f3d7aa] bg-white p-8 shadow-[0_18px_50px_rgba(15,18,26,0.06)]">
           <div className="mb-6 flex items-start justify-between gap-6">
             <div className="space-y-2">
-              <div className="text-[13px] font-black uppercase tracking-[0.22em] text-[#f49700]">
-                Step {stepProgress.visualStep} of {stepProgress.totalSteps}
-              </div>
               <h1 className="text-[28px] font-black leading-tight text-[#10182b] md:text-[32px]">
                 {stepProgress.title}
               </h1>
@@ -1057,17 +1065,17 @@ export function CompetitionWizard({
             </div>
             <div className="text-right">
               <div className="text-[28px] font-black leading-none text-[#10182b]">
-                {stepProgress.percentage}%
+                Phase {stepProgress.visualStep}/{stepProgress.totalSteps}
               </div>
               <div className="mt-1 text-[12px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                Completed
+                Current step
               </div>
             </div>
           </div>
           <div className="mb-6 h-3 w-full overflow-hidden rounded-full bg-slate-100">
             <div
-              className="h-full rounded-full bg-[#f49700] shadow-[0_0_12px_rgba(244,151,0,0.45)] transition-all duration-500"
-              style={{ width: `${stepProgress.percentage}%` }}
+              className="h-full rounded-full bg-[#f49700] transition-all duration-500"
+              style={{ width: stepTrackWidth }}
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1079,7 +1087,7 @@ export function CompetitionWizard({
                 <button
                   key={stepId}
                   type="button"
-                  onClick={() => setActiveStep(stepId)}
+                  onClick={() => navigateToStep(stepId)}
                   className={cn(
                     "px-4 py-2 rounded-full text-[13px] font-bold transition-all",
                     isActive
@@ -1568,9 +1576,7 @@ export function CompetitionWizard({
                           key={group.bankId}
                           className={cn(
                             "overflow-hidden rounded-[22px] border bg-white shadow-sm transition-all",
-                            selectedInBank > 0
-                              ? "border-[#f49700]/35 shadow-[0_12px_30px_rgba(244,151,0,0.08)]"
-                              : "border-slate-200",
+                            selectedInBank > 0 ? "border-[#f49700]/35" : "border-slate-200",
                           )}
                         >
                           <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -2273,7 +2279,7 @@ export function CompetitionWizard({
                   }}
                 />
 
-                <div className="rounded-[28px] border border-[#f49700]/20 bg-[#f49700]/5 p-5 shadow-sm">
+                <div className="rounded-[28px] border border-[#f49700]/20 bg-[#f49700]/5 p-5">
                   <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-[#f49700]">
                     Snapshot reminder
                   </p>
@@ -2393,7 +2399,7 @@ export function CompetitionWizard({
                     </h3>
                     <button
                       type="button"
-                      onClick={() => setActiveStep(draftState.type === "scheduled" ? "schedule" : "format")}
+                      onClick={() => navigateToStep("schedule")}
                       className="text-[13px] font-bold text-[#f49700] transition-colors hover:text-[#d87d00]"
                     >
                       Edit
@@ -2469,7 +2475,7 @@ export function CompetitionWizard({
                   ) : (
                     reviewPreviewProblems.map((problem, index) => (
                       <div key={problem.id} className="relative rounded-[24px] border border-slate-200 p-6 shadow-sm">
-                        <div className="absolute -top-3 left-6 rounded-full bg-[#f49700] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-sm">
+                        <div className="absolute -top-3 left-6 rounded-full bg-[#f49700] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white">
                           {problem.bankName}
                         </div>
                         <p className="text-[18px] font-black text-[#10182b]">
@@ -2533,7 +2539,7 @@ export function CompetitionWizard({
                                 className={cn(
                                   "flex h-9 w-9 items-center justify-center rounded-xl text-[14px] font-bold transition-all",
                                   page === normalizedReviewProblemPage
-                                    ? "bg-[#f49700] text-[#10182b] shadow-sm shadow-[#f49700]/20"
+                                    ? "bg-[#f49700] text-[#10182b]"
                                     : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-[#10182b]",
                                 )}
                                 aria-label={`Go to review page ${page}`}
@@ -2635,16 +2641,6 @@ export function CompetitionWizard({
                     </div>
                   ) : (
                     <div className="flex flex-wrap items-center gap-3">
-                      <Button
-                        type="button"
-                        onClick={() => void submitCreateDraft()}
-                        pending={savingAction === "create"}
-                        pendingText="Creating..."
-                        className="rounded-xl bg-[#10182b] text-white hover:bg-[#0f121a]"
-                      >
-                        <Sparkles className="size-4" />
-                        Create draft
-                      </Button>
                       <ProgressLink
                         href="/organizer/competition"
                         className="text-sm font-semibold text-[#f49700] underline-offset-4 hover:underline"
@@ -2791,11 +2787,11 @@ export function CompetitionWizard({
         )}
 
         {/* Step Navigation Footer */}
-        <div className="mb-8 mt-4 flex w-full items-center justify-between">
+        <div aria-label="Wizard navigation" className="mb-8 mt-4 flex w-full items-center justify-between">
           {stepNav.prevStep ? (
             <button
               type="button"
-              onClick={() => setActiveStep(stepNav.prevStep!)}
+              onClick={() => navigateToStep(stepNav.prevStep!)}
               className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3.5 text-[14px] font-bold text-[#10182b] shadow-sm transition-all hover:border-slate-300"
             >
               <ArrowLeft className="w-4 h-4" /> {stepNav.prevLabel ?? "Back"}
@@ -2806,11 +2802,22 @@ export function CompetitionWizard({
           {stepNav.nextStep ? (
             <button
               type="button"
-              onClick={() => setActiveStep(stepNav.nextStep!)}
-              className="flex items-center gap-2 rounded-xl bg-[#f49700] px-8 py-3.5 text-[15px] font-bold text-[#10182b] shadow-sm transition-all hover:bg-[#e08900] hover:shadow-lg hover:shadow-[#f49700]/30"
+              onClick={() => navigateToStep(stepNav.nextStep!)}
+              className="flex items-center gap-2 rounded-xl bg-[#f49700] px-8 py-3.5 text-[15px] font-bold text-[#10182b] transition-all hover:bg-[#e08900]"
             >
               Continue to {stepNav.nextLabel ?? "Next"} <ArrowRight className="w-4 h-4" />
             </button>
+          ) : mode === "create" && activeStep === "review" ? (
+            <Button
+              type="button"
+              onClick={() => void submitCreateDraft()}
+              pending={savingAction === "create"}
+              pendingText="Creating..."
+              className="rounded-xl bg-[#10182b] text-white hover:bg-[#0f121a]"
+            >
+              <Sparkles className="size-4" />
+              Create draft
+            </Button>
           ) : null}
         </div>
       </div>

@@ -1,33 +1,15 @@
 import Image from "next/image";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { MathleteWorkspaceNav } from "@/components/mathlete/workspace-nav";
-import { createClient } from "@/lib/supabase/server";
-
-async function getUnreadNotificationCount() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return 0;
-  }
-
-  const { count } = await supabase
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("recipient_id", user.id)
-    .is("read_at", null);
-
-  return count ?? 0;
-}
+import { markAllNotificationsRead } from "@/lib/notifications/actions";
+import { fetchNotificationPreviewSnapshot } from "@/lib/notifications/preview";
 
 export default async function MathleteLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const unreadCount = await getUnreadNotificationCount();
+  const notificationSnapshot = await fetchNotificationPreviewSnapshot();
 
   return (
     <div className="min-h-screen bg-[#fafafb] text-[#1a1e2e]">
@@ -55,7 +37,11 @@ export default async function MathleteLayout({
             </span>
           </ProgressLink>
 
-          <MathleteWorkspaceNav unreadCount={unreadCount} />
+          <MathleteWorkspaceNav
+            markAllNotificationsRead={markAllNotificationsRead}
+            notifications={notificationSnapshot.notifications}
+            unreadCount={notificationSnapshot.unreadCount}
+          />
         </nav>
       </header>
       <main className="relative pb-20">{children}</main>

@@ -42,7 +42,7 @@ function RouteProgressBar({
     <div className="pointer-events-none fixed inset-x-0 top-0 z-[80] h-1 overflow-hidden">
       <div
         className={cn(
-          "h-full bg-primary shadow-[0_0_24px_hsl(var(--primary)/0.7)]",
+          "h-full bg-primary",
           isFinishing
             ? "w-full opacity-0 transition-[width,opacity] duration-200"
             : "route-progress-active",

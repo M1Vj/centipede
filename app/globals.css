@@ -4,60 +4,60 @@
 
 @layer base {
   :root {
-    --background: 32 27% 97%;
-    --foreground: 221 54% 13%;
+    --background: 240 11% 98%;
+    --foreground: 213 49% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 221 54% 13%;
+    --card-foreground: 213 49% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 221 54% 13%;
-    --primary: 221 65% 12%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 36 31% 95%;
-    --secondary-foreground: 221 54% 13%;
-    --muted: 34 20% 93%;
-    --muted-foreground: 218 17% 43%;
-    --accent: 37 94% 52%;
-    --accent-foreground: 221 54% 13%;
+    --popover-foreground: 213 49% 12%;
+    --primary: 37 100% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 228 28% 14%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 210 40% 98%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 98%;
+    --accent-foreground: 213 49% 12%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 31 22% 88%;
-    --input: 31 22% 88%;
-    --ring: 37 94% 52%;
-    --chart-1: 221 65% 12%;
-    --chart-2: 208 44% 59%;
-    --chart-3: 218 17% 43%;
-    --chart-4: 37 94% 52%;
+    --border: 210 40% 96%;
+    --input: 214 32% 91%;
+    --ring: 37 100% 48%;
+    --chart-1: 37 100% 48%;
+    --chart-2: 228 28% 14%;
+    --chart-3: 215 16% 47%;
+    --chart-4: 45 97% 64%;
     --chart-5: 146 48% 45%;
-    --shadow: 221 65% 12%;
-    --radius: 1.25rem;
+    --shadow: 228 28% 14%;
+    --radius: 1rem;
   }
 
   .dark {
-    --background: 228 31% 9%;
+    --background: 224 27% 8%;
     --foreground: 210 40% 98%;
-    --card: 228 27% 12%;
+    --card: 228 28% 14%;
     --card-foreground: 210 40% 98%;
-    --popover: 228 27% 12%;
+    --popover: 228 28% 14%;
     --popover-foreground: 210 40% 98%;
-    --primary: 213 92% 67%;
-    --primary-foreground: 228 31% 9%;
-    --secondary: 223 23% 18%;
+    --primary: 37 100% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 228 28% 14%;
     --secondary-foreground: 210 40% 98%;
     --muted: 223 23% 18%;
-    --muted-foreground: 217 20% 72%;
-    --accent: 223 28% 17%;
-    --accent-foreground: 213 92% 75%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 228 28% 14%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 222 19% 23%;
-    --input: 222 19% 23%;
-    --ring: 213 92% 67%;
-    --chart-1: 213 92% 67%;
-    --chart-2: 194 90% 60%;
-    --chart-3: 167 65% 46%;
-    --chart-4: 40 92% 58%;
-    --chart-5: 335 82% 64%;
-    --shadow: 213 92% 67%;
+    --border: 223 23% 18%;
+    --input: 223 23% 18%;
+    --ring: 37 100% 48%;
+    --chart-1: 37 100% 48%;
+    --chart-2: 45 97% 64%;
+    --chart-3: 215 20% 65%;
+    --chart-4: 210 40% 98%;
+    --chart-5: 146 48% 45%;
+    --shadow: 0 0% 0%;
   }
 }
 
@@ -82,7 +82,7 @@
   h2,
   h3,
   h4 {
-    font-family: var(--font-display), serif;
+    font-family: var(--font-display), var(--font-sans), sans-serif;
   }
 
   ::selection {
@@ -153,7 +153,7 @@
   }
 
   .organizer-nav-chip-active {
-    @apply bg-primary text-primary-foreground shadow-sm shadow-primary/10;
+    @apply bg-primary text-primary-foreground;
   }
 
   .organizer-nav-chip-inactive {
@@ -165,11 +165,11 @@
   }
 
   .organizer-tab-active {
-    @apply border-primary/20 bg-primary text-primary-foreground shadow-sm shadow-primary/10;
+    @apply border-primary/20 bg-primary text-primary-foreground;
   }
 
   .organizer-action {
-    @apply inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+    @apply inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
   }
 
   .organizer-action-secondary {

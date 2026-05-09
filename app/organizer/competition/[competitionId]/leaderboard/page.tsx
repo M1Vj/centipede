@@ -55,6 +55,7 @@ export default async function OrganizerCompetitionLeaderboardPage({
           <LeaderboardManagementPanel
             competitionId={competitionId}
             leaderboardPublished={leaderboard.competition.leaderboardPublished}
+            format={leaderboard.competition.format}
             entries={leaderboard.entries}
             disputes={disputes}
             exportJobs={exportJobs}

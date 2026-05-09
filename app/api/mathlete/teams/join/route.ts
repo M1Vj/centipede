@@ -66,6 +66,35 @@ function toJoinNotFound() {
   return jsonError("not_found", "Unable to join team with this code.", 404);
 }
 
+type LeaderRecipientRow = {
+  profile_id?: string | null;
+};
+
+async function resolveTeamLeaderNotificationRecipients(
+  admin: NonNullable<ReturnType<typeof createAdminClient>>,
+  teamId: string,
+) {
+  const { data, error } = await admin
+    .from("team_memberships")
+    .select("profile_id")
+    .eq("team_id", teamId)
+    .eq("role", "leader")
+    .eq("is_active", true)
+    .returns<LeaderRecipientRow[]>();
+
+  if (error) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      (data ?? [])
+        .map((row) => row.profile_id)
+        .filter((profileId): profileId is string => typeof profileId === "string" && profileId.length > 0),
+    ),
+  ];
+}
+
 export async function POST(request: NextRequest) {
   const sameOriginError = requireSameOriginMutation(request);
   if (sameOriginError) {
@@ -213,27 +242,23 @@ export async function POST(request: NextRequest) {
 
     await attachTeamActionResource(admin, reservation.entryId, normalizedMembership.id);
 
-    const { data: leaderRow } = await admin
-      .from("team_memberships")
-      .select("profile_id")
-      .eq("team_id", team.id)
-      .eq("role", "leader")
-      .eq("is_active", true)
-      .maybeSingle<{ profile_id: string }>();
+    const leaderRecipientIds = await resolveTeamLeaderNotificationRecipients(admin, team.id);
 
-    if (leaderRow?.profile_id) {
-      await dispatchTeamNotification({
-        event: "team_invite_accepted",
-        eventIdentityKey: `team_invite_accepted:code:${team.id}:${actor.userId}`,
-        recipientId: leaderRow.profile_id,
-        actorId: actor.userId,
-        teamId: team.id,
-        inviteId: null,
-        metadata: {
-          joinMethod: "code",
-        },
-      });
-    }
+    await Promise.all(
+      leaderRecipientIds.map((recipientId) =>
+        dispatchTeamNotification({
+          event: "team_invite_accepted",
+          eventIdentityKey: `team_invite_accepted:code:${team.id}:${actor.userId}`,
+          recipientId,
+          actorId: actor.userId,
+          teamId: team.id,
+          inviteId: null,
+          metadata: {
+            joinMethod: "code",
+          },
+        }),
+      ),
+    );
 
     return jsonOk({
       code: "joined",

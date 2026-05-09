@@ -95,7 +95,13 @@ export function ActiveCompetitionsTable({
                       </div>
                     </td>
                     <td className="px-5 py-4 text-[13px] font-medium text-[#64748b]">
-                      {competition.dateLabel}
+                      {competition.dateLabel ? (
+                        competition.dateLabel
+                      ) : (
+                        <span className="text-[#94a3b8]" aria-label="No scheduled date">
+                          &mdash;
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-4 text-right">
                       <ProgressLink

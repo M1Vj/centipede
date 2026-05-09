@@ -21,7 +21,11 @@ export default async function MathletePage() {
   await runDueScheduledCompetitionLifecycleSafely();
 
   const registrationCards = buildMathleteDashboardCards(
-    await listMyRegistrationDetails({ statuses: ["registered"], limit: 25 }),
+    await listMyRegistrationDetails({
+      statuses: ["registered"],
+      competitionTypes: ["scheduled"],
+      limit: 25,
+    }),
   );
 
   return (

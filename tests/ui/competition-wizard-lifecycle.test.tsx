@@ -84,6 +84,10 @@ function renderWizard() {
   );
 }
 
+function openReviewStep() {
+  fireEvent.click(screen.getByRole("button", { name: "Review" }));
+}
+
 describe("CompetitionWizard lifecycle error and sync behavior", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -111,6 +115,7 @@ describe("CompetitionWizard lifecycle error and sync behavior", () => {
     );
 
     renderWizard();
+    openReviewStep();
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     const dialog = await screen.findByRole("alertdialog", { name: "Start competition?" });
@@ -153,6 +158,7 @@ describe("CompetitionWizard lifecycle error and sync behavior", () => {
     );
 
     renderWizard();
+    openReviewStep();
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     const dialog = await screen.findByRole("alertdialog", { name: "Start competition?" });

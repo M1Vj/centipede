@@ -129,7 +129,7 @@ export function OrganizerScoringRuleControls({
               className={cn(
                 "rounded-2xl border-2 p-5 text-left transition-all",
                 value.scoringMode === "difficulty"
-                  ? "border-[#f49700] bg-[#f49700]/5 shadow-sm"
+                  ? "border-[#f49700] bg-[#f49700]/5"
                   : "border-slate-200 bg-white hover:border-slate-300",
                 disabled ? "cursor-not-allowed opacity-60" : "",
               )}
@@ -166,7 +166,7 @@ export function OrganizerScoringRuleControls({
               className={cn(
                 "rounded-2xl border-2 p-5 text-left transition-all",
                 value.scoringMode === "custom"
-                  ? "border-[#f49700] bg-[#f49700]/5 shadow-sm"
+                  ? "border-[#f49700] bg-[#f49700]/5"
                   : "border-slate-200 bg-white hover:border-slate-300",
                 disabled ? "cursor-not-allowed opacity-60" : "",
               )}

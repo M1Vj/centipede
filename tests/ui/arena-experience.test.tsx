@@ -622,6 +622,106 @@ describe("ArenaExperience", () => {
     expect(fetchMock.mock.calls.map(([input]) => String(input)).some((url) => url.endsWith("/submit"))).toBe(false);
   });
 
+  test("locks and auto-submits when the competition ends during an active attempt", async () => {
+    const runtimeData = buildPageData("arena_runtime");
+    runtimeData.activeAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "in_progress",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: null,
+      totalTimeSeconds: 0,
+      remainingSeconds: 900,
+      effectiveAttemptDeadlineAt: "2026-04-22T12:30:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T12:30:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [
+        {
+          id: "answer-1",
+          attemptId: "attempt-1",
+          competitionProblemId: "cp-1",
+          answerLatex: "",
+          answerTextNormalized: "",
+          statusFlag: "blank",
+          lastSavedAt: "",
+          clientUpdatedAt: "",
+        },
+      ],
+    };
+    runtimeData.latestAttempt = runtimeData.activeAttempt;
+    const endedData = {
+      ...runtimeData,
+      competition: {
+        ...runtimeData.competition,
+        status: "ended" as const,
+      },
+    };
+    endedData.latestAttempt = endedData.activeAttempt;
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/answer")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              machineCode: "ok",
+              data: { lastSavedAt: "2026-04-22T12:15:00.000Z" },
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+
+      if (url.endsWith("/submit")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              machineCode: "ok",
+              data: {
+                attempt: {
+                  id: "attempt-1",
+                  status: "submitted",
+                },
+              },
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: endedData,
+          }),
+          { status: 200 },
+        ),
+      );
+    });
+
+    render(<ArenaExperience initialData={runtimeData} />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), {
+      target: { value: "42" },
+    });
+    window.dispatchEvent(new Event("focus"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Competition ended")).toBeInTheDocument();
+      expect(routerPushMock).toHaveBeenCalledWith(
+        "/mathlete/competition/competition-1/review?attemptId=attempt-1",
+      );
+    });
+
+    const calledUrls = fetchMock.mock.calls.map(([input]) => String(input));
+    expect(calledUrls.findIndex((url) => url.endsWith("/answer"))).toBeGreaterThanOrEqual(0);
+    expect(calledUrls.findIndex((url) => url.endsWith("/submit"))).toBeGreaterThan(
+      calledUrls.findIndex((url) => url.endsWith("/answer")),
+    );
+  });
+
   test("marks non-empty answers filled even when previous persisted status was blank", () => {
     const runtimeData = buildPageData("arena_runtime");
     runtimeData.activeAttempt = {

@@ -1,4 +1,5 @@
 import { dispatchCompetitionNotification } from "@/lib/notifications/dispatch";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { registrationMachineCodeMessage } from "@/lib/registrations/messages";
 import {
   validateCompetitionId,
@@ -27,6 +28,10 @@ type RegisterRpcRow = {
   entry_snapshot_json?: Record<string, unknown> | null;
 };
 
+type TeamRegistrationRecipientRow = {
+  profile_id?: string | null;
+};
+
 function normalizeRpcRow(data: unknown): RegisterRpcRow {
   if (!data) {
     return {};
@@ -37,6 +42,37 @@ function normalizeRpcRow(data: unknown): RegisterRpcRow {
   }
 
   return data as RegisterRpcRow;
+}
+
+async function resolveRegistrationNotificationRecipients(input: {
+  actorId: string;
+  teamId: string | null;
+}) {
+  if (!input.teamId) {
+    return [input.actorId];
+  }
+
+  const admin = createAdminClient();
+  if (!admin) {
+    return [input.actorId];
+  }
+
+  const { data, error } = await admin
+    .from("team_memberships")
+    .select("profile_id")
+    .eq("team_id", input.teamId)
+    .eq("is_active", true)
+    .returns<TeamRegistrationRecipientRow[]>();
+
+  if (error) {
+    return [input.actorId];
+  }
+
+  const recipientIds = (data ?? [])
+    .map((row) => row.profile_id)
+    .filter((profileId): profileId is string => typeof profileId === "string" && profileId.length > 0);
+
+  return recipientIds.length > 0 ? [...new Set(recipientIds)] : [input.actorId];
 }
 
 export async function POST(request: Request) {
@@ -95,17 +131,26 @@ export async function POST(request: Request) {
   const { tone, message } = registrationMachineCodeMessage(machineCode);
 
   if (machineCode === "ok" && row.registration_id) {
-    await dispatchCompetitionNotification({
-      event: "competition_registration_confirmed",
-      eventIdentityKey: `competition_registration_confirmed:${competitionId}:${row.registration_id}`,
-      recipientId: actor.userId,
+    const recipientIds = await resolveRegistrationNotificationRecipients({
       actorId: actor.userId,
-      competitionId,
-      registrationId: row.registration_id,
-      metadata: {
-        teamId,
-      },
+      teamId,
     });
+
+    await Promise.all(
+      recipientIds.map((recipientId) =>
+        dispatchCompetitionNotification({
+          event: "competition_registration_confirmed",
+          eventIdentityKey: `competition_registration_confirmed:${competitionId}:${row.registration_id}`,
+          recipientId,
+          actorId: actor.userId,
+          competitionId,
+          registrationId: row.registration_id,
+          metadata: {
+            teamId,
+          },
+        }),
+      ),
+    );
   }
 
   return jsonOk({

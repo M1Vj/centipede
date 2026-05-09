@@ -149,6 +149,7 @@ describe("CompetitionCardGrid delete flow", () => {
       "href",
       "/organizer/competition/published-competition/participants",
     );
+    expect(screen.queryByText("Individual")).not.toBeInTheDocument();
   });
 
   test("links live and paused competition operations to participant monitoring UI", () => {
@@ -174,13 +175,40 @@ describe("CompetitionCardGrid delete flow", () => {
       "/organizer/competition/paused-competition/participants",
     );
   });
+
+  test("links live team competitions to the team live monitoring UI", () => {
+    render(
+      <CompetitionCardGrid
+        competitions={[
+          buildCompetition("live", {
+            id: "live-team-competition",
+            name: "Live Team Competition",
+            format: "team",
+            participantsPerTeam: 2,
+            maxTeams: 8,
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: /live view/i })).toHaveAttribute(
+      "href",
+      "/organizer/competition/live-team-competition/live-teams",
+    );
+    expect(screen.getByRole("link", { name: "Open live monitoring controls" })).toHaveAttribute(
+      "href",
+      "/organizer/competition/live-team-competition/live-teams",
+    );
+  });
 });
 
 describe("CompetitionCardGrid scheduled lifecycle refresh", () => {
+  const scheduledStartTime = "2026-04-25T12:01:00.000Z";
+
   beforeEach(() => {
     routerRefreshMock.mockReset();
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-04-25T00:00:00.000Z"));
+    vi.setSystemTime(new Date("2026-04-25T12:00:00.000Z"));
   });
 
   afterEach(() => {
@@ -195,11 +223,22 @@ describe("CompetitionCardGrid scheduled lifecycle refresh", () => {
             id: "scheduled-competition",
             name: "Scheduled Competition",
             type: "scheduled",
-            startTime: "2026-04-25T00:01:00.000Z",
+            startTime: scheduledStartTime,
           }),
         ]}
       />,
     );
+
+    expect(screen.getByText("Individual")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        new Date(scheduledStartTime).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+      ),
+    ).toBeInTheDocument();
 
     vi.advanceTimersByTime(60_999);
     expect(routerRefreshMock).not.toHaveBeenCalled();

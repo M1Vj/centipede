@@ -145,7 +145,7 @@ async function ProblemBankContent({ params }: { params: Promise<{ id: string }> 
           {canAuthorDefaultBank ? (
             <ProgressLink
               href={`/admin/problem-banks/${bank.id}/problem/new`}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
             >
               <PlusCircle className="size-4" />
               Create Default Problem

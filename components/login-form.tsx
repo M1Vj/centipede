@@ -225,7 +225,7 @@ export function LoginForm({
           trailing={
             <button
               type="button"
-              className="inline-flex items-center justify-center text-slate-400 transition hover:text-[#0f172a]"
+              className="inline-flex items-center justify-center text-slate-400 transition hover:text-foreground"
               onClick={() => setShowPassword((value) => !value)}
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
@@ -246,7 +246,7 @@ export function LoginForm({
           </label>
           <ProgressLink
             href="/auth/forgot-password"
-            className="text-sm font-semibold text-[#0f172a] underline-offset-4 hover:text-[#f49700] hover:underline"
+            className="text-sm font-semibold text-foreground underline-offset-4 hover:text-primary hover:underline"
           >
             Forgot Password?
           </ProgressLink>
@@ -262,7 +262,7 @@ export function LoginForm({
 
         <Button
           type="submit"
-          className="h-12 w-full rounded-xl bg-[#f49701] text-base font-bold text-white hover:bg-[#df8e00]"
+          className="h-12 w-full rounded-xl bg-primary text-base font-bold text-primary-foreground hover:bg-primary/90"
           pending={pendingAction === "email"}
           pendingText="Signing in..."
           disabled={pendingAction === "google"}
