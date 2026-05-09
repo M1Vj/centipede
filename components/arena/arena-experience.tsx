@@ -67,6 +67,15 @@ type FlushSaveOptions = {
   keepalive?: boolean;
 };
 
+type SubmitAttemptResponse = {
+  data?: {
+    attempt?: {
+      id: string;
+    };
+  };
+  message?: string;
+};
+
 function getProblemStatusClassName(status: AnswerStatusFlag) {
   if (status === "solved") {
     return "border-[#f49700] bg-[#f49700] text-white";
@@ -208,6 +217,10 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   const [connectionState, setConnectionState] = useState<"live" | "syncing" | "offline">("live");
   const [timerAnnouncement, setTimerAnnouncement] = useState("");
   const expiryHandledAttemptRef = useRef<string | null>(null);
+  const competitionEndHandledAttemptRef = useRef<string | null>(null);
+  const [competitionEndFinalization, setCompetitionEndFinalization] = useState<
+    "idle" | "submitting" | "submitted" | "error"
+  >("idle");
   const router = useRouter();
 
   function clearPendingSaves() {
@@ -348,7 +361,52 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
     await closeInterval();
   });
 
+  const finalizeEndedCompetition = useEffectEvent(async () => {
+    const attemptId = pageData.activeAttempt?.id;
+    if (!attemptId) {
+      return;
+    }
+
+    setCompetitionEndFinalization("submitting");
+    setRequestState("pending");
+    setRequestMessage(null);
+
+    try {
+      await flushAllSaves();
+
+      const response = await fetch(`/api/mathlete/competition/${pageData.competition.id}/submit`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          attemptId,
+        }),
+      });
+      const payload = await readJson<SubmitAttemptResponse>(response);
+
+      if (!response.ok) {
+        setCompetitionEndFinalization("error");
+        setRequestState("error");
+        setRequestMessage(payload.message ?? "Competition ended, but automatic submission failed.");
+        return;
+      }
+
+      const submittedAttemptId = payload.data?.attempt?.id ?? attemptId;
+      setCompetitionEndFinalization("submitted");
+      setRequestState("idle");
+      setRequestMessage(null);
+      router.push(`/mathlete/competition/${pageData.competition.id}/review?attemptId=${submittedAttemptId}`);
+    } catch {
+      setCompetitionEndFinalization("error");
+      setRequestState("error");
+      setRequestMessage("Competition ended, but automatic submission failed. Check connection and try again.");
+    }
+  });
+
   const activeAttemptId = pageData.activeAttempt?.id ?? null;
+  const competitionHasEnded =
+    pageData.competition.status === "ended" || pageData.competition.status === "archived";
   const useFinalMinutePolling = remainingSeconds <= 60;
 
   useEffect(() => {
@@ -392,6 +450,24 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent callbacks read latest state without deps.
   }, [activeAttemptId, remainingSeconds]);
+
+  useEffect(() => {
+    if (!activeAttemptId || !competitionHasEnded) {
+      if (!activeAttemptId) {
+        competitionEndHandledAttemptRef.current = null;
+        setCompetitionEndFinalization("idle");
+      }
+      return;
+    }
+
+    if (competitionEndHandledAttemptRef.current === activeAttemptId) {
+      return;
+    }
+
+    competitionEndHandledAttemptRef.current = activeAttemptId;
+    void finalizeEndedCompetition();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent callback reads latest state without restarting finalization.
+  }, [activeAttemptId, competitionHasEnded]);
 
   useEffect(() => {
     if (!activeAttemptId) {
@@ -746,7 +822,12 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   );
   const safeExamBrowserRequired = pageData.competition.safeExamBrowserMode === "required";
   const safeExamBrowserConfigHref = `/api/mathlete/competition/${pageData.competition.id}/safe-exam-browser-config`;
-  const canWrite = Boolean(pageData.registration?.actorCanWrite && pageData.activeAttempt);
+  const canWrite = Boolean(
+    pageData.registration?.actorCanWrite &&
+      pageData.activeAttempt &&
+      !competitionHasEnded &&
+      competitionEndFinalization === "idle",
+  );
   const canWithdraw = Boolean(
     pageData.registration?.status === "registered" && !pageData.activeAttempt && !pageData.latestAttempt,
   );
@@ -937,6 +1018,19 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
             {requestState === "error" ? "Action blocked" : "Arena update"}
           </p>
           <AlertDescription>{requestMessage}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {competitionHasEnded && pageData.activeAttempt ? (
+        <Alert className="mt-4 border-2 border-[#f49700]/40 bg-[#fff7e8] text-[#8a5400]" role="status">
+          <p className="mb-2 text-sm font-black">Competition ended</p>
+          <AlertDescription>
+            {competitionEndFinalization === "error"
+              ? "Your work is locked. Automatic submission could not complete, so keep this page open and check your connection."
+              : competitionEndFinalization === "submitted"
+                ? "Your attempt was submitted. Redirecting to the final submission page."
+                : "Your work is locked. Saving pending answers, submitting your attempt, and opening the final submission page."}
+          </AlertDescription>
         </Alert>
       ) : null}
 

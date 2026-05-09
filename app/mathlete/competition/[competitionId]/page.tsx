@@ -44,7 +44,7 @@ type SupabaseError = {
   message?: string | null;
 };
 
-const DISCOVERABLE_STATUSES = new Set(["published", "live", "paused"]);
+const DISCOVERABLE_STATUSES = new Set(["published", "live", "paused", "ended"]);
 
 function normalizeRegistrationStatus(value: unknown): RegistrationStatus | null {
   if (value === "registered" || value === "withdrawn" || value === "ineligible" || value === "cancelled") {
