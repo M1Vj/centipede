@@ -14,6 +14,7 @@ type AttemptRow = {
   id: string;
   competition_id: string;
   registration_id: string;
+  participant_profile_id: string | null;
   attempt_no: number;
   status: "in_progress" | "submitted" | "auto_submitted" | "disqualified" | "graded";
   started_at: string;
@@ -130,7 +131,7 @@ async function fetchParticipantRegistrations(admin: AdminClient, competitionId: 
   );
 }
 
-async function fetchAttempt(admin: AdminClient, attemptId: string, registrationIds: string[]) {
+async function fetchAttempt(admin: AdminClient, attemptId: string, registrationIds: string[], actorUserId: string) {
   if (registrationIds.length === 0) {
     return null;
   }
@@ -138,10 +139,11 @@ async function fetchAttempt(admin: AdminClient, attemptId: string, registrationI
   const { data, error } = await admin
     .from("competition_attempts")
     .select(
-      "id, competition_id, registration_id, attempt_no, status, started_at, submitted_at, total_time_seconds, raw_score, penalty_score, final_score, graded_at, is_latest_visible_result",
+      "id, competition_id, registration_id, participant_profile_id, attempt_no, status, started_at, submitted_at, total_time_seconds, raw_score, penalty_score, final_score, graded_at, is_latest_visible_result",
     )
     .eq("id", attemptId)
     .in("registration_id", registrationIds)
+    .eq("participant_profile_id", actorUserId)
     .maybeSingle<AttemptRow>();
 
   if (error) {
@@ -151,7 +153,7 @@ async function fetchAttempt(admin: AdminClient, attemptId: string, registrationI
   return data;
 }
 
-async function fetchLatestAttempt(admin: AdminClient, registrationIds: string[]) {
+async function fetchLatestAttempt(admin: AdminClient, registrationIds: string[], actorUserId: string) {
   if (registrationIds.length === 0) {
     return null;
   }
@@ -159,9 +161,10 @@ async function fetchLatestAttempt(admin: AdminClient, registrationIds: string[])
   const { data, error } = await admin
     .from("competition_attempts")
     .select(
-      "id, competition_id, registration_id, attempt_no, status, started_at, submitted_at, total_time_seconds, raw_score, penalty_score, final_score, graded_at, is_latest_visible_result",
+      "id, competition_id, registration_id, participant_profile_id, attempt_no, status, started_at, submitted_at, total_time_seconds, raw_score, penalty_score, final_score, graded_at, is_latest_visible_result",
     )
     .in("registration_id", registrationIds)
+    .eq("participant_profile_id", actorUserId)
     .order("attempt_no", { ascending: false })
     .limit(1)
     .maybeSingle<AttemptRow>();
@@ -312,8 +315,8 @@ export async function loadReviewPageData(competitionId: string, actorUserId: str
   const registrations = await fetchParticipantRegistrations(admin, competitionId, actorUserId);
   const registrationIds = registrations.map((registration) => registration.id);
   const attempt = attemptId
-    ? await fetchAttempt(admin, attemptId, registrationIds)
-    : await fetchLatestAttempt(admin, registrationIds);
+    ? await fetchAttempt(admin, attemptId, registrationIds, actorUserId)
+    : await fetchLatestAttempt(admin, registrationIds, actorUserId);
 
   if (!attempt) {
     return null;
@@ -405,7 +408,7 @@ export async function loadAnswerKeyPageData(competitionId: string, actorUserId: 
   }
 
   const [attempt, problems] = await Promise.all([
-    fetchLatestAttempt(admin, registrationIds),
+    fetchLatestAttempt(admin, registrationIds, actorUserId),
     fetchCompetitionProblems(admin, competitionId),
   ]);
   const visibility = canViewAnswerKeySnapshot({

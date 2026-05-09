@@ -46,6 +46,7 @@ type AttemptRow = {
   id: string;
   competition_id: string;
   registration_id: string;
+  participant_profile_id: string | null;
   attempt_no: number;
   status: ArenaAttemptSummary["status"];
   started_at: string;
@@ -239,13 +240,14 @@ async function fetchRegistrations(
   return registrations;
 }
 
-async function fetchAttempts(admin: AdminClient, registrationId: string) {
+async function fetchAttempts(admin: AdminClient, registrationId: string, actorUserId: string) {
   const { data, error } = await admin
     .from("competition_attempts")
     .select(
-      "id, competition_id, registration_id, attempt_no, status, started_at, submitted_at, total_time_seconds, effective_attempt_deadline_at, attempt_base_deadline_at, scheduled_competition_end_cap_at",
+      "id, competition_id, registration_id, participant_profile_id, attempt_no, status, started_at, submitted_at, total_time_seconds, effective_attempt_deadline_at, attempt_base_deadline_at, scheduled_competition_end_cap_at",
     )
     .eq("registration_id", registrationId)
+    .eq("participant_profile_id", actorUserId)
     .order("attempt_no", { ascending: false });
 
   if (error) {
@@ -332,7 +334,8 @@ function buildRegistrationSummary(
 
   const team = registration.team_id ? teams.find((entry) => entry.id === registration.team_id) ?? null : null;
   const actorIsLeader = team?.role === "leader";
-  const actorCanStart = registration.team_id ? actorIsLeader : true;
+  const actorIsActiveTeamMember = registration.team_id ? team !== null : true;
+  const actorCanStart = registration.team_id ? actorIsActiveTeamMember : true;
   const actorCanWrite = actorCanStart;
 
   return {
@@ -364,6 +367,7 @@ function buildAttemptSummary(
     id: attempt.id,
     competitionId: attempt.competition_id,
     registrationId: attempt.registration_id,
+    participantProfileId: attempt.participant_profile_id,
     attemptNo: attempt.attempt_no,
     status: attempt.status,
     startedAt: attempt.started_at,
@@ -432,7 +436,7 @@ export async function loadArenaPageData(competitionId: string, actorUserId: stri
   const registrations = await fetchRegistrations(admin, competitionId, actorUserId, eligibleTeams);
   const registrationRow = chooseRelevantRegistration(competition, registrations, eligibleTeams);
   const registration = buildRegistrationSummary(registrationRow, competition, eligibleTeams);
-  const attempts = registration ? await fetchAttempts(admin, registration.id) : [];
+  const attempts = registration ? await fetchAttempts(admin, registration.id, actorUserId) : [];
   const activeAttemptRow = attempts.find((attempt) => attempt.status === "in_progress") ?? null;
   const latestAttemptRow = attempts[0] ?? null;
   const hasDisqualifiedAttempt = attempts.some((attempt) => attempt.status === "disqualified");

@@ -1002,7 +1002,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                   </p>
                   {!pageData.registration.actorCanStart ? (
                     <p className="mt-2 text-[#8a5400]">
-                      Only active team leader can start or submit team attempts.
+                      Only active members of the registered team can start or submit team attempts.
                     </p>
                   ) : null}
                 </div>
@@ -1126,9 +1126,9 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
 
             {pageData.registration && !pageData.registration.actorCanStart ? (
               <Alert>
-                <p className="mb-2 text-sm font-semibold text-foreground">Leader action required</p>
+                <p className="mb-2 text-sm font-semibold text-foreground">Team membership required</p>
                 <AlertDescription>
-                  Team attempt writes are leader-only. You can open runtime once leader starts.
+                  You must be an active member of the registered team to open the runtime.
                 </AlertDescription>
               </Alert>
             ) : null}
@@ -1289,7 +1289,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
               <Alert className="mb-6">
                 <p className="mb-2 text-sm font-semibold text-foreground">Read-only runtime</p>
                 <AlertDescription>
-                  Team members can observe synced answers, but only active leader can write or submit.
+                  You must be an active member of the registered team to write or submit.
                 </AlertDescription>
               </Alert>
             ) : null}
