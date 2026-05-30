@@ -111,6 +111,35 @@ describe("notification components", () => {
     );
   });
 
+  test("emphasizes the inbox all-read state after notifications are cleared", () => {
+    render(
+      <NotificationInboxShell
+        notifications={[
+          {
+            id: "notification-1",
+            title: "Leaderboard published",
+            body: "Final standings are available.",
+            createdAt: "2026-05-05T02:00:00.000Z",
+            linkPath: "/mathlete/history",
+            readAt: "2026-05-05T03:00:00.000Z",
+            type: "leaderboard_published",
+          },
+        ]}
+        unreadCount={0}
+        markAllAction={async () => {}}
+        markReadAction={async () => {}}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "All notifications are marked as read.",
+    );
+    expect(screen.getAllByText("All read")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "All notifications are read" })).toBeDisabled();
+    expect(screen.getByText("Read")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Unread")).not.toBeInTheDocument();
+  });
+
   test("keeps notifications visible when only unread count is unavailable", () => {
     render(
       <NotificationInboxShell
@@ -214,5 +243,36 @@ describe("notification components", () => {
     await user.click(screen.getByRole("button", { name: "Mathlete notifications" }));
 
     expect(screen.getByRole("button", { name: "Mark all notifications as read" })).toBeDisabled();
+  });
+
+  test("bell dropdown emphasizes all-read previews when unread count reaches zero", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NotificationBellDropdown
+        unreadCount={0}
+        label="Mathlete notifications"
+        markAllAction={async () => {}}
+        notifications={[
+          {
+            id: "notification-1",
+            title: "Team invite handled",
+            body: "The invite has been handled.",
+            createdAt: "2026-05-05T02:00:00.000Z",
+            linkPath: "/mathlete/teams/invites",
+            readAt: "2026-05-05T03:00:00.000Z",
+            type: "team_invite_created",
+          },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Mathlete notifications" }));
+
+    expect(screen.getByText("All notifications read")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All notifications are read" })).toBeDisabled();
+    expect(screen.getByText("Team invite handled")).toBeInTheDocument();
+    expect(screen.getByText("Read")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Unread")).not.toBeInTheDocument();
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
-import { Bell, Check, Settings } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Bell, CheckCircle2, Settings } from "lucide-react";
+import { MarkAllReadButton } from "@/components/notifications/mark-all-read-button";
 import { ProgressLink } from "@/components/ui/progress-link";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { NotificationItem } from "@/components/notifications/types";
+import { cn } from "@/lib/utils";
 
 type NotificationBellDropdownProps = {
   label?: string;
@@ -49,6 +50,10 @@ export function NotificationBellDropdown({
     : label;
   const previewNotifications = (notifications ?? []).slice(0, 3);
   const hasPreviewNotifications = previewNotifications.length > 0;
+  const allPreviewNotificationsRead =
+    hasPreviewNotifications &&
+    !hasUnread &&
+    previewNotifications.every((notification) => Boolean(notification.readAt));
 
   return (
     <DropdownMenu>
@@ -80,7 +85,9 @@ export function NotificationBellDropdown({
               <p className="mt-0.5 text-xs font-medium text-slate-500">
                 {hasUnread
                   ? `${safeUnreadCount} unread update${safeUnreadCount === 1 ? "" : "s"}`
-                  : "No unread notifications"}
+                  : hasPreviewNotifications
+                    ? "All notifications read"
+                    : "No unread notifications"}
               </p>
             </div>
             <ProgressLink
@@ -94,17 +101,12 @@ export function NotificationBellDropdown({
         {markAllAction ? (
           <>
             <form action={markAllAction} className="px-2 pb-2">
-              <Button
-                type="submit"
-                variant="outline"
+              <MarkAllReadButton
+                allRead={allPreviewNotificationsRead}
                 size="sm"
                 className="w-full rounded-xl border-slate-200 text-slate-700"
                 disabled={!hasUnread}
-                aria-label="Mark all notifications as read"
-              >
-                <Check className="size-3.5" />
-                Mark all read
-              </Button>
+              />
             </form>
             <DropdownMenuSeparator className="my-1 bg-slate-100" />
           </>
@@ -122,7 +124,12 @@ export function NotificationBellDropdown({
               return (
                 <article
                   key={notification.id}
-                  className="rounded-2xl border border-slate-100 bg-white px-3 py-2.5 text-left transition-all duration-300 hover:border-[#f49700]/50 hover:bg-slate-50/70 hover:shadow-sm"
+                  className={cn(
+                    "rounded-2xl border px-3 py-2.5 text-left transition-all duration-300 hover:shadow-sm",
+                    unread
+                      ? "border-[#f49700]/40 bg-white hover:border-[#f49700]/60 hover:bg-slate-50/70"
+                      : "border-emerald-100 bg-emerald-50/35 hover:border-emerald-200 hover:bg-emerald-50/60",
+                  )}
                 >
                   <div className="flex min-w-0 items-start gap-2">
                     <span className="mt-2 h-2 w-2 flex-none">
@@ -134,9 +141,22 @@ export function NotificationBellDropdown({
                       ) : null}
                     </span>
                     <div className="min-w-0 flex-1 space-y-1">
-                      <h2 className="line-clamp-1 text-sm font-bold leading-5 text-slate-950">
-                        {notification.title}
-                      </h2>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <h2 className="line-clamp-1 flex-1 text-sm font-bold leading-5 text-slate-950">
+                          {notification.title}
+                        </h2>
+                        <span
+                          className={cn(
+                            "inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-bold",
+                            unread
+                              ? "bg-[#f49700]/10 text-[#9a5b00]"
+                              : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100",
+                          )}
+                        >
+                          {unread ? null : <CheckCircle2 className="size-3" />}
+                          {unread ? "Unread" : "Read"}
+                        </span>
+                      </div>
                       {notification.body ? (
                         <p className="line-clamp-1 text-xs leading-4 text-slate-600">
                           {notification.body}
