@@ -1,11 +1,20 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { CompetitionDetailPanel } from "@/components/competitions/competition-detail-panel";
+import { CompetitionFilters } from "@/components/competitions/competition-filters";
 import { CompetitionList } from "@/components/competitions/competition-list";
 import type { DiscoverableCompetition } from "@/lib/competition/discovery";
+
+const routerReplaceMock = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: routerReplaceMock,
+  }),
+}));
 
 vi.mock("@/components/ui/progress-link", () => ({
   ProgressLink: ({
@@ -49,6 +58,67 @@ function buildCompetition(
 
 describe("competition discovery UI", () => {
   const scheduledStartTime = "2026-05-10T12:00:00.000Z";
+
+  beforeEach(() => {
+    routerReplaceMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("updates the search URL while typing without waiting for form submission", () => {
+    vi.useFakeTimers();
+
+    render(
+      <CompetitionFilters
+        actionPath="/mathlete/competition"
+        filters={{ query: "", type: "all", format: "all", status: "all" }}
+        total={2}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Search"), {
+      target: { value: "algebra" },
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(299);
+    });
+    expect(routerReplaceMock).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(routerReplaceMock).toHaveBeenCalledWith("/mathlete/competition?q=algebra", {
+      scroll: false,
+    });
+  });
+
+  test("keeps selected filters and resets pagination when search updates", () => {
+    vi.useFakeTimers();
+
+    render(
+      <CompetitionFilters
+        actionPath="/mathlete/competition"
+        filters={{ query: "algebra", type: "open", format: "team", status: "live" }}
+        total={2}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Search"), {
+      target: { value: "geometry" },
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(routerReplaceMock).toHaveBeenCalledWith(
+      "/mathlete/competition?q=geometry&type=open&format=team&status=live",
+      { scroll: false },
+    );
+  });
 
   test("omits TBD schedule indicators for open competition cards", () => {
     render(
