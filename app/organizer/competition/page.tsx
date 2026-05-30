@@ -9,6 +9,10 @@ import {
   isLegacyCompetitionSelectError,
   normalizeCompetitionRecord,
 } from "@/lib/competition/api";
+import {
+  ORGANIZER_MANAGEMENT_COMPETITION_STATUSES,
+  isOrganizerManagementCompetition,
+} from "@/lib/competition/organizer-management";
 import type { CompetitionRecord } from "@/lib/competition/types";
 
 export default async function OrganizerCompetitionPage() {
@@ -20,6 +24,7 @@ export default async function OrganizerCompetitionPage() {
     .select(COMPETITION_SELECT_COLUMNS)
     .eq("organizer_id", profile?.id)
     .eq("is_deleted", false)
+    .in("status", [...ORGANIZER_MANAGEMENT_COMPETITION_STATUSES])
     .order("created_at", { ascending: false });
 
   const fallbackResult =
@@ -37,7 +42,8 @@ export default async function OrganizerCompetitionPage() {
   const competitions = !error
     ? (data ?? [])
         .map((row) => normalizeCompetitionRecord(row))
-        .filter((row): row is CompetitionRecord => row !== null && !row.isDeleted)
+        .filter((row): row is CompetitionRecord => row !== null)
+        .filter(isOrganizerManagementCompetition)
     : [];
 
   return (
