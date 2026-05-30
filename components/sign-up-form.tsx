@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { CircleAlert, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isProfileComplete, PROFILE_SELECT_FIELDS } from "@/lib/auth/profile";
+import { getAuthRedirect } from "@/lib/auth/routing";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { useFeedbackRouter } from "@/hooks/use-feedback-router";
 import { useFormStatusRegion } from "@/hooks/use-form-status-region";
@@ -32,15 +34,64 @@ export function SignUpForm({
   const { statusId, statusRef } = useFormStatusRegion(status.message);
   const isLoading = pendingAction !== null;
 
+  const redirectIfAlreadySignedIn = async () => {
+    const supabase = getSupabaseClient();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error || !user) {
+      return false;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select(PROFILE_SELECT_FIELDS)
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      throw profileError;
+    }
+
+    const redirectPath = getAuthRedirect({
+      pathname: "/auth/sign-up",
+      isAuthenticated: true,
+      hasCompletedProfile: isProfileComplete(profile),
+      role: profile?.role,
+    });
+
+    if (!redirectPath) {
+      return false;
+    }
+
+    setStatus({
+      message: "You are already signed in. Redirecting to your workspace...",
+      type: "pending",
+    });
+    feedbackRouter.push(redirectPath);
+    return true;
+  };
+
   const handleGoogle = async () => {
     const supabase = getSupabaseClient();
     setPendingAction("google");
     setStatus({
-      message: "Connecting you to Google registration...",
+      message: "Checking your active session...",
       type: "pending",
     });
 
     try {
+      if (await redirectIfAlreadySignedIn()) {
+        return;
+      }
+
+      setStatus({
+        message: "Connecting you to Google registration...",
+        type: "pending",
+      });
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -68,20 +119,29 @@ export function SignUpForm({
     const supabase = getSupabaseClient();
     setPendingAction("email");
     setStatus({
-      message: "Creating your account...",
+      message: "Checking your active session...",
       type: "pending",
     });
 
-    if (password !== repeatPassword) {
-      setStatus({
-        message: "Passwords do not match",
-        type: "error",
-      });
-      setPendingAction(null);
-      return;
-    }
-
     try {
+      if (await redirectIfAlreadySignedIn()) {
+        return;
+      }
+
+      if (password !== repeatPassword) {
+        setStatus({
+          message: "Passwords do not match",
+          type: "error",
+        });
+        setPendingAction(null);
+        return;
+      }
+
+      setStatus({
+        message: "Creating your account...",
+        type: "pending",
+      });
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
