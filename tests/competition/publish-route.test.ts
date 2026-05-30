@@ -91,6 +91,32 @@ function makePublishRequest() {
   });
 }
 
+function makeValidLatexPreflightFrom(extraFrom?: (table: string) => unknown) {
+  return vi.fn((table: string) => {
+    if (table === "competition_problems") {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn().mockResolvedValue({
+            data: Array.from({ length: 10 }, (_, index) => ({
+              problem_id: `problem-${index + 1}`,
+              problems: {
+                content_latex: `Valid problem ${index + 1}`,
+              },
+            })),
+            error: null,
+          }),
+        })),
+      };
+    }
+
+    if (extraFrom) {
+      return extraFrom(table);
+    }
+
+    throw new Error(`Unexpected table in admin client: ${table}`);
+  });
+}
+
 function makeSupabaseClient(competitionRows: Array<Record<string, unknown>>) {
   const profileQuery = {
     select: vi.fn(),
@@ -443,6 +469,57 @@ describe("publish route compatibility", () => {
     });
   });
 
+  test("rejects publish before lifecycle RPC when selected problem LaTeX is invalid", async () => {
+    const supabase = makeSupabaseClient([
+      makeCompetitionRow("draft"),
+    ]);
+    vi.mocked(createClient).mockResolvedValue(supabase.client as never);
+
+    const rpc = vi.fn();
+    const from = vi.fn((table: string) => {
+      if (table === "competition_problems") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  problem_id: "problem-1",
+                  problems: {
+                    content_latex: "\\frac{1}{",
+                  },
+                },
+              ],
+              error: null,
+            }),
+          })),
+        };
+      }
+
+      throw new Error(`Unexpected table in admin client: ${table}`);
+    });
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc,
+      from,
+    } as never);
+
+    const response = await POST(makePublishRequest(), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.code).toBe("invalid_problem_latex");
+    expect(body.invalidProblemCount).toBe(1);
+    expect(body.errors).toEqual([
+      expect.objectContaining({
+        problemId: "problem-1",
+        field: "selectedProblemIds",
+      }),
+    ]);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   test("accepts scalar lifecycle RPC payloads without triggering fallback", async () => {
     const supabase = makeSupabaseClient([
       makeCompetitionRow("draft"),
@@ -455,9 +532,7 @@ describe("publish route compatibility", () => {
       error: null,
     });
 
-    const from = vi.fn(() => {
-      throw new Error("Legacy fallback should not execute for successful RPC payloads");
-    });
+    const from = makeValidLatexPreflightFrom();
 
     vi.mocked(createAdminClient).mockReturnValue({
       rpc,
@@ -474,7 +549,7 @@ describe("publish route compatibility", () => {
     expect(body.competition.status).toBe("published");
     expect(body.lifecycle.machineCode).toBe("ok");
     expect(body.lifecycle.requestIdempotencyToken).toBe("");
-    expect(from).not.toHaveBeenCalled();
+    expect(from).toHaveBeenCalledWith("competition_problems");
   });
 
   test("keeps publish successful when lifecycle RPC returns unshaped payload", async () => {
@@ -532,7 +607,7 @@ describe("publish route compatibility", () => {
 
     vi.mocked(createAdminClient).mockReturnValue({
       rpc,
-      from: vi.fn(),
+      from: makeValidLatexPreflightFrom(),
     } as never);
 
     const response = await POST(makePublishRequest(), {
@@ -556,7 +631,7 @@ describe("publish route compatibility", () => {
 
     vi.mocked(createAdminClient).mockReturnValue({
       rpc,
-      from: vi.fn(),
+      from: makeValidLatexPreflightFrom(),
     } as never);
 
     const response = await POST(makePublishRequest(), {
@@ -597,7 +672,7 @@ describe("publish route compatibility", () => {
         data: null,
         error: null,
       }),
-      from: vi.fn(),
+      from: makeValidLatexPreflightFrom(),
     } as never);
 
     const response = await POST(makePublishRequest(), {
@@ -628,7 +703,7 @@ describe("publish route compatibility", () => {
         data: ["ok"],
         error: null,
       }),
-      from: vi.fn(),
+      from: makeValidLatexPreflightFrom(),
     } as never);
 
     const response = await POST(makePublishRequest(), {

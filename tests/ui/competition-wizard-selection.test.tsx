@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { CompetitionWizard } from "@/components/competition-wizard/competition-wizard";
 import { createDefaultCompetitionDraftState } from "@/lib/competition/validation";
-import type { CompetitionProblemOption } from "@/lib/competition/types";
+import type { CompetitionProblemOption, CompetitionRecord } from "@/lib/competition/types";
 
 const routerSpies = vi.hoisted(() => ({
   push: vi.fn(),
@@ -58,6 +58,65 @@ function renderWizard(initialState = createDefaultCompetitionDraftState()) {
   );
 }
 
+function buildPublishReadyDraft() {
+  return {
+    ...createDefaultCompetitionDraftState(),
+    type: "open" as const,
+    format: "individual" as const,
+    name: "Open Algebra Cup",
+    description: "A publish-ready competition draft.",
+    instructions: "Solve all problems independently.",
+    attemptsAllowed: 1,
+    maxParticipants: 20,
+    selectedProblemIds: Array.from({ length: 10 }, (_, index) => `problem-${index + 1}`),
+  };
+}
+
+function buildCompetitionRecord(): CompetitionRecord {
+  const now = "2026-04-15T00:00:00.000Z";
+
+  return {
+    id: "competition-1",
+    organizerId: "organizer-1",
+    leaderboardPublished: false,
+    name: "Open Algebra Cup",
+    description: "A publish-ready competition draft.",
+    instructions: "Solve all problems independently.",
+    type: "open",
+    format: "individual",
+    status: "draft",
+    answerKeyVisibility: "after_end",
+    registrationStart: null,
+    registrationEnd: null,
+    startTime: null,
+    endTime: null,
+    durationMinutes: 60,
+    attemptsAllowed: 1,
+    multiAttemptGradingMode: "highest_score",
+    maxParticipants: 20,
+    participantsPerTeam: null,
+    maxTeams: null,
+    scoringMode: "difficulty",
+    customPointsByProblemId: {},
+    penaltyMode: "none",
+    deductionValue: 0,
+    tieBreaker: "earliest_final_submission",
+    shuffleQuestions: false,
+    shuffleOptions: false,
+    logTabSwitch: false,
+    offensePenalties: [],
+    safeExamBrowserMode: "off",
+    safeExamBrowserConfigKeyHashes: [],
+    scoringSnapshotJson: null,
+    draftRevision: 1,
+    draftVersion: 1,
+    isDeleted: false,
+    publishedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 function openProblemsStep() {
   fireEvent.click(screen.getByRole("button", { name: "Problems" }));
 }
@@ -108,5 +167,36 @@ describe("CompetitionWizard selection and custom scoring", () => {
     fireEvent.change(pointsInput, { target: { value: "7" } });
 
     expect(pointsInput).toHaveValue(7);
+  });
+
+  test("warns and blocks publish when selected problems contain invalid LaTeX", () => {
+    const initialState = buildPublishReadyDraft();
+    const availableProblems = Array.from({ length: 10 }, (_, index) =>
+      buildProblem(
+        `problem-${index + 1}`,
+        "bank-a",
+        "Bank A",
+        index === 0 ? "\\frac{1}{" : `Valid problem ${index + 1}`,
+      ),
+    );
+
+    render(
+      <CompetitionWizard
+        mode="edit"
+        competitionId="competition-1"
+        initialState={initialState}
+        initialCompetition={buildCompetitionRecord()}
+        availableProblems={availableProblems}
+      />,
+    );
+
+    openProblemsStep();
+
+    expect(screen.getAllByText(/1 selected problem has invalid LaTeX/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Invalid LaTeX:/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+
+    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
   });
 });
