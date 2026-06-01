@@ -27,7 +27,6 @@ type AttemptRow = {
   total_time_seconds?: unknown;
   final_score?: unknown;
   raw_score?: unknown;
-  offense_count?: unknown;
   effective_attempt_deadline_at?: unknown;
   grade_summary_json?: unknown;
 };
@@ -67,11 +66,11 @@ function isMissingSchema(error: SupabaseError | null | undefined) {
   return error.code === "42P01" || error.code === "42703" || error.code === "PGRST204" || message.includes("does not exist");
 }
 
-function calculateRisk(offenseCount: number, remainingSeconds: number | null, progressPercent: number) {
-  if (offenseCount >= 3 || (remainingSeconds !== null && remainingSeconds < 300 && progressPercent < 60)) {
+function calculateRisk(remainingSeconds: number | null, progressPercent: number) {
+  if (remainingSeconds !== null && remainingSeconds < 300 && progressPercent < 60) {
     return "high" as const;
   }
-  if (offenseCount > 0 || progressPercent < 35) {
+  if (progressPercent < 35) {
     return "medium" as const;
   }
   return "low" as const;
@@ -126,7 +125,7 @@ async function listMonitoringAttemptSummaries(
   const { data, error } = await supabase
     .from("competition_attempts")
     .select(
-      "id, registration_id, participant_profile_id, attempt_no, status, started_at, updated_at, total_time_seconds, final_score, raw_score, offense_count, effective_attempt_deadline_at, grade_summary_json",
+      "id, registration_id, participant_profile_id, attempt_no, status, started_at, updated_at, total_time_seconds, final_score, raw_score, effective_attempt_deadline_at, grade_summary_json",
     )
     .eq("competition_id", competitionId)
     .in("status", statuses)
@@ -163,8 +162,6 @@ async function listMonitoringAttemptSummaries(
     const remainingSeconds = deadline
       ? Math.max(0, Math.floor((new Date(deadline).getTime() - Date.now()) / 1000))
       : null;
-    const offenseCount = readNumber(row.offense_count) ?? 0;
-
     return {
       attemptId,
       registrationId,
@@ -178,11 +175,10 @@ async function listMonitoringAttemptSummaries(
       lastSeenAt: readString(row.updated_at) ?? readString(row.started_at),
       elapsedSeconds: readNumber(row.total_time_seconds),
       remainingSeconds,
-      offenseCount,
       answeredCount,
       totalQuestions,
       progressPercent,
-      riskLevel: calculateRisk(offenseCount, remainingSeconds, progressPercent),
+      riskLevel: calculateRisk(remainingSeconds, progressPercent),
     };
   });
 

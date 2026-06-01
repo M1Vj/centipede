@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -69,8 +69,6 @@ const competition: CompetitionRecord = {
   tieBreaker: "earliest_final_submission",
   shuffleQuestions: false,
   shuffleOptions: false,
-  logTabSwitch: false,
-  offensePenalties: [],
   safeExamBrowserMode: "off",
   safeExamBrowserConfigKeyHashes: [],
   scoringSnapshotJson: null,
@@ -140,7 +138,6 @@ const activeAttempts: MonitoringAttemptSummary[] = [
     lastSeenAt: "2026-04-26T00:44:00.000Z",
     elapsedSeconds: 2340,
     remainingSeconds: 1260,
-    offenseCount: 3,
     answeredCount: 18,
     totalQuestions: 20,
     progressPercent: 90,
@@ -157,7 +154,6 @@ const activeAttempts: MonitoringAttemptSummary[] = [
     lastSeenAt: "2026-04-26T00:28:00.000Z",
     elapsedSeconds: 1080,
     remainingSeconds: 2520,
-    offenseCount: 0,
     answeredCount: 4,
     totalQuestions: 20,
     progressPercent: 20,
@@ -176,17 +172,6 @@ const events: MonitoringCompetitionEvent[] = [
     actorRole: "organizer",
     result: "approved",
     metadata: { request_idempotency_token: "token-2" },
-  },
-  {
-    id: "event-1",
-    happenedAt: "2026-04-26T00:15:00.000Z",
-    eventType: "tab_switch_offense_logged",
-    controlAction: null,
-    reason: "Focus left arena",
-    actorName: "System",
-    actorRole: "system",
-    result: "recorded",
-    metadata: { attempt_id: "attempt-1" },
   },
 ];
 
@@ -259,7 +244,6 @@ describe("CompetitionParticipantsPanel", () => {
     expect(screen.getByText("Euler Squad")).toBeInTheDocument();
     expect(screen.queryByText("Noether Team")).not.toBeInTheDocument();
     expect(screen.getByText("Score 72 / 100")).toBeInTheDocument();
-    expect(screen.getByText("Offenses 3")).toBeInTheDocument();
     expect(screen.getByText("High risk")).toBeInTheDocument();
     expect(screen.getByText("18 / 20 answered")).toBeInTheDocument();
   });
@@ -396,17 +380,20 @@ describe("CompetitionParticipantsPanel", () => {
   });
 
   test("disconnect reset requires objective evidence and posts canonical reset payload", async () => {
-    const user = userEvent.setup();
     renderPanel();
 
-    await user.click(screen.getAllByRole("button", { name: "Reset disconnect" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Reset disconnect" })[0]);
 
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByRole("button", { name: "Confirm reset" })).toBeDisabled();
 
-    await user.type(within(dialog).getByLabelText("Disconnect evidence event id"), "evidence-event-1");
-    await user.type(within(dialog).getByLabelText("Control reason"), "Participant reconnected after platform drop");
-    await user.click(within(dialog).getByRole("button", { name: "Confirm reset" }));
+    fireEvent.change(within(dialog).getByLabelText("Disconnect evidence event id"), {
+      target: { value: "evidence-event-1" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Control reason"), {
+      target: { value: "Participant reconnected after platform drop" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm reset" }));
 
     expect(fetchMock).toHaveBeenCalledWith("/api/organizer/competitions/competition-1/monitoring/reset-disconnect", {
       method: "POST",
@@ -433,7 +420,6 @@ describe("CompetitionParticipantsPanel", () => {
     expect(rows[0]).toHaveTextContent("Network degradation");
     expect(rows[0]).toHaveTextContent("Organizer One");
     expect(rows[0]).toHaveTextContent("approved");
-    expect(rows[1]).toHaveTextContent("tab_switch_offense_logged");
 
     rerender(
       <CompetitionParticipantsPanel

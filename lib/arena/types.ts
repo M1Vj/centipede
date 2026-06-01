@@ -33,7 +33,6 @@ export interface ArenaCompetitionSummary {
   durationMinutes: number;
   attemptsAllowed: number;
   participantsPerTeam: number | null;
-  logTabSwitch: boolean;
   safeExamBrowserMode: SafeExamBrowserMode;
 }
 

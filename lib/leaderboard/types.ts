@@ -15,7 +15,6 @@ export type LeaderboardEntry = {
   displayName: string;
   score: number;
   totalTimeSeconds: number;
-  offenseCount: number;
   publishedVisibility: boolean;
   computedAt: string;
 };

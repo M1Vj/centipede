@@ -43,6 +43,7 @@ function buildCompetition(status: CompetitionRecord["status"], overrides: Partia
   return {
     id: `${status}-competition`,
     organizerId: "organizer-1",
+    leaderboardPublished: false,
     name: `${status === "draft" ? "Draft" : "Published"} Competition`,
     description: "Competition description",
     instructions: "Competition instructions",
@@ -67,8 +68,6 @@ function buildCompetition(status: CompetitionRecord["status"], overrides: Partia
     tieBreaker: "earliest_final_submission",
     shuffleQuestions: false,
     shuffleOptions: false,
-    logTabSwitch: false,
-    offensePenalties: [],
     safeExamBrowserMode: "off",
     safeExamBrowserConfigKeyHashes: [],
     scoringSnapshotJson: null,

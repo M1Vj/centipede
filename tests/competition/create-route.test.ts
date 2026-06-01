@@ -149,8 +149,6 @@ function buildCompetitionRow(overrides: Partial<Record<string, unknown>> = {}) {
     tie_breaker: "earliest_final_submission",
     shuffle_questions: false,
     shuffle_options: false,
-    log_tab_switch: false,
-    offense_penalties: [],
     scoring_snapshot_json: null,
     draft_revision: 1,
     draft_version: 1,
@@ -186,8 +184,6 @@ function buildLegacyCompetitionRow(overrides: Partial<Record<string, unknown>> =
     tie_breaker: "average_time",
     shuffle_questions: false,
     shuffle_options: false,
-    log_tab_switch: false,
-    offense_penalties: [],
     published: false,
     is_paused: false,
     created_at: "2026-04-01T00:00:00.000Z",
@@ -220,8 +216,6 @@ function buildScheduledCreatePayload(overrides: Partial<Record<string, unknown>>
     tieBreaker: "earliest_final_submission",
     shuffleQuestions: false,
     shuffleOptions: false,
-    logTabSwitch: false,
-    offensePenalties: [],
     answerKeyVisibility: "after_end",
     selectedProblemIds: [],
     ...overrides,
@@ -440,14 +434,11 @@ describe("POST /api/organizer/competitions", () => {
       }),
     } as never);
 
-    const offensePenalties = [{ threshold: 2, penaltyKind: "warning", deductionValue: 0 }];
     const response = await POST(
       makeCreateRequest(
         buildScheduledCreatePayload({
           type: "open",
           startTime: null,
-          logTabSwitch: true,
-          offensePenalties,
         }),
       ),
     );
@@ -459,12 +450,8 @@ describe("POST /api/organizer/competitions", () => {
     expect(select).toHaveBeenNthCalledWith(2, LEGACY_COMPETITION_SELECT_COLUMNS);
     expect(insertPayloads).toHaveLength(2);
     expect(insertPayloads[1]).not.toHaveProperty("offense_penalties_json");
-    expect(insertPayloads[1]).toEqual(
-      expect.objectContaining({
-        log_tab_switch: true,
-        offense_penalties: offensePenalties,
-      }),
-    );
+    expect(insertPayloads[1]).not.toHaveProperty("log_tab_switch");
+    expect(insertPayloads[1]).not.toHaveProperty("offense_penalties");
   });
 
   test("re-reads created competition when insert returns no row data", async () => {

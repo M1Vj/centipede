@@ -176,10 +176,6 @@ async function CompetitionContent({ params }: { params: Promise<{ id: string }> 
                 <span className="text-muted-foreground">Shuffle Questions</span>
                 <span className="font-medium">{competition.shuffle_questions ? "Yes" : "No"}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-border/40">
-                <span className="text-muted-foreground">Anti-Cheat Tabs</span>
-                <span className="font-medium">{competition.log_tab_switch ? "Enabled" : "Disabled"}</span>
-              </div>
             </div>
           </div>
         </CardContent>

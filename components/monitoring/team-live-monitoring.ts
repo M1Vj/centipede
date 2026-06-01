@@ -12,7 +12,6 @@ export type TeamLiveMonitoringRow = {
   maxScore: number | null;
   activeAttemptCount: number;
   finishedAttemptCount: number;
-  offenseCount: number;
   answeredCount: number | null;
   totalQuestions: number | null;
   progressPercent: number;
@@ -132,7 +131,6 @@ export function buildTeamLiveMonitoringRows(input: {
         maxScore,
         activeAttemptCount: activeAttempts.length,
         finishedAttemptCount: finishedAttempts.length,
-        offenseCount: attempts.reduce((total, attempt) => total + attempt.offenseCount, 0),
         answeredCount,
         totalQuestions,
         progressPercent: Math.max(0, Math.min(100, progressPercent)),

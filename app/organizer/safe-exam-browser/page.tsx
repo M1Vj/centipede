@@ -40,7 +40,7 @@ export default function OrganizerSafeExamBrowserPage() {
             {
               icon: ShieldCheck,
               title: "Default off",
-              body: "Normal quizzes keep existing anti-cheat only. No participant gets blocked by SEB unless organizer enables it.",
+              body: "Normal quizzes remain browser-flexible. No participant gets blocked by SEB unless organizer enables it.",
             },
             {
               icon: Download,
@@ -71,7 +71,7 @@ export default function OrganizerSafeExamBrowserPage() {
               <h2 className="text-xl font-black text-[#10182b]">Recommended organizer workflow</h2>
               <ol className="mt-5 space-y-4 text-sm font-medium leading-6 text-slate-700">
                 <li>1. Create and save the quiz draft first, because the SEB config is quiz-specific.</li>
-                <li>2. In the scoring and anti-cheat step, set SEB enforcement to Required for this quiz.</li>
+                <li>2. In the scoring step, set SEB enforcement to Required for this quiz.</li>
                 <li>3. Download quiz config from the scoring step.</li>
                 <li>4. Open the .seb file in the official SEB Config Tool and save it.</li>
                 <li>5. Copy the 64-character Config Key hash from SEB after saving.</li>

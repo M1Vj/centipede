@@ -37,10 +37,8 @@ describe("competition api helpers", () => {
       tie_breaker: "lowest_total_time",
       shuffle_questions: true,
       shuffle_options: false,
-      log_tab_switch: true,
       safe_exam_browser_mode: "required",
       safe_exam_browser_config_key_hashes: ["a".repeat(64)],
-      offense_penalties: [{ threshold: 2, penaltyKind: "warning", deductionValue: 0 }],
       scoring_snapshot_json: { scoringMode: "custom" },
       draft_revision: 4,
       draft_version: 2,
@@ -85,8 +83,6 @@ describe("competition api helpers", () => {
       tie_breaker: "average_time",
       shuffle_questions: false,
       shuffle_options: false,
-      log_tab_switch: false,
-      offense_penalties: [],
       scoring_snapshot_json: null,
       draft_revision: 1,
       draft_version: 1,
@@ -126,30 +122,17 @@ describe("competition api helpers", () => {
       tieBreaker: "lowest_total_time",
       shuffleQuestions: false,
       shuffleOptions: false,
-      logTabSwitch: false,
       safeExamBrowserMode: "required",
       safeExamBrowserConfigKeyHashes: ["b".repeat(64)],
       answerKeyVisibility: "after_end",
       selectedProblemIds: [],
-      offensePenalties: [
-        { threshold: 1, penaltyKind: "warning", deductionValue: 0 },
-        { threshold: 2, penaltyKind: "deduction", deductionValue: 3 },
-        { threshold: 4, penaltyKind: "forced_submit", deductionValue: 0 },
-        { threshold: 6, penaltyKind: "disqualification", deductionValue: 0 },
-      ],
     });
 
     expect(payload.scoring_mode).toBe("automatic");
     expect(payload.penalty_mode).toBe("deduction");
     expect(payload.tie_breaker).toBe("average_time");
     expect(payload.start_time).toBe("2026-05-01T03:00:00.000Z");
-    expect(payload.offense_penalties_json).toEqual({
-      warning_threshold: 1,
-      deduction_threshold: 2,
-      deduction_value: 3,
-      auto_submit_threshold: 4,
-      disqualification_threshold: 6,
-    });
+    expect(payload).not.toHaveProperty("offense_penalties_json");
     expect(payload.safe_exam_browser_mode).toBe("required");
     expect(payload.safe_exam_browser_config_key_hashes).toEqual(["b".repeat(64)]);
     expect(payload).not.toHaveProperty("end_time");
@@ -180,10 +163,8 @@ describe("competition api helpers", () => {
       tieBreaker: "lowest_total_time",
       shuffleQuestions: false,
       shuffleOptions: false,
-      logTabSwitch: false,
       safeExamBrowserMode: "required",
       safeExamBrowserConfigKeyHashes: ["c".repeat(64)],
-      offensePenalties: [],
       answerKeyVisibility: "after_end",
       selectedProblemIds: [],
     });
@@ -227,8 +208,6 @@ describe("competition api helpers", () => {
       tie_breaker: "earliest_final_submission",
       shuffle_questions: false,
       shuffle_options: false,
-      log_tab_switch: false,
-      offense_penalties: [],
       scoring_snapshot_json: null,
       draft_revision: 1,
       draft_version: 1,
@@ -280,8 +259,6 @@ describe("competition api helpers", () => {
       tie_breaker: "earliest_final_submission",
       shuffle_questions: false,
       shuffle_options: false,
-      log_tab_switch: false,
-      offense_penalties: [],
       scoring_snapshot_json: null,
       draft_revision: 1,
       draft_version: 1,

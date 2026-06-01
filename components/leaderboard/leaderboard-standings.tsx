@@ -147,10 +147,6 @@ function PodiumCard({ entry }: { entry: LeaderboardEntry }) {
             <dt className="sr-only">Time</dt>
             <dd>{formatDuration(entry.totalTimeSeconds)}</dd>
           </div>
-          <div className="rounded-full bg-white/10 px-3 py-1.5">
-            <dt className="sr-only">Offenses</dt>
-            <dd>{entry.offenseCount} offenses</dd>
-          </div>
         </dl>
       </div>
     </article>
@@ -168,7 +164,7 @@ function RankingRow({ entry }: { entry: LeaderboardEntry }) {
           <div className="min-w-0">
             <h3 className="break-words text-xl font-black text-[#0f1c2c]">{entry.displayName}</h3>
             <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-              {formatDuration(entry.totalTimeSeconds)} / {entry.offenseCount} offenses
+              {formatDuration(entry.totalTimeSeconds)}
             </p>
           </div>
         </div>
@@ -239,7 +235,7 @@ export function LeaderboardStandings({
       {children ? <div>{children}</div> : null}
 
       <p className="sr-only">
-        {label} leaderboard sorted by rank, score, total time, and offense count.
+        {label} leaderboard sorted by rank, score, and total time.
       </p>
     </section>
   );

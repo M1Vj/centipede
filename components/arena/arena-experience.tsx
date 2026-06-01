@@ -1,15 +1,10 @@
 "use client";
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import { Bookmark, ChevronLeft, ChevronRight, Clock, Download, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import {
-  AntiCheatObserver,
-  type AntiCheatSignal,
-  type PenaltyApplied,
-} from "@/components/anti-cheat/anti-cheat-observer";
-import { WarningOverlay } from "@/components/anti-cheat/warning-overlay";
+import { TabSwitchWarningObserver } from "@/components/arena/tab-switch-warning-observer";
+import { TabSwitchWarningOverlay } from "@/components/arena/tab-switch-warning-overlay";
 import { MathliveField } from "@/components/math-editor/mathlive-field";
 import { KatexPreview } from "@/components/math-editor/katex-preview";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -36,16 +31,6 @@ type ArenaExperienceProps = {
 };
 
 type RequestState = "idle" | "pending" | "error";
-type AntiCheatStatus = {
-  eventSource: string;
-  visibilityState: string;
-  status: "active" | "detected" | "sent" | "queued" | "error";
-  penalty: PenaltyApplied;
-  happenedAt: string | null;
-};
-type AntiCheatSignalState = AntiCheatSignal & {
-  counts: Record<string, number>;
-};
 
 type PendingSave = {
   clientUpdatedAt: string;
@@ -140,15 +125,13 @@ function getAttemptTerminalNotice(status: string | null | undefined) {
       return {
         tone: "warning" as const,
         title: "Attempt auto-submitted",
-        message:
-          "Anti-cheat policy auto-submitted this attempt after repeated focus-loss offenses were logged.",
+        message: "This attempt was submitted automatically.",
       };
     case "disqualified":
       return {
         tone: "destructive" as const,
         title: "Attempt disqualified",
-        message:
-          "Anti-cheat policy disqualified this attempt after repeated focus-loss offenses were logged.",
+        message: "This attempt is no longer editable.",
       };
     case "submitted":
       return {
@@ -183,7 +166,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   const [selectedProblemId, setSelectedProblemId] = useState(
     initialData.problems[0]?.competitionProblemId ?? "",
   );
-  const [activePenalty, setActivePenalty] = useState<PenaltyApplied>(null);
+  const [tabSwitchWarningOpen, setTabSwitchWarningOpen] = useState(false);
   const [requestState, setRequestState] = useState<RequestState>("idle");
   const [requestMessage, setRequestMessage] = useState<string | null>(null);
   const [withdrawPending, setWithdrawPending] = useState(false);
@@ -199,21 +182,6 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   const [remainingSeconds, setRemainingSeconds] = useState(
     initialData.activeAttempt?.remainingSeconds ?? 0,
   );
-  const [antiCheatStatus, setAntiCheatStatus] = useState<AntiCheatStatus>({
-    eventSource: "ready",
-    visibilityState: "visible",
-    status: "active",
-    penalty: null,
-    happenedAt: null,
-  });
-  const [antiCheatSignal, setAntiCheatSignal] = useState<AntiCheatSignalState>({
-    eventSource: "ready",
-    visibilityState: "visible",
-    hidden: false,
-    hasFocus: true,
-    checkedAt: "",
-    counts: {},
-  });
   const [connectionState, setConnectionState] = useState<"live" | "syncing" | "offline">("live");
   const [timerAnnouncement, setTimerAnnouncement] = useState("");
   const expiryHandledAttemptRef = useRef<string | null>(null);
@@ -857,82 +825,13 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
 
   return (
     <div className="min-h-screen bg-[#fafafb] px-4 py-6 font-['Poppins'] text-[#1a1e2e] sm:px-6 lg:px-10">
-      <AntiCheatObserver
-        attemptId={pageData.activeAttempt?.id ?? ""}
-        isActive={
-          pageData.competition.logTabSwitch &&
-          !!pageData.activeAttempt &&
-          pageData.activeAttempt.status === "in_progress"
-        }
-        onPenalty={(penalty) => {
-          if (penalty && penalty !== "none") {
-            flushSync(() => {
-              setActivePenalty(penalty);
-              setAntiCheatStatus((prev) => ({
-                ...prev,
-                penalty,
-                happenedAt: prev.happenedAt ?? new Date().toISOString(),
-              }));
-              if (penalty === "auto_submit" || penalty === "disqualified") {
-                const terminalStatus = penalty === "auto_submit" ? "auto_submitted" : "disqualified";
-                setPageData((prev) => ({
-                  ...prev,
-                  mode: "detail_register",
-                  activeAttempt: null,
-                  latestAttempt: prev.activeAttempt
-                    ? {
-                        ...prev.activeAttempt,
-                        status: terminalStatus,
-                        submittedAt: prev.activeAttempt.submittedAt ?? new Date().toISOString(),
-                        remainingSeconds: 0,
-                      }
-                    : prev.latestAttempt
-                      ? {
-                          ...prev.latestAttempt,
-                          status: terminalStatus,
-                          submittedAt: prev.latestAttempt.submittedAt ?? new Date().toISOString(),
-                          remainingSeconds: 0,
-                        }
-                      : null,
-                  attemptsRemaining: penalty === "disqualified" ? 0 : prev.attemptsRemaining,
-                  canResume: false,
-                }));
-              }
-            });
-          }
-        }}
-        onSignal={(signal) => {
-          setAntiCheatSignal((prev) => ({
-            ...signal,
-            counts:
-              signal.eventSource === "poll"
-                ? prev.counts
-                : {
-                    ...prev.counts,
-                    [signal.eventSource]: (prev.counts[signal.eventSource] ?? 0) + 1,
-                  },
-          }));
-        }}
-        onEvent={({ eventSource, visibilityState, status, penalty }) => {
-          setAntiCheatStatus({
-            eventSource,
-            visibilityState,
-            status,
-            penalty: penalty ?? null,
-            happenedAt: new Date().toISOString(),
-          });
-          if (status === "queued" || penalty === "auto_submit" || penalty === "disqualified") {
-            window.setTimeout(() => {
-              void refreshState({
-                preservePending: false,
-              });
-            }, status === "queued" ? 1200 : 0);
-          }
-        }}
+      <TabSwitchWarningObserver
+        isActive={!!pageData.activeAttempt && pageData.activeAttempt.status === "in_progress"}
+        onWarning={() => setTabSwitchWarningOpen(true)}
       />
-      <WarningOverlay
-        penalty={activePenalty === "none" ? null : activePenalty}
-        onAcknowledge={() => setActivePenalty(null)}
+      <TabSwitchWarningOverlay
+        open={tabSwitchWarningOpen}
+        onAcknowledge={() => setTabSwitchWarningOpen(false)}
       />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
@@ -971,46 +870,6 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
           </div>
         ) : null}
       </div>
-
-      {pageData.activeAttempt ? (
-        <div
-          className={cn(
-            "mt-4 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm",
-            pageData.competition.logTabSwitch
-              ? antiCheatStatus.status === "active"
-                ? "border-[#1a1e2e]/15 bg-slate-50 text-[#1a1e2e]"
-                : antiCheatStatus.status === "error"
-                  ? "border-red-200 bg-red-50 text-red-900"
-                  : "border-[#f49700]/30 bg-[#fff7e8] text-[#8a5400]"
-              : "border-slate-200 bg-slate-50 text-slate-500",
-          )}
-          role="status"
-          aria-live="polite"
-        >
-          {pageData.competition.logTabSwitch ? (
-            <div className="space-y-1">
-              <p>
-                {antiCheatStatus.status === "active"
-                  ? "Anti-cheat active. Switch tabs or apps to test focus-loss detection."
-                  : `Anti-cheat event detected: ${antiCheatStatus.eventSource} (${antiCheatStatus.visibilityState}). Log status: ${antiCheatStatus.status}.`}
-              </p>
-              <p className="text-xs font-medium">
-                Browser signal: {antiCheatSignal.visibilityState}
-                {antiCheatSignal.hidden ? " / hidden" : " / visible"}
-                {antiCheatSignal.hasFocus ? " / focused" : " / not focused"}
-                {antiCheatSignal.eventSource ? ` / last: ${antiCheatSignal.eventSource}` : ""}
-              </p>
-              <p className="text-xs font-medium">
-                Browser signal counters: visibilitychange {antiCheatSignal.counts.visibilitychange ?? 0}, blur{" "}
-                {antiCheatSignal.counts.blur ?? 0}, focus {antiCheatSignal.counts.focus ?? 0},
-                pagehide {antiCheatSignal.counts.pagehide ?? 0}
-              </p>
-            </div>
-          ) : (
-            "Anti-cheat tab-switch logging disabled for this competition."
-          )}
-        </div>
-      ) : null}
 
       {requestMessage ? (
         <Alert variant={requestState === "error" ? "destructive" : "default"}>

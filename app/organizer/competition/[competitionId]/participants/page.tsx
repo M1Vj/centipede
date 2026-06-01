@@ -2,8 +2,6 @@ import { notFound } from "next/navigation";
 import { CompetitionParticipantsPanel } from "@/components/organizer/competition-participants-panel";
 import { loadMonitoringData } from "@/components/monitoring/server-data";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
-import { OffenseLogsPanel } from "@/components/anti-cheat/offense-logs-panel";
-import { getCompetitionOffenses } from "@/lib/anti-cheat/queries";
 import {
   loadOrganizerCompetitionForManagement,
 } from "../../_data";
@@ -27,16 +25,12 @@ export default async function OrganizerCompetitionParticipantsPage({ params, sea
     notFound();
   }
 
-  const [registrations, offenseLogs] = await Promise.all([
-    listOrganizerCompetitionRegistrations({ competitionId }),
-    getCompetitionOffenses(competitionId, profile?.id ?? ""),
-  ]);
+  const registrations = await listOrganizerCompetitionRegistrations({ competitionId });
   const monitoring = await loadMonitoringData(competitionId, registrations);
 
   return (
     <div className="w-full px-4">
       <div className="mx-auto mt-12 w-full max-w-[1100px] flex flex-col gap-6 pb-12">
-        <OffenseLogsPanel logs={offenseLogs} />
         <CompetitionParticipantsPanel
           competition={competition}
           registrations={registrations}

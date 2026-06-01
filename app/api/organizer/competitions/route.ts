@@ -56,8 +56,6 @@ function buildCreationDraftState(payload: Record<string, unknown> | null): Compe
     tieBreaker: baseState.tieBreaker,
     shuffleQuestions: false,
     shuffleOptions: false,
-    logTabSwitch: false,
-    offensePenalties: [],
     safeExamBrowserMode: "off",
     safeExamBrowserConfigKeyHashes: [],
     answerKeyVisibility: baseState.answerKeyVisibility,

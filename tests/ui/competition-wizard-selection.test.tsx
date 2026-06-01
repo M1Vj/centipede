@@ -103,8 +103,6 @@ function buildCompetitionRecord(): CompetitionRecord {
     tieBreaker: "earliest_final_submission",
     shuffleQuestions: false,
     shuffleOptions: false,
-    logTabSwitch: false,
-    offensePenalties: [],
     safeExamBrowserMode: "off",
     safeExamBrowserConfigKeyHashes: [],
     scoringSnapshotJson: null,

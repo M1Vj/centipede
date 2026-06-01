@@ -50,7 +50,7 @@ const WIZARD_STEPS: Array<{ id: CompetitionWizardStep; title: string; descriptio
   { id: "schedule", title: "Schedule", description: "Type, timing, and capacity." },
   { id: "format", title: "Format", description: "Individual or team setup." },
   { id: "problems", title: "Problems", description: "Pick and order selected problems." },
-  { id: "scoring", title: "Scoring", description: "Attempts, penalties, and anti-cheat." },
+  { id: "scoring", title: "Scoring", description: "Attempts and penalties." },
   { id: "review", title: "Review", description: "Check state before create or publish." },
 ];
 
@@ -59,7 +59,7 @@ const STEP_PROGRESS_CONFIG: Record<CompetitionWizardStep, { visualStep: number; 
   schedule: { visualStep: 2, totalSteps: 5, title: "Format & Schedule", description: "Configure competition type, timing, and participant format." },
   format: { visualStep: 2, totalSteps: 5, title: "Format & Schedule", description: "Configure competition type, timing, and participant format." },
   problems: { visualStep: 3, totalSteps: 5, title: "Competition Problems", description: "Select, search, and order problems before publish." },
-  scoring: { visualStep: 4, totalSteps: 5, title: "Competition Scoring", description: "Define scoring rules, penalties, and anti-cheat policies." },
+  scoring: { visualStep: 4, totalSteps: 5, title: "Competition Scoring", description: "Define scoring rules and penalties." },
   review: { visualStep: 5, totalSteps: 5, title: "Competition Review", description: "Review all settings and publish your competition." },
 };
 
@@ -370,8 +370,6 @@ function buildScoringConfig(state: CompetitionDraftFormState): ScoringRuleConfig
     multiAttemptGradingMode: state.multiAttemptGradingMode,
     shuffleQuestions: state.shuffleQuestions,
     shuffleOptions: state.shuffleOptions,
-    logTabSwitch: state.logTabSwitch,
-    offensePenalties: state.offensePenalties,
     safeExamBrowserMode: state.safeExamBrowserMode,
     safeExamBrowserConfigKeyHashes: state.safeExamBrowserConfigKeyHashes,
     customPointsByProblemId: state.customPointsByProblemId,
@@ -2309,7 +2307,6 @@ export function CompetitionWizard({
                           "tieBreaker",
                           "multiAttemptGradingMode",
                           "customPointsByProblemId",
-                          "offensePenalties",
                           "safeExamBrowserMode",
                           "safeExamBrowserConfigKeyHashes",
                         ].includes(error.field),
@@ -2352,7 +2349,7 @@ export function CompetitionWizard({
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
             <div className="p-8">
               <h2 className="text-[#10182b] font-black text-[18px] mb-1">Competition Scoring</h2>
-              <p className="text-slate-500 text-[13px] font-medium mb-6">Set scoring contract, penalties, and anti-cheat behavior.</p>
+              <p className="text-slate-500 text-[13px] font-medium mb-6">Set scoring contract, penalties, and attempt behavior.</p>
             <div className="space-y-6">
               <OrganizerScoringRuleControls
                 value={scoringConfig}
@@ -2375,7 +2372,6 @@ export function CompetitionWizard({
                     "tieBreaker",
                     "multiAttemptGradingMode",
                     "customPointsByProblemId",
-                    "offensePenalties",
                   ].includes(error.field),
                 )}
                 disabled={!isEditable && mode === "edit"}

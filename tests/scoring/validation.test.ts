@@ -18,8 +18,6 @@ describe("scoring validation", () => {
       multiAttemptGradingMode: "highest_score",
       shuffleQuestions: false,
       shuffleOptions: false,
-      logTabSwitch: false,
-      offensePenalties: [],
       safeExamBrowserMode: "off",
       safeExamBrowserConfigKeyHashes: [],
       customPointsByProblemId: {},
@@ -33,7 +31,7 @@ describe("scoring validation", () => {
     expect(normalizeAttemptGradingModeToken("average_score")).toBe("average_score");
   });
 
-  test("validates custom scoring with penalties and offense rules", () => {
+  test("validates custom scoring with penalties", () => {
     const result = validateScoringRuleInput({
       scoringMode: "custom",
       penaltyMode: "fixed_deduction",
@@ -43,11 +41,6 @@ describe("scoring validation", () => {
       competitionType: "open",
       shuffleQuestions: "true",
       shuffleOptions: true,
-      logTabSwitch: false,
-      offensePenalties: [
-        { threshold: 2, penaltyKind: "deduction", deductionValue: 1 },
-        { threshold: 1, penaltyKind: "warning", deductionValue: 0 },
-      ],
       customPointsByProblemId: {
         cp2: "8",
         cp1: 4,
@@ -63,11 +56,6 @@ describe("scoring validation", () => {
       multiAttemptGradingMode: "average_score",
       shuffleQuestions: true,
       shuffleOptions: true,
-      logTabSwitch: false,
-      offensePenalties: [
-        { threshold: 1, penaltyKind: "warning", deductionValue: 0 },
-        { threshold: 2, penaltyKind: "deduction", deductionValue: 1 },
-      ],
       safeExamBrowserMode: "off",
       safeExamBrowserConfigKeyHashes: [],
       customPointsByProblemId: {
@@ -90,12 +78,4 @@ describe("scoring validation", () => {
     expect(result.errors.some((error) => error.field === "customPointsByProblemId")).toBe(true);
   });
 
-  test("rejects invalid offense penalty definitions", () => {
-    const result = validateScoringRuleInput({
-      offensePenalties: [{ threshold: 1, penaltyKind: "deduction", deductionValue: 0 }],
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result.errors.some((error) => error.field === "offensePenalties")).toBe(true);
-  });
 });

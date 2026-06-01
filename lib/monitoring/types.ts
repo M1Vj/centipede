@@ -31,7 +31,6 @@ export type MonitoringAttemptSummary = {
   score: number | null;
   startedAt: string | null;
   lastHeartbeatAt: string | null;
-  offenseCount: number;
 };
 
 export type MonitoringTimelineEvent = {

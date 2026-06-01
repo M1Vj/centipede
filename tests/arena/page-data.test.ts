@@ -33,8 +33,6 @@ const competitionRow = {
   tie_breaker: "earliest_final_submission",
   shuffle_questions: false,
   shuffle_options: false,
-  log_tab_switch: true,
-  offense_penalties: [],
   scoring_snapshot_json: null,
   draft_revision: 1,
   draft_version: 1,
@@ -83,10 +81,10 @@ describe("arena page data", () => {
     } as never);
   });
 
-  test("carries competition tab-switch logging flag into arena payload", async () => {
+  test("carries competition identity into arena payload", async () => {
     const data = await loadArenaPageData("competition-1", "mathlete-1");
 
-    expect(data?.competition.logTabSwitch).toBe(true);
+    expect(data?.competition.id).toBe("competition-1");
   });
 
   test("allows active registered team members to start and write team attempts", async () => {

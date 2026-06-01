@@ -15,7 +15,6 @@ export type MonitoringAttemptSummary = {
   lastSeenAt: string | null;
   elapsedSeconds: number | null;
   remainingSeconds: number | null;
-  offenseCount: number;
   answeredCount: number | null;
   totalQuestions: number | null;
   progressPercent: number;

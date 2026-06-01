@@ -24,7 +24,6 @@ describe("scoring ui contracts", () => {
           { field: "tieBreaker", reason: "Tie-breaker error" },
           { field: "multiAttemptGradingMode", reason: "Attempt mode error" },
           { field: "customPointsByProblemId", reason: "Custom points error" },
-          { field: "offensePenalties", reason: "Offense penalties error" },
         ]}
       />,
     );
@@ -47,14 +46,6 @@ describe("scoring ui contracts", () => {
     expect(screen.getByLabelText("Open competition attempt policy")).toHaveAttribute(
       "aria-invalid",
       "true",
-    );
-
-    const offensePenaltiesGroup = screen
-      .getByText("Offense penalties")
-      .closest("fieldset");
-    expect(offensePenaltiesGroup).toHaveAttribute("aria-invalid", "true");
-    expect(offensePenaltiesGroup?.getAttribute("aria-describedby")).toContain(
-      "offense-penalties-error",
     );
 
     const customPointsPanel = screen

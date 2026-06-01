@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { ProgressLink } from "@/components/ui/progress-link";
 import type { CompetitionRecord } from "@/lib/competition/types";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
 
 type TeamLiveMonitoringPanelProps = {
   competition: CompetitionRecord;
@@ -181,7 +180,7 @@ export function TeamLiveMonitoringPanel({ competition, rows }: TeamLiveMonitorin
                   </div>
                   <div className="mt-3 h-2 overflow-hidden bg-slate-100" aria-label={`${row.progressPercent}% progress`}>
                     <div
-                      className={cn("h-full", row.offenseCount > 0 ? "bg-amber-500" : "bg-emerald-500")}
+                      className="h-full bg-emerald-500"
                       style={{ width: `${row.progressPercent}%` }}
                     />
                   </div>
@@ -190,7 +189,7 @@ export function TeamLiveMonitoringPanel({ competition, rows }: TeamLiveMonitorin
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Current total score</p>
                   <p className="text-3xl font-black text-[#10182b]">{formatScore(row)}</p>
                   <p className="text-xs font-semibold text-slate-500">
-                    {row.activeAttemptCount} active, {row.finishedAttemptCount} finished, {row.offenseCount} offenses
+                    {row.activeAttemptCount} active, {row.finishedAttemptCount} finished
                   </p>
                 </div>
               </article>

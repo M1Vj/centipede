@@ -104,7 +104,7 @@ type RpcLifecycleRow = {
 };
 
 const COMPETITION_DETAIL_SELECT =
-  "id, organizer_id, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, safe_exam_browser_mode, safe_exam_browser_config_key_hashes, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
+  "id, organizer_id, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, safe_exam_browser_mode, safe_exam_browser_config_key_hashes, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
 
 function getAdminOrThrow() {
   const admin = createAdminClient();
@@ -137,7 +137,6 @@ function mapCompetitionSummary(record: CompetitionRecord): ArenaCompetitionSumma
     durationMinutes: record.durationMinutes,
     attemptsAllowed: record.attemptsAllowed,
     participantsPerTeam: record.participantsPerTeam,
-    logTabSwitch: record.logTabSwitch,
     safeExamBrowserMode: record.safeExamBrowserMode,
   };
 }

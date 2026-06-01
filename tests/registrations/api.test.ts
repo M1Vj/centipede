@@ -110,8 +110,6 @@ const currentCompetitionRow = {
   tie_breaker: "earliest_submission",
   shuffle_questions: false,
   shuffle_options: false,
-  log_tab_switch: false,
-  offense_penalties: [],
   safe_exam_browser_mode: "off",
   safe_exam_browser_config_key_hashes: [],
   scoring_snapshot_json: null,

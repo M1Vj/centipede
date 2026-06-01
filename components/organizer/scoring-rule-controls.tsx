@@ -1,9 +1,8 @@
 "use client";
 
-import { AlertCircle, Check, Edit3, ExternalLink, Info, ShieldAlert, Zap } from "lucide-react";
+import { Edit3, ExternalLink, Info, Zap } from "lucide-react";
 import type { CompetitionType, ScoringRuleConfig } from "@/lib/scoring/types";
 import type { ScoringValidationError } from "@/lib/scoring/validation";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,7 +87,6 @@ export function OrganizerScoringRuleControls({
   const tieBreakerError = fieldError(validationErrors, "tieBreaker");
   const attemptModeError = fieldError(validationErrors, "multiAttemptGradingMode");
   const customPointsError = fieldError(validationErrors, "customPointsByProblemId");
-  const offensePenaltiesError = fieldError(validationErrors, "offensePenalties");
   const safeExamBrowserModeError = fieldError(validationErrors, "safeExamBrowserMode");
   const safeExamBrowserHashesError = fieldError(validationErrors, "safeExamBrowserConfigKeyHashes");
 
@@ -98,12 +96,7 @@ export function OrganizerScoringRuleControls({
   const deductionValueErrorId = deductionValueError ? "deduction-value-error" : undefined;
   const attemptModeErrorId = attemptModeError ? "attempt-mode-error" : undefined;
   const customPointsErrorId = customPointsError ? "custom-points-error" : undefined;
-  const offensePenaltiesErrorId = offensePenaltiesError ? "offense-penalties-error" : undefined;
   const safeExamBrowserModeErrorId = safeExamBrowserModeError ? "safe-exam-browser-mode-error" : undefined;
-  const offensePenaltiesHintId = "offense-penalties-hint";
-  const offensePenaltiesDescribedBy = [offensePenaltiesHintId, offensePenaltiesErrorId]
-    .filter(Boolean)
-    .join(" ") || undefined;
   const safeExamBrowserHashesText = value.safeExamBrowserConfigKeyHashes.join("\n");
   const customPointsHintId = "custom-points-hint";
   const customPointsDescribedBy = [customPointsHintId, customPointsErrorId].filter(Boolean).join(" ") || undefined;
@@ -400,9 +393,9 @@ export function OrganizerScoringRuleControls({
 
         <section className="space-y-6 p-8">
           <div>
-            <h3 className="text-[18px] font-black text-[#10182b]">Attempt & anti-cheat policy</h3>
+            <h3 className="text-[18px] font-black text-[#10182b]">Attempt policy</h3>
             <p className="mt-1 text-[13px] font-medium text-slate-500">
-              Protect competition integrity with toggles and offense rules.
+              Configure question order and exam-browser requirements.
             </p>
           </div>
 
@@ -421,208 +414,6 @@ export function OrganizerScoringRuleControls({
               description="Randomize multiple-choice answer order where supported."
               onChange={(checked) => onChange({ ...value, shuffleOptions: checked })}
             />
-            <ToggleRow
-              checked={value.logTabSwitch}
-              disabled={disabled}
-              label="Log tab switch offenses"
-              description="Track when participants leave the competition tab and apply penalties if needed."
-              onChange={(checked) => onChange({ ...value, logTabSwitch: checked })}
-            />
-          </div>
-
-          <fieldset
-            className="space-y-4 rounded-[24px] border border-slate-200 bg-slate-50/70 p-5"
-            aria-invalid={Boolean(offensePenaltiesError)}
-            aria-describedby={offensePenaltiesDescribedBy}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <legend className="text-sm font-bold text-[#10182b]">Offense penalties</legend>
-                <p id={offensePenaltiesHintId} className="mt-1 text-xs font-medium text-slate-500">
-                  Applied after tab-switch logging is enabled and a threshold is reached.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={disabled || !value.logTabSwitch}
-                className="rounded-xl border-slate-200 bg-white font-bold text-[#10182b] hover:border-[#f49700] hover:bg-[#f49700]/5 hover:text-[#f49700]"
-                onClick={() =>
-                  onChange({
-                    ...value,
-                    offensePenalties: [
-                      ...value.offensePenalties,
-                      {
-                        threshold: 1,
-                        penaltyKind: "warning",
-                        deductionValue: 0,
-                      },
-                    ],
-                  })
-                }
-              >
-                Add rule
-              </Button>
-            </div>
-
-            {!value.logTabSwitch ? (
-              <div className="flex items-start gap-3 rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-4">
-                <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
-                <p className="text-sm font-medium leading-6 text-slate-500">
-                  Enable tab-switch logging to configure warning, deduction, forced submit, or disqualification rules.
-                </p>
-              </div>
-            ) : value.offensePenalties.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm font-medium text-slate-500">
-                No offense penalties configured yet.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {value.offensePenalties.map((rule, index) => (
-                  <div
-                    key={`${rule.threshold}-${index}`}
-                    className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[120px_minmax(0,1fr)_160px_auto]"
-                  >
-                    <div className="space-y-1.5">
-                      <Label htmlFor={`offense-threshold-${index}`} className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                        Threshold
-                      </Label>
-                      <Input
-                        id={`offense-threshold-${index}`}
-                        type="number"
-                        min={1}
-                        value={rule.threshold}
-                        disabled={disabled}
-                        onChange={(event) => {
-                          const nextThreshold = Number.parseInt(event.target.value, 10);
-                          onChange({
-                            ...value,
-                            offensePenalties: value.offensePenalties.map((entry, entryIndex) =>
-                              entryIndex === index
-                                ? {
-                                    ...entry,
-                                    threshold: Number.isFinite(nextThreshold) ? Math.max(1, nextThreshold) : 1,
-                                  }
-                                : entry,
-                            ),
-                          });
-                        }}
-                        className="h-11 rounded-xl border-slate-200 bg-slate-50"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor={`offense-kind-${index}`} className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                        Penalty kind
-                      </Label>
-                      <select
-                        id={`offense-kind-${index}`}
-                        value={rule.penaltyKind}
-                        disabled={disabled}
-                        onChange={(event) => {
-                          const nextKind = event.target.value;
-                          onChange({
-                            ...value,
-                            offensePenalties: value.offensePenalties.map((entry, entryIndex) =>
-                              entryIndex === index
-                                ? {
-                                    ...entry,
-                                    penaltyKind:
-                                      nextKind === "deduction"
-                                        ? "deduction"
-                                        : nextKind === "forced_submit"
-                                          ? "forced_submit"
-                                          : nextKind === "disqualification"
-                                            ? "disqualification"
-                                            : "warning",
-                                    deductionValue: nextKind === "deduction" ? entry.deductionValue : 0,
-                                  }
-                                : entry,
-                            ),
-                          });
-                        }}
-                        className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-[#10182b] outline-none transition focus:border-[#f49700] focus:ring-2 focus:ring-[#f49700]/20"
-                      >
-                        <option value="warning">Warning</option>
-                        <option value="deduction">Deduction</option>
-                        <option value="forced_submit">Forced submit</option>
-                        <option value="disqualification">Disqualification</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor={`offense-deduction-${index}`} className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                        Deduction
-                      </Label>
-                      <Input
-                        id={`offense-deduction-${index}`}
-                        type="number"
-                        min={0}
-                        value={rule.deductionValue}
-                        disabled={disabled || rule.penaltyKind !== "deduction"}
-                        onChange={(event) => {
-                          const nextDeductionValue = Number.parseInt(event.target.value, 10);
-                          onChange({
-                            ...value,
-                            offensePenalties: value.offensePenalties.map((entry, entryIndex) =>
-                              entryIndex === index
-                                ? {
-                                    ...entry,
-                                    deductionValue: Number.isFinite(nextDeductionValue) ? Math.max(0, nextDeductionValue) : 0,
-                                  }
-                                : entry,
-                            ),
-                          });
-                        }}
-                        className="h-11 rounded-xl border-slate-200 bg-slate-50 disabled:bg-slate-100"
-                      />
-                    </div>
-
-                    <div className="flex items-end justify-start md:justify-end">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={disabled}
-                        className="rounded-xl text-slate-500 hover:bg-red-50 hover:text-red-500"
-                        onClick={() =>
-                          onChange({
-                            ...value,
-                            offensePenalties: value.offensePenalties.filter((_, entryIndex) => entryIndex !== index),
-                          })
-                        }
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {offensePenaltiesError ? (
-              <p id={offensePenaltiesErrorId} className="flex items-center gap-2 text-xs font-bold text-red-500">
-                <AlertCircle className="h-4 w-4" />
-                {offensePenaltiesError}
-              </p>
-            ) : null}
-          </fieldset>
-
-          <div className="rounded-2xl border border-slate-200 bg-[#10182b] px-5 py-4 text-white">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 rounded-xl bg-white/10 p-2 text-[#f49700]">
-                {value.logTabSwitch ? <Check className="h-4 w-4" /> : <Info className="h-4 w-4" />}
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-bold">Integrity summary</p>
-                <p className="text-xs font-medium leading-5 text-slate-300">
-                  {value.logTabSwitch
-                    ? `${value.offensePenalties.length} offense rule${value.offensePenalties.length === 1 ? "" : "s"} configured for tab switching.`
-                    : "Tab-switch logging is currently disabled."}
-                </p>
-              </div>
-            </div>
           </div>
 
           <fieldset className="space-y-4 rounded-[24px] border border-slate-200 bg-white p-5">
