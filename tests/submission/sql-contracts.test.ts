@@ -42,6 +42,10 @@ const manualEndAnswerKeyVisibilitySql = readFileSync(
   "supabase/migrations/20260603112000_manual_end_answer_key_visibility.sql",
   "utf8",
 );
+const disputeSubmissionFixSql = readFileSync(
+  "supabase/migrations/20260603190000_fix_dispute_submission.sql",
+  "utf8",
+);
 
 describe("review submission sql contracts", () => {
   test("creates dispute table and state machine enum", () => {
@@ -169,5 +173,15 @@ describe("review submission sql contracts", () => {
     expect(manualEndAnswerKeyVisibilitySql).toContain("v_competition.status in ('ended'");
     expect(manualEndAnswerKeyVisibilitySql).toContain("return true;");
     expect(manualEndAnswerKeyVisibilitySql).toContain("now() < v_competition.end_time");
+  });
+
+  test("fixes dispute creation to persist competition scope and avoid cross-problem throttling", () => {
+    expect(disputeSubmissionFixSql).toContain("create or replace function public.create_problem_dispute");
+    expect(disputeSubmissionFixSql).toContain("competition_id,");
+    expect(disputeSubmissionFixSql).toContain("p_competition_id,");
+    expect(disputeSubmissionFixSql).toContain("v_competition.type = 'open'::public.competition_type");
+    expect(disputeSubmissionFixSql).toContain("ca.attempt_no >= greatest(1, v_competition.attempts_allowed)");
+    expect(disputeSubmissionFixSql).toContain("and pd.competition_problem_id = p_competition_problem_id");
+    expect(disputeSubmissionFixSql).toContain("grant execute on function public.create_problem_dispute(uuid, uuid, uuid, uuid, text) to service_role");
   });
 });

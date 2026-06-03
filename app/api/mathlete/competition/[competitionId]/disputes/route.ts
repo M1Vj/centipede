@@ -1,6 +1,53 @@
 import { jsonError, jsonOk, requireMathleteActor, requireSameOriginMutation } from "@/lib/arena/api";
 import { createProblemDispute } from "@/lib/submission/server";
 
+function disputeFailureFor(machineCode: string) {
+  switch (machineCode) {
+    case "competition_not_found":
+      return {
+        code: "competition_not_found",
+        message: "Competition was not found.",
+        status: 404,
+      };
+    case "competition_not_ended":
+      return {
+        code: "competition_not_ended",
+        message: "Disputes open only after the answer key is visible for your completed attempt.",
+        status: 409,
+      };
+    case "dispute_rate_limited":
+      return {
+        code: "dispute_rate_limited",
+        message: "Please wait before submitting another dispute for this problem.",
+        status: 429,
+      };
+    case "forbidden":
+      return {
+        code: "forbidden",
+        message: "You can only dispute problems from your own completed attempt.",
+        status: 403,
+      };
+    case "invalid_reason":
+      return {
+        code: "invalid_reason",
+        message: "Dispute reason must be 10 to 1000 characters.",
+        status: 400,
+      };
+    case "target_required":
+      return {
+        code: "dispute_target_required",
+        message: "Problem and attempt are required.",
+        status: 400,
+      };
+    default:
+      return {
+        code: "dispute_failed",
+        message: "Dispute submission failed.",
+        status: 409,
+      };
+  }
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ competitionId: string }> },
@@ -44,7 +91,9 @@ export async function POST(
   });
 
   if (!result || (result.machine_code !== "ok" && result.machine_code !== "already_open")) {
-    return jsonError("dispute_failed", "Dispute submission failed.", 409, {
+    const failure = disputeFailureFor(result?.machine_code ?? "unknown");
+
+    return jsonError(failure.code, failure.message, failure.status, {
       machineCode: result?.machine_code ?? "unknown",
     });
   }
