@@ -12,7 +12,6 @@ import {
   requireCompetitionAdminClient,
   requireOrganizerCompetitionActor,
   requireSameOriginMutation,
-  validateCompetitionProblemLatexSyntaxForPublish,
   withCompetitionStatus,
 } from "../../_shared";
 
@@ -51,23 +50,6 @@ export async function POST(request: Request, context: { params: Promise<{ compet
   }
 
   const { adminClient } = adminClientResult;
-  const latexValidation = await validateCompetitionProblemLatexSyntaxForPublish(adminClient, competitionId);
-  if ("response" in latexValidation) {
-    return latexValidation.response;
-  }
-
-  if (latexValidation.issues.length > 0) {
-    return jsonError(
-      "invalid_problem_latex",
-      "Fix invalid LaTeX in selected problems before publishing.",
-      409,
-      {
-        errors: latexValidation.issues,
-        invalidProblemCount: latexValidation.issues.length,
-      },
-    );
-  }
-
   let selectedProblemCount: number | null = null;
   const { data, error } = await adminClient.rpc("publish_competition", {
     p_competition_id: competitionId,

@@ -167,7 +167,7 @@ describe("CompetitionWizard selection and custom scoring", () => {
     expect(pointsInput).toHaveValue(7);
   });
 
-  test("warns and blocks publish when selected problems contain invalid LaTeX", () => {
+  test("does not block publish readiness when selected problems contain invalid LaTeX", () => {
     const initialState = buildPublishReadyDraft();
     const availableProblems = Array.from({ length: 10 }, (_, index) =>
       buildProblem(
@@ -190,11 +190,11 @@ describe("CompetitionWizard selection and custom scoring", () => {
 
     openProblemsStep();
 
-    expect(screen.getAllByText(/1 selected problem has invalid LaTeX/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Invalid LaTeX:/i)).toBeInTheDocument();
+    expect(screen.queryByText(/selected problem has invalid LaTeX/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Invalid LaTeX:/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
 
-    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Publish" })).toBeEnabled();
   });
 });

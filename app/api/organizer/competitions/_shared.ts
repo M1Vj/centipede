@@ -14,7 +14,6 @@ import {
   normalizeCompetitionRecord,
 } from "@/lib/competition/api";
 import type { CompetitionLifecycleResult, CompetitionRecord } from "@/lib/competition/types";
-import { validateLatexSyntax } from "@/lib/math/latex-validation";
 
 export { buildCompetitionDraftRpcPayload, buildLegacyCompetitionMutationPayload };
 
@@ -287,62 +286,6 @@ export async function validateCompetitionProblemSelection(
   return {
     selectedProblemIds,
     missingProblemIds,
-  } as const;
-}
-
-type CompetitionProblemLatexRow = {
-  problem_id?: unknown;
-  problems?: unknown;
-};
-
-function readJoinedProblemLatex(problems: unknown) {
-  const problemRecord = Array.isArray(problems) ? problems[0] : problems;
-  if (typeof problemRecord !== "object" || problemRecord === null) {
-    return "";
-  }
-
-  const record = problemRecord as Record<string, unknown>;
-  const contentLatex = record.content_latex ?? record.content;
-  return typeof contentLatex === "string" ? contentLatex : "";
-}
-
-export async function validateCompetitionProblemLatexSyntaxForPublish(
-  adminClient: AdminSupabaseClient,
-  competitionId: string,
-) {
-  const { data, error } = await adminClient
-    .from("competition_problems")
-    .select("problem_id, problems(content_latex, content)")
-    .eq("competition_id", competitionId);
-
-  if (error) {
-    return {
-      response: jsonDatabaseError(error),
-    } as const;
-  }
-
-  const issues = ((data ?? []) as CompetitionProblemLatexRow[])
-    .map((row, index) => {
-      const problemId = typeof row.problem_id === "string" ? row.problem_id : `problem-${index + 1}`;
-      const validation = validateLatexSyntax(readJoinedProblemLatex(row.problems));
-
-      if (validation.ok) {
-        return null;
-      }
-
-      return {
-        field: "selectedProblemIds",
-        problemId,
-        orderIndex: index + 1,
-        reason: validation.reason ?? "KaTeX could not parse this LaTeX.",
-      };
-    })
-    .filter((issue): issue is { field: string; problemId: string; orderIndex: number; reason: string } =>
-      Boolean(issue),
-    );
-
-  return {
-    issues,
   } as const;
 }
 

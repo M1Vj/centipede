@@ -22,6 +22,14 @@ const leaderboardSubmitRestoreSql = readFileSync(
   "supabase/migrations/20260506123000_14_restore_submit_grading_leaderboard.sql",
   "utf8",
 );
+const submitGradingAmbiguityFixSql = readFileSync(
+  "supabase/migrations/20260603100000_fix_submit_grading_rpc_ambiguity.sql",
+  "utf8",
+);
+const leaderboardUuidStableAttemptFixSql = readFileSync(
+  "supabase/migrations/20260603103000_fix_leaderboard_uuid_stable_attempt.sql",
+  "utf8",
+);
 
 describe("review submission sql contracts", () => {
   test("creates dispute table and state machine enum", () => {
@@ -101,5 +109,29 @@ describe("review submission sql contracts", () => {
     expect(leaderboardSubmitRestoreSql).toContain("perform public.refresh_leaderboard_entries(v_attempt.competition_id)");
     expect(leaderboardSubmitRestoreSql).not.toContain("and coalesce(ca.is_latest_visible_result, true) = true");
     expect(leaderboardSubmitRestoreSql).not.toContain("'deferred_owner_schema'::text");
+  });
+
+  test("hardens live submit grading dependencies against output-column ambiguity", () => {
+    expect(submitGradingAmbiguityFixSql).toContain("create or replace function public.grade_attempt");
+    expect(submitGradingAmbiguityFixSql).toContain("create or replace function public.refresh_leaderboard_entries");
+    expect(submitGradingAmbiguityFixSql.match(/#variable_conflict use_column/g)).toHaveLength(2);
+    expect(submitGradingAmbiguityFixSql).toContain("where aa.attempt_id = p_attempt_id");
+    expect(submitGradingAmbiguityFixSql).toContain("partition by ca.registration_id, ca.participant_profile_id");
+    expect(submitGradingAmbiguityFixSql).toContain("sum(coalesce(oma.final_score, 0)) as score");
+    expect(submitGradingAmbiguityFixSql).toContain("grant execute on function public.grade_attempt(uuid) to service_role");
+    expect(submitGradingAmbiguityFixSql).toContain(
+      "grant execute on function public.refresh_leaderboard_entries(uuid) to service_role",
+    );
+    expect(submitGradingAmbiguityFixSql).not.toContain("'deferred_owner_schema'::text");
+  });
+
+  test("uses a uuid-safe stable leaderboard tie breaker", () => {
+    expect(leaderboardUuidStableAttemptFixSql).toContain(
+      "create or replace function public.refresh_leaderboard_entries",
+    );
+    expect(leaderboardUuidStableAttemptFixSql).toContain("#variable_conflict use_column");
+    expect(leaderboardUuidStableAttemptFixSql).toContain("(array_agg(oma.id order by oma.id asc))[1] as stable_attempt_id");
+    expect(leaderboardUuidStableAttemptFixSql).toContain("rs.stable_attempt_id asc");
+    expect(leaderboardUuidStableAttemptFixSql).not.toContain("min(oma.id)");
   });
 });

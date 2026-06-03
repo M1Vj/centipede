@@ -3,7 +3,6 @@
 import { type ReactNode, useDeferredValue, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle,
   Award,
   ArrowDown,
   ArrowLeft,
@@ -38,7 +37,6 @@ import { OrganizerScoringRuleControls } from "@/components/organizer/scoring-rul
 import { ScoringSummaryCard } from "@/components/scoring/scoring-summary-card";
 import { buildCompetitionScoringSnapshot, validateCompetitionDraftInput, validateCompetitionPublishReadiness } from "@/lib/competition/validation";
 import type { CompetitionDraftFormState, CompetitionProblemOption, CompetitionRecord, CompetitionStatus, CompetitionWizardStep } from "@/lib/competition/types";
-import { validateLatexSyntax } from "@/lib/math/latex-validation";
 import { buildScoringSummaryView } from "@/lib/scoring/summary";
 import type { ScoringRuleConfig } from "@/lib/scoring/types";
 import { cn } from "@/lib/utils";
@@ -546,28 +544,6 @@ export function CompetitionWizard({
   const selectedProblems = draftState.selectedProblemIds
     .map((problemId) => availableProblems.find((problem) => problem.id === problemId))
     .filter((problem): problem is CompetitionProblemOption => Boolean(problem));
-  const selectedProblemLatexIssues = selectedProblems
-    .map((problem, index) => {
-      const validation = validateLatexSyntax(problem.contentLatex || "");
-      if (validation.ok) {
-        return null;
-      }
-
-      return {
-        problem,
-        position: index + 1,
-        reason: validation.reason ?? "KaTeX could not parse this LaTeX.",
-      };
-    })
-    .filter((issue): issue is { problem: CompetitionProblemOption; position: number; reason: string } => Boolean(issue));
-  const selectedProblemLatexIssueById = new Map(
-    selectedProblemLatexIssues.map((issue) => [issue.problem.id, issue]),
-  );
-  const invalidLatexProblemCount = selectedProblemLatexIssues.length;
-  const hasInvalidSelectedProblemLatex = invalidLatexProblemCount > 0;
-  const invalidLatexSummary = hasInvalidSelectedProblemLatex
-    ? `${invalidLatexProblemCount} selected problem${invalidLatexProblemCount === 1 ? " has" : "s have"} invalid LaTeX. Fix the stored problem LaTeX before publishing.`
-    : null;
 
   const filteredProblems = availableProblems.filter((problem) => {
     const bankMatches = bankFilter === "all" || problem.bankId === bankFilter;
@@ -625,8 +601,7 @@ export function CompetitionWizard({
   const canPublish =
     competitionStatus === "draft" &&
     publishValidation.ok &&
-    publishValidation.value !== null &&
-    !hasInvalidSelectedProblemLatex;
+    publishValidation.value !== null;
   const canStart = competitionStatus === "published" && draftState.type === "open";
   const canEnd = (competitionStatus === "live" || competitionStatus === "paused") && draftState.type === "open";
   const canArchive = competitionStatus === "ended" || (competitionStatus === "paused" && draftState.type === "open");
@@ -1833,15 +1808,6 @@ export function CompetitionWizard({
                             ? `${selectedProblemCount - 100} problem(s) above the maximum publish limit.`
                             : "Problem count is within the publish range."}
                       </p>
-                      {invalidLatexSummary ? (
-                        <div
-                          role="alert"
-                          className="mt-4 flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-3 text-[12px] font-bold leading-5 text-red-700"
-                        >
-                          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                          <span>{invalidLatexSummary}</span>
-                        </div>
-                      ) : null}
                     </div>
                   </div>
 
@@ -1854,16 +1820,10 @@ export function CompetitionWizard({
                         </p>
                       </div>
                     ) : (
-                      selectedProblems.map((problem, index) => {
-                        const latexIssue = selectedProblemLatexIssueById.get(problem.id);
-
-                        return (
+                      selectedProblems.map((problem, index) => (
                         <div
                           key={problem.id}
-                          className={cn(
-                            "rounded-[22px] border bg-white p-4 shadow-sm",
-                            latexIssue ? "border-red-200" : "border-slate-200",
-                          )}
+                          className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm"
                         >
                           <div className="flex flex-col gap-3">
                             <div className="flex items-start justify-between gap-4">
@@ -1941,19 +1901,9 @@ export function CompetitionWizard({
                               </div>
                             ) : null}
 
-                            {latexIssue ? (
-                              <div
-                                role="alert"
-                                className="flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-3 text-[12px] font-bold leading-5 text-red-700"
-                              >
-                                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                                <span>Invalid LaTeX: {latexIssue.reason}</span>
-                              </div>
-                            ) : null}
                           </div>
                         </div>
-                        );
-                      })
+                      ))
                     )}
                   </div>
                 </div>
@@ -2515,16 +2465,6 @@ export function CompetitionWizard({
                 </div>
 
                 <div className="space-y-6 p-8">
-                  {invalidLatexSummary ? (
-                    <div
-                      role="alert"
-                      className="flex items-start gap-3 rounded-[22px] border border-red-200 bg-red-50 p-4 text-sm font-bold leading-6 text-red-700"
-                    >
-                      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
-                      <span>{invalidLatexSummary}</span>
-                    </div>
-                  ) : null}
-
                   {reviewPreviewProblems.length === 0 ? (
                     <div className="rounded-[24px] border border-dashed border-slate-200 p-8 text-center">
                       <p className="text-base font-bold text-[#10182b]">No selected problems yet</p>
@@ -2533,16 +2473,10 @@ export function CompetitionWizard({
                       </p>
                     </div>
                   ) : (
-                    reviewPreviewProblems.map((problem, index) => {
-                      const latexIssue = selectedProblemLatexIssueById.get(problem.id);
-
-                      return (
+                    reviewPreviewProblems.map((problem, index) => (
                       <div
                         key={problem.id}
-                        className={cn(
-                          "relative rounded-[24px] border p-6 shadow-sm",
-                          latexIssue ? "border-red-200" : "border-slate-200",
-                        )}
+                        className="relative rounded-[24px] border border-slate-200 p-6 shadow-sm"
                       >
                         <div className="absolute -top-3 left-6 rounded-full bg-[#f49700] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white">
                           {problem.bankName}
@@ -2572,18 +2506,8 @@ export function CompetitionWizard({
                             Type: {problem.type}
                           </span>
                         </div>
-                        {latexIssue ? (
-                          <div
-                            role="alert"
-                            className="mt-4 flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-3 text-[12px] font-bold leading-5 text-red-700"
-                          >
-                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                            <span>Invalid LaTeX: {latexIssue.reason}</span>
-                          </div>
-                        ) : null}
                       </div>
-                      );
-                    })
+                    ))
                   )}
 
                   {selectedProblems.length > 0 ? (
@@ -2654,16 +2578,6 @@ export function CompetitionWizard({
                       Resolve validation issues before saving or publishing.
                     </div>
                   )}
-
-                  {invalidLatexSummary ? (
-                    <div
-                      role="alert"
-                      className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-[14px] font-bold leading-6 text-red-700"
-                    >
-                      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
-                      <span>{invalidLatexSummary}</span>
-                    </div>
-                  ) : null}
 
                   {statusMessage ? (
                     <div
@@ -2769,16 +2683,6 @@ export function CompetitionWizard({
                   Resolve validation issues before saving or publishing.
                 </div>
               )}
-
-              {invalidLatexSummary ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-[14px] font-bold leading-6 text-red-700"
-                >
-                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
-                  <span>{invalidLatexSummary}</span>
-                </div>
-              ) : null}
 
               {mode === "edit" ? (
                 <div className="space-y-4 bg-slate-50 rounded-2xl border border-slate-200 p-6">
@@ -2942,16 +2846,6 @@ export function CompetitionWizard({
               </div>
             ) : null}
 
-            {invalidLatexSummary ? (
-              <div
-                role="alert"
-                className="flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold leading-6 text-red-700"
-              >
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{invalidLatexSummary}</span>
-              </div>
-            ) : null}
-
             <dl className="space-y-3 text-sm">
               <div className="flex items-center justify-between gap-3 border-b border-border/50 pb-2">
                 <dt className="text-muted-foreground">Competition type</dt>
@@ -3005,9 +2899,7 @@ export function CompetitionWizard({
         onOpenChange={setPublishConfirmOpen}
         title="Publish competition?"
         description={
-          hasInvalidSelectedProblemLatex
-            ? "Fix invalid LaTeX in selected problems before publishing."
-            : canPublish
+          canPublish
             ? "This will publish the current draft and make it the final organizer-approved version."
             : "Fix validation issues before publishing."
         }
