@@ -148,7 +148,7 @@ function validateCustomPointsByProblemId(
     return fail([
       {
         field: "customPointsByProblemId",
-        reason: "Custom points must be an object keyed by competition_problem_id.",
+        reason: "Custom points must be an object keyed by selected problem id.",
       },
     ]);
   }

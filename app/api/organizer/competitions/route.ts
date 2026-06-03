@@ -282,6 +282,7 @@ export async function POST(request: Request) {
           adminClient,
           createdCompetition.id,
           selectionCheck.selectedProblemIds,
+          validation.value,
         );
 
         if ("error" in legacySyncResult) {
@@ -371,6 +372,7 @@ export async function POST(request: Request) {
         adminClient,
         competition.id,
         selectionCheck.selectedProblemIds,
+        validation.value,
       );
 
       if ("error" in legacySyncResult) {

@@ -188,7 +188,7 @@ describe("scoring policies", () => {
   test("resolves base and effective points with precedence", () => {
     expect(resolveBaseProblemPoints("difficulty", "easy", {}, "cp1")).toBe(1);
     expect(resolveBaseProblemPoints("custom", "easy", { cp1: 6 }, "cp1")).toBe(6);
-    expect(resolveBaseProblemPoints("custom", "difficult", {}, "cp-missing")).toBe(0);
+    expect(resolveBaseProblemPoints("custom", "difficult", {}, "cp-missing")).toBe(3);
 
     expect(resolveEffectiveProblemPoints({ basePoints: 4, activePointsOverride: null })).toBe(4);
     expect(resolveEffectiveProblemPoints({ basePoints: 4, activePointsOverride: 9 })).toBe(9);

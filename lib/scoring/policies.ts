@@ -160,18 +160,20 @@ export function resolveBaseProblemPoints(
   scoringMode: ScoringMode,
   problemDifficulty: keyof typeof DIFFICULTY_BASE_POINTS,
   customPointsByProblemId: Readonly<Record<string, number>>,
-  competitionProblemId: string,
+  problemId: string,
 ): number {
+  const difficultyPoints = DIFFICULTY_BASE_POINTS[problemDifficulty];
+
   if (scoringMode === "custom") {
-    const customPoint = customPointsByProblemId[competitionProblemId];
+    const customPoint = customPointsByProblemId[problemId];
     if (Number.isFinite(customPoint)) {
       return Math.max(0, Math.trunc(customPoint));
     }
 
-    return 0;
+    return difficultyPoints;
   }
 
-  return DIFFICULTY_BASE_POINTS[problemDifficulty];
+  return difficultyPoints;
 }
 
 export function resolveEffectiveProblemPoints({
