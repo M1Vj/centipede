@@ -74,6 +74,44 @@ describe("auth session rotation route", () => {
     expect(response.status).toBe(200);
   });
 
+  test("checks for an active existing session without rotating", async () => {
+    vi.mocked(createAdminClient).mockReturnValue(null);
+
+    const rpc = vi.fn();
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: {
+        session_version: 7,
+        active_session_expires_at: "2099-01-01T00:00:00.000Z",
+      },
+      error: null,
+    });
+    const client = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle,
+          })),
+        })),
+      })),
+      rpc,
+    };
+    vi.mocked(createClient).mockResolvedValue(client as never);
+
+    const response = await rotateSessionPost(makeRequest({
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      mode: "check",
+    }));
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.hasActiveSession).toBe(true);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   test("returns unauthorized when there is no authenticated user", async () => {
     vi.mocked(createAdminClient).mockReturnValue(null);
 

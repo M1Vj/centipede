@@ -1,9 +1,14 @@
 import type { NextResponse } from "next/server";
 
 export const SESSION_VERSION_COOKIE = "centipede-session-version";
+export const SESSION_ACTIVE_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 type SessionAwareProfile = {
   session_version?: number | string | null;
+};
+
+type ActiveSessionProfile = {
+  active_session_expires_at?: string | null;
 };
 
 type SessionSchemaError = {
@@ -50,6 +55,18 @@ export function isSessionStale(
   }
 
   return sessionVersion == null || sessionVersion !== profileVersion;
+}
+
+export function isActiveSessionCurrent(
+  profile: ActiveSessionProfile | null | undefined,
+  now = new Date(),
+) {
+  if (!profile?.active_session_expires_at) {
+    return false;
+  }
+
+  const expiresAt = Date.parse(profile.active_session_expires_at);
+  return Number.isFinite(expiresAt) && expiresAt > now.getTime();
 }
 
 export function getSafeNextPath(
@@ -132,6 +149,18 @@ type SessionRotationClient = {
   }>;
 };
 
+type ActiveSessionClearClient = {
+  rpc(
+    name: string,
+    args: { profile_id: string; current_session_version: number },
+  ): PromiseLike<{
+    error: {
+      message: string;
+      code?: string | null;
+    } | null;
+  }>;
+};
+
 export async function rotateSessionVersionForUser(
   client: SessionRotationClient,
   profileId: string,
@@ -157,4 +186,23 @@ export async function rotateSessionVersionForUser(
 
   setSessionVersionCookie(response, nextVersion);
   return nextVersion;
+}
+
+export async function clearActiveSessionForUser(
+  client: ActiveSessionClearClient,
+  profileId: string,
+  currentSessionVersion: number | null,
+) {
+  if (currentSessionVersion == null) {
+    return;
+  }
+
+  const { error } = await client.rpc("clear_active_session", {
+    profile_id: profileId,
+    current_session_version: currentSessionVersion,
+  });
+
+  if (error && !isSessionVersionSchemaError(error)) {
+    throw new Error(error.message);
+  }
 }
