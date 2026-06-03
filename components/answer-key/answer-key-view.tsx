@@ -18,7 +18,7 @@ export function AnswerKeyView({ data }: AnswerKeyViewProps) {
   const [activeProblemId, setActiveProblemId] = useState<string | null>(null);
   const [submittedDisputes, setSubmittedDisputes] = useState<Set<string>>(new Set());
   const activeProblem = data.problems.find((problem) => problem.competitionProblemId === activeProblemId) ?? null;
-  const locked = !data.canViewAnswerKey || data.competition.answerKeyVisibility === "hidden" || data.problems.length === 0;
+  const locked = !data.canViewAnswerKey || data.problems.length === 0;
 
   if (locked) {
     return (

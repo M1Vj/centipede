@@ -17,7 +17,12 @@ import { ProgressLink } from "@/components/ui/progress-link";
 import { createIdempotencyToken } from "@/components/competitions/utils";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { formatTimerText, getTimerAnnouncementText, resolvePersistedAnswerStatusFlag } from "@/lib/arena/helpers";
+import {
+  formatTimerText,
+  getTimerAnnouncementText,
+  isTerminalAttemptStatus,
+  resolvePersistedAnswerStatusFlag,
+} from "@/lib/arena/helpers";
 import type {
   AnswerStatusFlag,
   ArenaAttemptAnswer,
@@ -159,6 +164,10 @@ function getInitialAnswerValue(problem: ArenaProblem, answer: ArenaAttemptAnswer
 async function readJson<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as T;
   return payload;
+}
+
+function getFinalSubmissionPath(competitionId: string, attemptId: string) {
+  return `/mathlete/competition/${competitionId}/review?attemptId=${attemptId}`;
 }
 
 export function ArenaExperience({ initialData }: ArenaExperienceProps) {
@@ -364,7 +373,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
       setCompetitionEndFinalization("submitted");
       setRequestState("idle");
       setRequestMessage(null);
-      router.push(`/mathlete/competition/${pageData.competition.id}/review?attemptId=${submittedAttemptId}`);
+      router.push(getFinalSubmissionPath(pageData.competition.id, submittedAttemptId));
     } catch {
       setCompetitionEndFinalization("error");
       setRequestState("error");
@@ -375,7 +384,26 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   const activeAttemptId = pageData.activeAttempt?.id ?? null;
   const competitionHasEnded =
     pageData.competition.status === "ended" || pageData.competition.status === "archived";
+  const latestAttempt = pageData.latestAttempt;
+  const shouldOpenFinalSubmissionPage =
+    !activeAttemptId &&
+    latestAttempt?.status !== "disqualified" &&
+    isTerminalAttemptStatus(latestAttempt?.status) &&
+    (competitionHasEnded || latestAttempt?.status === "auto_submitted");
   const useFinalMinutePolling = remainingSeconds <= 60;
+
+  useEffect(() => {
+    if (!latestAttempt || !shouldOpenFinalSubmissionPage) {
+      return;
+    }
+
+    router.replace(getFinalSubmissionPath(pageData.competition.id, latestAttempt.id));
+  }, [
+    latestAttempt,
+    pageData.competition.id,
+    router,
+    shouldOpenFinalSubmissionPage,
+  ]);
 
   useEffect(() => {
     if (!activeAttemptId) {

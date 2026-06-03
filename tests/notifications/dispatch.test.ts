@@ -38,6 +38,7 @@ describe("notification dispatch helpers", () => {
   test("maps canonical events to one preference key and one channel class", () => {
     expect(getNotificationPreferenceKey("competition_announcement_posted")).toBe("announcements");
     expect(getNotificationPreferenceKey("leaderboard_published")).toBe("leaderboard_publication");
+    expect(getNotificationPreferenceKey("answer_key_released")).toBe("leaderboard_publication");
     expect(getNotificationPreferenceKey("competition_started")).toBe("registration_reminders");
     expect(getNotificationPreferenceKey("score_recalculated")).toBe("score_recalculation");
     expect(getNotificationPreferenceKey("organizer_application_approved")).toBe("organizer_decisions");
@@ -45,6 +46,7 @@ describe("notification dispatch helpers", () => {
     expect(getNotificationChannelClass("score_recalculated")).toBe("in_app_only");
     expect(getNotificationChannelClass("competition_announcement_posted")).toBe("email_eligible");
     expect(getNotificationChannelClass("leaderboard_published")).toBe("email_eligible");
+    expect(getNotificationChannelClass("answer_key_released")).toBe("email_eligible");
   });
 
   test("uses deterministic notification preference defaults", () => {
@@ -63,6 +65,9 @@ describe("notification dispatch helpers", () => {
   test("allows only canonical internal notification link targets", () => {
     expect(sanitizeNotificationLinkPath(`/mathlete/competition/${COMPETITION_ID}/leaderboard`)).toBe(
       `/mathlete/competition/${COMPETITION_ID}/leaderboard`,
+    );
+    expect(sanitizeNotificationLinkPath(`/mathlete/competition/${COMPETITION_ID}/answer-key`)).toBe(
+      `/mathlete/competition/${COMPETITION_ID}/answer-key`,
     );
     expect(sanitizeNotificationLinkPath(`/mathlete/competition/${COMPETITION_ID}`)).toBe(
       `/mathlete/competition/${COMPETITION_ID}`,

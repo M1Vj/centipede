@@ -30,6 +30,18 @@ const leaderboardUuidStableAttemptFixSql = readFileSync(
   "supabase/migrations/20260603103000_fix_leaderboard_uuid_stable_attempt.sql",
   "utf8",
 );
+const answerKeyVisibilityReleaseSql = readFileSync(
+  "supabase/migrations/20260603110000_answer_key_visibility_release.sql",
+  "utf8",
+);
+const answerKeyNotificationSql = readFileSync(
+  "supabase/migrations/20260603111000_answer_key_release_notifications.sql",
+  "utf8",
+);
+const manualEndAnswerKeyVisibilitySql = readFileSync(
+  "supabase/migrations/20260603112000_manual_end_answer_key_visibility.sql",
+  "utf8",
+);
 
 describe("review submission sql contracts", () => {
   test("creates dispute table and state machine enum", () => {
@@ -133,5 +145,29 @@ describe("review submission sql contracts", () => {
     expect(leaderboardUuidStableAttemptFixSql).toContain("(array_agg(oma.id order by oma.id asc))[1] as stable_attempt_id");
     expect(leaderboardUuidStableAttemptFixSql).toContain("rs.stable_attempt_id asc");
     expect(leaderboardUuidStableAttemptFixSql).not.toContain("min(oma.id)");
+  });
+
+  test("aligns answer-key RPC visibility with scheduled and open competition policies", () => {
+    expect(answerKeyVisibilityReleaseSql).toContain("create or replace function public.can_view_answer_key");
+    expect(answerKeyVisibilityReleaseSql).toContain("v_competition.type = 'open'::public.competition_type");
+    expect(answerKeyVisibilityReleaseSql).toContain("v_latest_attempt.status = 'in_progress'::public.attempt_status");
+    expect(answerKeyVisibilityReleaseSql).toContain("v_latest_attempt.attempt_no >= greatest");
+    expect(answerKeyVisibilityReleaseSql).toContain("v_competition.status in ('draft'");
+    expect(answerKeyVisibilityReleaseSql).toContain("now() < v_competition.end_time");
+    expect(answerKeyVisibilityReleaseSql).not.toContain("leaderboard_published");
+  });
+
+  test("maps answer-key release notifications in database helpers", () => {
+    expect(answerKeyNotificationSql).toContain("create or replace function public.notification_preference_key");
+    expect(answerKeyNotificationSql).toContain("when 'answer_key_released' then 'leaderboard_publication'");
+    expect(answerKeyNotificationSql).toContain("create or replace function public.notification_requires_mandatory_inbox");
+    expect(answerKeyNotificationSql).toContain("'answer_key_released'");
+  });
+
+  test("allows manually ended scheduled competitions to reveal answer keys", () => {
+    expect(manualEndAnswerKeyVisibilitySql).toContain("create or replace function public.can_view_answer_key");
+    expect(manualEndAnswerKeyVisibilitySql).toContain("v_competition.status in ('ended'");
+    expect(manualEndAnswerKeyVisibilitySql).toContain("return true;");
+    expect(manualEndAnswerKeyVisibilitySql).toContain("now() < v_competition.end_time");
   });
 });

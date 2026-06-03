@@ -55,15 +55,29 @@ export function createReviewSummary(input: ReviewSummaryInput): ReviewSummary {
 
 export function canParticipantViewAnswerKey(input: {
   answerKeyVisibility: AnswerKeyVisibility;
+  competitionType?: "open" | "scheduled";
   competitionStatus: CompetitionEndStatus;
   hasParticipantContext: boolean;
   hasTrustedEnd: boolean;
+  attemptsAllowed?: number;
+  latestAttemptNo?: number;
+  latestAttemptStatus?: "in_progress" | "submitted" | "auto_submitted" | "disqualified" | "graded" | null;
+  scheduledEndReached?: boolean;
 }) {
+  if (input.answerKeyVisibility !== "after_end" || !input.hasParticipantContext) {
+    return false;
+  }
+
+  if (input.competitionType === "open") {
+    return (
+      input.latestAttemptStatus !== "in_progress" &&
+      (input.latestAttemptNo ?? 0) >= Math.max(1, input.attemptsAllowed ?? 1)
+    );
+  }
+
   return (
-    input.answerKeyVisibility === "after_end" &&
-    input.hasParticipantContext &&
-    input.hasTrustedEnd &&
-    (input.competitionStatus === "ended" || input.competitionStatus === "archived")
+    input.scheduledEndReached === true ||
+    (input.hasTrustedEnd && (input.competitionStatus === "ended" || input.competitionStatus === "archived"))
   );
 }
 

@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArenaExperience } from "@/components/arena/arena-experience";
 import { CompetitionDetailPanel } from "@/components/competitions/competition-detail-panel";
 import { CompetitionEventNotices } from "@/components/competitions/competition-event-notices";
@@ -7,6 +7,7 @@ import { MathletePageFrame } from "@/components/mathlete/page-frame";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getWorkspaceContext } from "@/lib/auth/workspace";
 import { loadArenaPageData } from "@/lib/arena/server";
+import { isTerminalAttemptStatus } from "@/lib/arena/helpers";
 import {
   COMPETITION_SELECT_COLUMNS,
   LEGACY_COMPETITION_SELECT_COLUMNS,
@@ -45,6 +46,10 @@ type SupabaseError = {
 };
 
 const DISCOVERABLE_STATUSES = new Set(["published", "live", "paused", "ended"]);
+
+function getFinalSubmissionPath(competitionId: string, attemptId: string) {
+  return `/mathlete/competition/${competitionId}/review?attemptId=${attemptId}`;
+}
 
 function normalizeRegistrationStatus(value: unknown): RegistrationStatus | null {
   if (value === "registered" || value === "withdrawn" || value === "ineligible" || value === "cancelled") {
@@ -237,7 +242,20 @@ export default async function CompetitionDetailPage({
       notFound();
     }
 
-    if (competition.type === "open" || arenaData.mode !== "detail_register") {
+    const latestAttempt = arenaData.latestAttempt;
+    const shouldRedirectToFinalSubmission =
+      !arenaData.activeAttempt &&
+      latestAttempt?.status !== "disqualified" &&
+      isTerminalAttemptStatus(latestAttempt?.status) &&
+      (arenaData.competition.status === "ended" ||
+        arenaData.competition.status === "archived" ||
+        latestAttempt?.status === "auto_submitted");
+
+    if (latestAttempt && shouldRedirectToFinalSubmission) {
+      redirect(getFinalSubmissionPath(competition.id, latestAttempt.id));
+    }
+
+    if (competition.type === "open" || arenaData.activeAttempt || arenaData.mode !== "detail_register") {
       return <ArenaExperience initialData={arenaData} />;
     }
   }

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { LeaderboardStandings } from "@/components/leaderboard/leaderboard-standings";
 import { KatexPreview } from "@/components/math-editor/katex-preview";
 import type { CompetitionFormat } from "@/lib/competition/types";
+import type { AnswerKeyVisibility } from "@/lib/submission/types";
 import type { CompetitionDispute } from "@/lib/disputes/api";
 import type { ExportJob } from "@/lib/exports/api";
 import type { LeaderboardEntry } from "@/lib/leaderboard/types";
@@ -11,6 +12,7 @@ import type { LeaderboardEntry } from "@/lib/leaderboard/types";
 type LeaderboardManagementPanelProps = {
   competitionId: string;
   leaderboardPublished: boolean;
+  answerKeyVisibility: AnswerKeyVisibility;
   format: CompetitionFormat;
   entries: LeaderboardEntry[];
   disputes: CompetitionDispute[];
@@ -78,15 +80,18 @@ function isExportJobStatus(value: unknown): value is ExportJob["status"] {
 export function LeaderboardManagementPanel({
   competitionId,
   leaderboardPublished,
+  answerKeyVisibility,
   format,
   entries,
   disputes,
   exportJobs,
 }: LeaderboardManagementPanelProps) {
   const [published, setPublished] = useState(leaderboardPublished);
+  const [releasedAnswerKey, setReleasedAnswerKey] = useState(answerKeyVisibility === "after_end");
   const [disputeRows, setDisputeRows] = useState(disputes);
   const [jobRows, setJobRows] = useState(exportJobs);
   const [publishAction, setPublishAction] = useState<ActionState>(() => initialActionState());
+  const [answerKeyAction, setAnswerKeyAction] = useState<ActionState>(() => initialActionState());
   const [exportAction, setExportAction] = useState<ActionState>(() => initialActionState());
   const [disputeAction, setDisputeAction] = useState<ActionState>(() => initialActionState());
 
@@ -138,6 +143,53 @@ export function LeaderboardManagementPanel({
       setPublishAction({
         pending: false,
         error: error instanceof Error ? error.message : "Unable to publish leaderboard.",
+        success: null,
+      });
+    }
+  }
+
+  async function releaseAnswerKey() {
+    setAnswerKeyAction({ pending: true, error: null, success: null });
+    try {
+      const response = await fetch(
+        `/api/organizer/competitions/${competitionId}/answer-key/release`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-idempotency-key": crypto.randomUUID(),
+          },
+          credentials: "same-origin",
+          body: "{}",
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | { message?: string; notifiedCount?: number; notificationFailureCount?: number }
+        | null;
+
+      if (!response.ok) {
+        setAnswerKeyAction({
+          pending: false,
+          error: payload?.message ?? "Unable to release answer key.",
+          success: null,
+        });
+        return;
+      }
+
+      setReleasedAnswerKey(true);
+      const notifiedCount = payload?.notifiedCount ?? 0;
+      const notificationFailureCount = payload?.notificationFailureCount ?? 0;
+      setAnswerKeyAction({
+        pending: false,
+        error: notificationFailureCount > 0
+          ? `${notificationFailureCount} notification(s) could not be sent.`
+          : null,
+        success: `Answer key released. ${notifiedCount} mathlete(s) notified.`,
+      });
+    } catch (error) {
+      setAnswerKeyAction({
+        pending: false,
+        error: error instanceof Error ? error.message : "Unable to release answer key.",
         success: null,
       });
     }
@@ -337,6 +389,44 @@ export function LeaderboardManagementPanel({
         {publishAction.success ? (
           <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
             {publishAction.success}
+          </p>
+        ) : null}
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-xl font-black text-[#10182b]">Answer key release</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Hidden answer keys can be released to eligible mathletes with an inbox link.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.12em] ${
+                releasedAnswerKey ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              {releasedAnswerKey ? "Released" : "Hidden"}
+            </span>
+            <button
+              type="button"
+              disabled={answerKeyAction.pending || releasedAnswerKey}
+              onClick={releaseAnswerKey}
+              className="rounded-xl bg-[#10182b] px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {answerKeyAction.pending ? "Releasing..." : releasedAnswerKey ? "Released" : "Release answer key"}
+            </button>
+          </div>
+        </div>
+        {answerKeyAction.error ? (
+          <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
+            {answerKeyAction.error}
+          </p>
+        ) : null}
+        {answerKeyAction.success ? (
+          <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+            {answerKeyAction.success}
           </p>
         ) : null}
       </section>

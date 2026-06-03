@@ -250,9 +250,46 @@ async function fetchCompetitionProblems(admin: AdminClient, competitionId: strin
   }));
 }
 
-function extractAnswerKeyLatex(value: unknown): string[] {
+function parseJsonAnswerKeyString(value: string): unknown {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function formatAnswerLabel(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return trimmed
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function extractAnswerKeyLatex(value: unknown): string[] {
   if (typeof value === "string") {
-    return value.trim() ? [value] : [];
+    const parsed = parseJsonAnswerKeyString(value);
+    if (parsed !== value) {
+      return extractAnswerKeyLatex(parsed);
+    }
+
+    const formatted = formatAnswerLabel(value);
+    return formatted ? [formatted] : [];
   }
 
   if (Array.isArray(value)) {
@@ -261,14 +298,21 @@ function extractAnswerKeyLatex(value: unknown): string[] {
 
   if (value && typeof value === "object") {
     const record = value as Record<string, unknown>;
-    for (const key of ["latex", "answerLatex", "value", "label", "text", "answer"]) {
+    for (const key of ["acceptedAnswers", "accepted_answers", "correctOptionIds", "correct_option_ids"]) {
       const candidate = record[key];
-      if (typeof candidate === "string" && candidate.trim()) {
-        return [candidate];
+      if (Array.isArray(candidate)) {
+        return candidate.flatMap((entry) => extractAnswerKeyLatex(entry)).filter(Boolean);
       }
     }
 
-    return [JSON.stringify(value)];
+    for (const key of ["acceptedAnswer", "accepted_answer", "latex", "answerLatex", "value", "label", "text", "answer"]) {
+      const candidate = record[key];
+      if (typeof candidate === "string" && candidate.trim()) {
+        return extractAnswerKeyLatex(candidate);
+      }
+    }
+
+    return [];
   }
 
   return [];
@@ -414,8 +458,12 @@ export async function loadAnswerKeyPageData(competitionId: string, actorUserId: 
   const visibility = canViewAnswerKeySnapshot({
     answerKeyVisibility: competition.answerKeyVisibility,
     competitionStatus: competition.status,
+    competitionType: competition.type,
     competitionEndTime: competition.endTime,
     hasParticipantContext: true,
+    attemptsAllowed: competition.attemptsAllowed,
+    latestAttemptNo: attempt?.attempt_no ?? 0,
+    latestAttemptStatus: attempt?.status ?? null,
   });
   const disputesByProblem = new Map<string, ProblemDisputeRow["status"]>();
 

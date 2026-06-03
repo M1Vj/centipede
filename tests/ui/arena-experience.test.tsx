@@ -4,11 +4,13 @@ import { ArenaExperience } from "@/components/arena/arena-experience";
 import type { ArenaPageData } from "@/lib/arena/types";
 
 const routerPushMock = vi.fn();
+const routerReplaceMock = vi.fn();
 const routerRefreshMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: routerPushMock,
+    replace: routerReplaceMock,
     refresh: routerRefreshMock,
   }),
 }));
@@ -136,6 +138,7 @@ describe("ArenaExperience", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     routerPushMock.mockReset();
+    routerReplaceMock.mockReset();
     routerRefreshMock.mockReset();
   });
 
@@ -506,6 +509,58 @@ describe("ArenaExperience", () => {
     expect(calledUrls.findIndex((url) => url.endsWith("/submit"))).toBeGreaterThan(
       calledUrls.findIndex((url) => url.endsWith("/answer")),
     );
+  });
+
+  test("opens final submission page when state sync returns an auto-submitted latest attempt", async () => {
+    const runtimeData = buildPageData("arena_runtime");
+    runtimeData.activeAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "in_progress",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: null,
+      totalTimeSeconds: 0,
+      remainingSeconds: 0,
+      effectiveAttemptDeadlineAt: "2026-04-22T12:30:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T12:30:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [],
+    };
+    runtimeData.latestAttempt = runtimeData.activeAttempt;
+
+    const autoSubmittedData = buildPageData("detail_register");
+    autoSubmittedData.competition = {
+      ...runtimeData.competition,
+      status: "ended",
+    };
+    autoSubmittedData.registration = runtimeData.registration;
+    autoSubmittedData.activeAttempt = null;
+    autoSubmittedData.latestAttempt = {
+      ...runtimeData.activeAttempt,
+      status: "auto_submitted",
+      submittedAt: "2026-04-22T13:00:00.000Z",
+      remainingSeconds: 0,
+    };
+
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: autoSubmittedData,
+        }),
+        { status: 200 },
+      ),
+    );
+
+    render(<ArenaExperience initialData={runtimeData} />);
+
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith(
+        "/mathlete/competition/competition-1/review?attemptId=attempt-1",
+      );
+    });
+    expect(routerPushMock).not.toHaveBeenCalledWith("/mathlete/competition/competition-1");
   });
 
   test("marks non-empty answers filled even when previous persisted status was blank", () => {
