@@ -314,6 +314,39 @@ describe("branch 14 organizer mutation routes", () => {
     });
   });
 
+  test("rejects dispute resolution payloads for a different competition", async () => {
+    const userRpc = vi.fn();
+    const adminRpc = vi.fn().mockResolvedValue({
+      data: [{
+        machine_code: "ok",
+        dispute_id: DISPUTE_ID,
+        competition_id: "other-competition",
+        status: "accepted",
+        correction_id: "correction-1",
+        replayed: false,
+        changed: true,
+        resolved_at: "2026-05-01T00:00:00.000Z",
+      }],
+      error: null,
+    });
+
+    vi.mocked(createClient).mockResolvedValue(makeOrganizerClient(userRpc) as never);
+    vi.mocked(createAdminClient).mockReturnValue(makeAdminClient(adminRpc) as never);
+
+    const response = await resolveDispute(
+      makePostRequest(`/api/organizer/competitions/${COMPETITION_ID}/disputes/${DISPUTE_ID}/resolve`, {
+        status: "accepted",
+        resolutionNote: "Answer key corrected.",
+      }),
+      { params: Promise.resolve({ competitionId: COMPETITION_ID, disputeId: DISPUTE_ID }) },
+    );
+
+    assertResponse(response);
+    const body = await response.json();
+    expect(response.status).toBe(409);
+    expect(body.code).toBe("competition_mismatch");
+  });
+
   test("queues export jobs through service-role RPC after owner authorization", async () => {
     const userRpc = vi.fn();
     const adminRpc = vi.fn().mockResolvedValue({

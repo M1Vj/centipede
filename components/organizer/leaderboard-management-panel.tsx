@@ -94,6 +94,7 @@ export function LeaderboardManagementPanel({
   const [answerKeyAction, setAnswerKeyAction] = useState<ActionState>(() => initialActionState());
   const [exportAction, setExportAction] = useState<ActionState>(() => initialActionState());
   const [disputeAction, setDisputeAction] = useState<ActionState>(() => initialActionState());
+  const [resolutionDrafts, setResolutionDrafts] = useState<Record<string, string>>({});
 
   const nonTerminalDisputeIds = useMemo(
     () =>
@@ -278,14 +279,10 @@ export function LeaderboardManagementPanel({
     disputeId: string,
     status: "reviewing" | "accepted" | "rejected" | "resolved",
   ) {
-    let resolutionNote = "";
-    if (status === "accepted" || status === "rejected" || status === "resolved") {
-      const response = window.prompt("Resolution note", "");
-      if (response === null) {
-        return;
-      }
+    const dispute = disputeRows.find((row) => row.id === disputeId);
+    const resolutionNote = (resolutionDrafts[disputeId] ?? dispute?.resolutionNote ?? "").trim();
 
-      resolutionNote = response.trim();
+    if (status === "accepted" || status === "rejected" || status === "resolved") {
       if (!resolutionNote) {
         setDisputeAction({
           pending: false,
@@ -338,6 +335,11 @@ export function LeaderboardManagementPanel({
             : dispute,
         ),
       );
+      setResolutionDrafts((current) => {
+        const next = { ...current };
+        delete next[disputeId];
+        return next;
+      });
 
       setDisputeAction({
         pending: false,
@@ -507,6 +509,29 @@ export function LeaderboardManagementPanel({
                   <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
                     {dispute.resolutionNote}
                   </p>
+                ) : null}
+                {!terminal ? (
+                  <div className="mt-3 space-y-2">
+                    <label
+                      htmlFor={`resolution-note-${dispute.id}`}
+                      className="text-xs font-black uppercase tracking-[0.12em] text-slate-500"
+                    >
+                      Resolution note
+                    </label>
+                    <textarea
+                      id={`resolution-note-${dispute.id}`}
+                      value={resolutionDrafts[dispute.id] ?? ""}
+                      onChange={(event) =>
+                        setResolutionDrafts((current) => ({
+                          ...current,
+                          [dispute.id]: event.target.value,
+                        }))
+                      }
+                      maxLength={1000}
+                      placeholder="Required when accepting, rejecting, or resolving."
+                      className="min-h-24 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-900 outline-none transition focus:border-[#f49700] focus:ring-2 focus:ring-[#f49700]/20"
+                    />
+                  </div>
                 ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button

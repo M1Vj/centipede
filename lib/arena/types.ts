@@ -58,6 +58,8 @@ export interface ArenaAttemptAnswer {
   answerLatex: string;
   answerTextNormalized: string;
   statusFlag: AnswerStatusFlag;
+  isCorrect?: boolean | null;
+  pointsAwarded?: number | null;
   lastSavedAt: string;
   clientUpdatedAt: string;
 }

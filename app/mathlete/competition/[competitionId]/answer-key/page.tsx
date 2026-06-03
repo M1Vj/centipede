@@ -46,7 +46,10 @@ export default async function AnswerKeyPage({
           contentLatex: problem.contentLatex,
           explanationLatex: problem.explanationLatex,
           answerKeyLatex: problem.answerKeyLatex,
+          isCorrect: problem.isCorrect,
+          pointsAwarded: problem.pointsAwarded,
           existingDisputeStatus: problem.existingDisputeStatus,
+          existingDisputeResolutionNote: problem.existingDisputeResolutionNote,
         })),
       }}
     />

@@ -144,6 +144,31 @@ describe("submission dispute route", () => {
     expect(body.machineCode).toBe("dispute_rate_limited");
   });
 
+  test("returns no-dispute message when answer was already correct", async () => {
+    vi.mocked(createClient).mockResolvedValue(makeMathleteClient() as never);
+    vi.mocked(createProblemDispute).mockResolvedValue({
+      machine_code: "answer_already_correct",
+      dispute_id: null,
+      status: null,
+      replayed: false,
+    } as never);
+
+    const response = await disputeRoute(
+      makeRequest({
+        competitionProblemId: "cp-correct",
+        attemptId: "attempt-1",
+        reason: "This item should not accept a dispute.",
+      }),
+      { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.code).toBe("answer_already_correct");
+    expect(body.message).toBe("Correctly scored items cannot be disputed.");
+    expect(body.machineCode).toBe("answer_already_correct");
+  });
+
   test("returns permission message when dispute target is outside participant context", async () => {
     vi.mocked(createClient).mockResolvedValue(makeMathleteClient() as never);
     vi.mocked(createProblemDispute).mockResolvedValue({

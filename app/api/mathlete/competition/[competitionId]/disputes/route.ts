@@ -21,6 +21,12 @@ function disputeFailureFor(machineCode: string) {
         message: "Please wait before submitting another dispute for this problem.",
         status: 429,
       };
+    case "answer_already_correct":
+      return {
+        code: "answer_already_correct",
+        message: "Correctly scored items cannot be disputed.",
+        status: 409,
+      };
     case "forbidden":
       return {
         code: "forbidden",

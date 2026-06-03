@@ -46,6 +46,10 @@ const disputeSubmissionFixSql = readFileSync(
   "supabase/migrations/20260603190000_fix_dispute_submission.sql",
   "utf8",
 );
+const disputeCorrectnessAndScoreSql = readFileSync(
+  "supabase/migrations/20260603200000_dispute_correctness_and_score_updates.sql",
+  "utf8",
+);
 
 describe("review submission sql contracts", () => {
   test("creates dispute table and state machine enum", () => {
@@ -183,5 +187,24 @@ describe("review submission sql contracts", () => {
     expect(disputeSubmissionFixSql).toContain("ca.attempt_no >= greatest(1, v_competition.attempts_allowed)");
     expect(disputeSubmissionFixSql).toContain("and pd.competition_problem_id = p_competition_problem_id");
     expect(disputeSubmissionFixSql).toContain("grant execute on function public.create_problem_dispute(uuid, uuid, uuid, uuid, text) to service_role");
+  });
+
+  test("prevents disputes for already-correct answers in trusted RPC", () => {
+    expect(disputeCorrectnessAndScoreSql).toContain("create or replace function public.create_problem_dispute");
+    expect(disputeCorrectnessAndScoreSql).toContain("from public.attempt_answers aa");
+    expect(disputeCorrectnessAndScoreSql).toContain("aa.is_correct = true");
+    expect(disputeCorrectnessAndScoreSql).toContain("'answer_already_correct'");
+    expect(disputeCorrectnessAndScoreSql).toContain("grant execute on function public.create_problem_dispute(uuid, uuid, uuid, uuid, text) to service_role");
+  });
+
+  test("accepted disputes award problem points and recompute attempt score", () => {
+    expect(disputeCorrectnessAndScoreSql).toContain("create or replace function public.apply_accepted_problem_dispute_score");
+    expect(disputeCorrectnessAndScoreSql).toContain("insert into public.attempt_answers");
+    expect(disputeCorrectnessAndScoreSql).toContain("on conflict on constraint attempt_answers_attempt_problem_uq");
+    expect(disputeCorrectnessAndScoreSql).toContain("points_awarded = excluded.points_awarded");
+    expect(disputeCorrectnessAndScoreSql).toContain("set raw_score = v_raw_score");
+    expect(disputeCorrectnessAndScoreSql).toContain("final_score = v_raw_score - v_penalty_score");
+    expect(disputeCorrectnessAndScoreSql).toContain("problem_disputes_apply_accepted_score");
+    expect(disputeCorrectnessAndScoreSql).toContain("after insert or update of status on public.problem_disputes");
   });
 });
