@@ -114,6 +114,19 @@
     @apply mx-auto w-full max-w-7xl px-6 lg:px-10;
   }
 
+  .mathlete-shell:has(.arena-runtime-focus) > header {
+    display: none;
+  }
+
+  .mathlete-shell:has(.arena-runtime-focus) > main {
+    padding-bottom: 0;
+  }
+
+  .mathlete-competition-shell:has(.arena-runtime-focus) {
+    max-width: none;
+    padding: 0;
+  }
+
   math-field.mathwiz-math-field::part(menu-toggle),
   math-field.mathwiz-math-field::part(virtual-keyboard-toggle) {
     display: none;

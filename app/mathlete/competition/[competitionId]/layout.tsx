@@ -4,7 +4,7 @@ export default function MathleteCompetitionDetailLayout({
   children: React.ReactNode;
 }) {
   return (
-    <section className="shell py-8 md:py-10">
+    <section className="mathlete-competition-shell shell py-8 md:py-10">
       {children}
     </section>
   );

@@ -1,19 +1,17 @@
 "use client";
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { Bookmark, ChevronLeft, ChevronRight, Clock, Download, ShieldCheck } from "lucide-react";
+import { Bookmark, ChevronLeft, ChevronRight, Download, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { TabSwitchWarningObserver } from "@/components/arena/tab-switch-warning-observer";
 import { TabSwitchWarningOverlay } from "@/components/arena/tab-switch-warning-overlay";
 import { MathliveField } from "@/components/math-editor/mathlive-field";
 import { KatexPreview } from "@/components/math-editor/katex-preview";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ProgressLink } from "@/components/ui/progress-link";
 import { createIdempotencyToken } from "@/components/competitions/utils";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -66,6 +64,10 @@ type SubmitAttemptResponse = {
   message?: string;
 };
 
+function formatOptionMarker(index: number) {
+  return String.fromCharCode(65 + index);
+}
+
 function getProblemStatusClassName(status: AnswerStatusFlag) {
   if (status === "solved") {
     return "border-[#f49700] bg-[#f49700] text-white";
@@ -105,10 +107,6 @@ function getBadgeStatusClassName(status: AnswerStatusFlag) {
   }
 
   return "border-slate-100 bg-slate-50 text-slate-400";
-}
-
-function formatOptionMarker(index: number) {
-  return String.fromCharCode(65 + index);
 }
 
 function formatCompetitionWindow(label: string, value: string | null) {
@@ -830,16 +828,6 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   const selectedProblemIndex = selectedProblem
     ? pageData.problems.findIndex((problem) => problem.competitionProblemId === selectedProblem.competitionProblemId)
     : -1;
-  const blankCount = pageData.problems.filter((problem) => {
-    const statusFlag = answers.get(problem.competitionProblemId)?.statusFlag ?? "blank";
-    return statusFlag === "blank" || statusFlag === "reset";
-  }).length;
-  const filledCount = pageData.problems.filter(
-    (problem) => (answers.get(problem.competitionProblemId)?.statusFlag ?? "blank") === "filled",
-  ).length;
-  const solvedCount = pageData.problems.filter(
-    (problem) => (answers.get(problem.competitionProblemId)?.statusFlag ?? "blank") === "solved",
-  ).length;
   const selectedStatus = selectedAnswer?.statusFlag ?? "blank";
   const terminalAttemptNotice = getAttemptTerminalNotice(pageData.latestAttempt?.status);
   const selectedProblemTitle = selectedProblem
@@ -852,7 +840,12 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
       : "Open access";
 
   return (
-    <div className="min-h-screen bg-[#fafafb] px-4 py-6 font-['Poppins'] text-[#1a1e2e] sm:px-6 lg:px-10">
+    <div
+      className={cn(
+        "min-h-screen bg-[#fafafb] px-4 py-6 font-['Poppins'] text-[#1a1e2e] sm:px-6 lg:px-10",
+        pageData.mode === "arena_runtime" ? "arena-runtime-focus" : "",
+      )}
+    >
       <TabSwitchWarningObserver
         isActive={!!pageData.activeAttempt && pageData.activeAttempt.status === "in_progress"}
         onWarning={() => setTabSwitchWarningOpen(true)}
@@ -861,43 +854,46 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
         open={tabSwitchWarningOpen}
         onAcknowledge={() => setTabSwitchWarningOpen(false)}
       />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <ProgressLink
-              href="/mathlete"
-              className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400 transition hover:text-[#1a1e2e]"
-            >
-              Mathlete
-            </ProgressLink>
-            <Badge variant="secondary">{pageData.competition.status}</Badge>
-            <Badge variant="outline">{pageData.mode.replace("_", " ")}</Badge>
+      {pageData.mode !== "arena_runtime" ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                Mathlete
+              </span>
+              <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">
+                {pageData.competition.status}
+              </span>
+              <span className="rounded-full border border-border px-2.5 py-0.5 text-xs font-semibold text-foreground">
+                {pageData.mode.replace("_", " ")}
+              </span>
+            </div>
+            <h1 className="text-3xl font-black tracking-tight text-[#1a1e2e]">
+              {pageData.competition.name}
+            </h1>
+            <p className="max-w-3xl text-sm leading-6 text-slate-500">
+              {pageData.competition.description || "Competition details and arena controls live here."}
+            </p>
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-[#1a1e2e]">
-            {pageData.competition.name}
-          </h1>
-          <p className="max-w-3xl text-sm leading-6 text-slate-500">
-            {pageData.competition.description || "Competition details and arena controls live here."}
-          </p>
-        </div>
 
-        {pageData.activeAttempt ? (
-          <div className="rounded-3xl border border-slate-100 bg-white px-5 py-4 text-right shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-              Remaining Time
-            </p>
-            <p className="mt-2 font-mono text-3xl font-black text-[#1a1e2e]">
-              {formatTimerText(remainingSeconds)}
-            </p>
-            <p className="mt-2 text-xs text-slate-500">
-              Sync: {connectionState}
-            </p>
-            <span className="sr-only" aria-live="polite">
-              {timerAnnouncement}
-            </span>
-          </div>
-        ) : null}
-      </div>
+          {pageData.activeAttempt ? (
+            <div className="rounded-3xl border border-slate-100 bg-white px-5 py-4 text-right shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                Remaining Time
+              </p>
+              <p className="mt-2 font-mono text-3xl font-black text-[#1a1e2e]">
+                {formatTimerText(remainingSeconds)}
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                Sync: {connectionState}
+              </p>
+              <span className="sr-only" aria-live="polite">
+                {timerAnnouncement}
+              </span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {requestMessage ? (
         <Alert variant={requestState === "error" ? "destructive" : "default"}>
@@ -1146,18 +1142,15 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
       ) : null}
 
       {pageData.mode === "arena_runtime" && selectedProblem ? (
-        <div className="mt-6 flex flex-col justify-center gap-8 lg:flex-row">
-          <main className="flex w-full max-w-[860px] flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_55px_-35px_rgba(26,30,46,0.45)] ring-1 ring-slate-100 sm:p-8 lg:p-10">
+        <div className="flex min-h-screen flex-col justify-center gap-6 py-4 sm:py-6 lg:flex-row">
+          <main className="flex w-full max-w-[960px] flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_55px_-35px_rgba(26,30,46,0.45)] ring-1 ring-slate-100 sm:p-8 lg:p-10">
             <div className="mb-8 flex flex-col justify-between gap-6 sm:flex-row sm:items-start">
               <div>
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">
-                  {pageData.competition.name}
-                </p>
                 <h2 className="max-w-[560px] text-3xl font-black leading-tight tracking-tight text-[#1a1e2e] md:text-4xl">
                   {selectedProblemTitle}
                 </h2>
               </div>
-              <div className="flex flex-wrap gap-3 sm:justify-end">
+              <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-end">
                 <div className="flex min-w-[78px] flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <span className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
                     Difficulty
@@ -1168,13 +1161,13 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                 </div>
                 <div className="flex min-w-[78px] flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <span className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                    Points
+                    Score Weight
                   </span>
                   <span className="text-[13px] font-black text-[#1a1e2e]">
                     {selectedProblem.points ?? "-"}
                   </span>
                 </div>
-                <div className={cn("flex min-w-[78px] flex-col items-center justify-center rounded-xl border p-3", getBadgeStatusClassName(selectedStatus))}>
+                <div className={cn("col-span-2 flex min-w-[78px] flex-col items-center justify-center rounded-xl border p-3", getBadgeStatusClassName(selectedStatus))}>
                   <span className="mb-1 text-[9px] font-bold uppercase tracking-wider opacity-70">
                     Status
                   </span>
@@ -1323,53 +1316,19 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                   Next Problem
                   <ChevronRight className="h-4 w-4" />
                 </Button>
+                <Button
+                  type="button"
+                  className="h-auto flex-1 rounded-xl bg-[#f49700] px-6 py-3 font-bold text-white shadow-lg shadow-[#f49700]/20 hover:bg-[#e08900] sm:flex-none"
+                  disabled={!pageData.registration?.actorCanWrite}
+                  onClick={() => void openReviewPage()}
+                >
+                  Review & Submit
+                </Button>
               </div>
             </div>
           </main>
 
-          <aside className="flex w-full shrink-0 flex-col gap-6 lg:w-[380px]">
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_16px_42px_-34px_rgba(26,30,46,0.42)] ring-1 ring-slate-100">
-              <div className="mb-6 flex items-center justify-between gap-4">
-                <h3 className="text-sm font-black uppercase tracking-wider text-[#1a1e2e]">
-                  Progress Overview
-                </h3>
-                <div className="flex items-center gap-2 rounded-full bg-[#f49700]/10 px-3 py-1.5 text-sm font-black text-[#f49700]">
-                  <Clock className="h-4 w-4" />
-                  {formatTimerText(remainingSeconds)}
-                </div>
-              </div>
-              <span className="sr-only" aria-live="polite">
-                {timerAnnouncement}
-              </span>
-
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="flex flex-col items-center rounded-xl border border-slate-200 bg-slate-50 py-4">
-                  <span className="mb-1 text-2xl font-black leading-none text-slate-400">
-                    {blankCount}
-                  </span>
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                    Blank
-                  </span>
-                </div>
-                <div className="flex flex-col items-center rounded-xl border border-[#1A1E2E] bg-[#1A1E2E] py-4 shadow-sm shadow-[#1A1E2E]/20">
-                  <span className="mb-1 text-2xl font-black leading-none text-white">
-                    {filledCount}
-                  </span>
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-white/80">
-                    Filled
-                  </span>
-                </div>
-                <div className="flex flex-col items-center rounded-xl border border-[#fef3c7]/50 bg-[#fffbeb] py-4">
-                  <span className="mb-1 text-2xl font-black leading-none text-[#f49700]">
-                    {solvedCount}
-                  </span>
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-[#f49700]/70">
-                    Solved
-                  </span>
-                </div>
-              </div>
-            </section>
-
+          <aside className="w-full shrink-0 lg:w-[340px]">
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_16px_42px_-34px_rgba(26,30,46,0.42)] ring-1 ring-slate-100">
               <div className="mb-6 flex items-center justify-between gap-4">
                 <h3 className="text-sm font-black uppercase tracking-wider text-[#1a1e2e]">
@@ -1407,31 +1366,6 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                 })}
               </div>
             </section>
-
-            <section className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-[0_14px_36px_-34px_rgba(26,30,46,0.38)] ring-1 ring-slate-100">
-              <div className="grid gap-2">
-                <p>
-                  <span className="font-bold text-[#1a1e2e]">Attempt:</span>{" "}
-                  #{pageData.activeAttempt?.attemptNo}
-                </p>
-                <p>
-                  <span className="font-bold text-[#1a1e2e]">Sync:</span> {connectionState}
-                </p>
-                <p>
-                  <span className="font-bold text-[#1a1e2e]">Latest save:</span>{" "}
-                  {selectedAnswer?.lastSavedAt ? new Date(selectedAnswer.lastSavedAt).toLocaleTimeString() : "Pending"}
-                </p>
-              </div>
-            </section>
-
-            <Button
-              type="button"
-              className="mt-auto h-auto w-full rounded-xl bg-[#f49700] py-5 text-sm font-black uppercase tracking-[0.18em] text-white hover:bg-[#e08900]"
-              disabled={!pageData.registration?.actorCanWrite}
-              onClick={() => void openReviewPage()}
-            >
-              Review & Submit
-            </Button>
           </aside>
         </div>
       ) : null}

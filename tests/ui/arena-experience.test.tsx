@@ -563,7 +563,8 @@ describe("ArenaExperience", () => {
     expect(routerPushMock).not.toHaveBeenCalledWith("/mathlete/competition/competition-1");
   });
 
-  test("marks non-empty answers filled even when previous persisted status was blank", () => {
+  test("marks non-empty answers filled even when previous persisted status was blank", async () => {
+    vi.useFakeTimers();
     const runtimeData = buildPageData("arena_runtime");
     runtimeData.activeAttempt = {
       id: "attempt-1",
@@ -603,14 +604,27 @@ describe("ArenaExperience", () => {
       ),
     );
 
-    render(<ArenaExperience initialData={runtimeData} />);
+    const { container } = render(<ArenaExperience initialData={runtimeData} />);
 
     fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), {
       target: { value: "42" },
     });
 
-    expect(screen.getAllByText("Filled").length).toBeGreaterThan(0);
+    expect(container.querySelector(".arena-runtime-focus")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Your answer" })).toHaveValue("42");
+    expect(screen.getByText("Question Grid")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Q1 Filled" })).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600);
+    });
+
+    const answerCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith("/answer"));
+    expect(answerCall).toBeDefined();
+    expect(JSON.parse(String(answerCall?.[1]?.body))).toMatchObject({
+      rawValue: "42",
+      statusFlag: "filled",
+    });
   });
 
   test("pre-entry start transitions into runtime when route returns active attempt data", async () => {
@@ -681,7 +695,7 @@ describe("ArenaExperience", () => {
       );
     });
 
-    render(<ArenaExperience initialData={preEntryData} />);
+    const { container } = render(<ArenaExperience initialData={preEntryData} />);
 
     for (const checkbox of screen.getAllByRole("checkbox")) {
       fireEvent.click(checkbox);
@@ -690,8 +704,13 @@ describe("ArenaExperience", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start competition" }));
 
     await waitFor(() => {
+      expect(container.querySelector(".arena-runtime-focus")).toBeInTheDocument();
+      expect(screen.getByText("Problem #1")).toBeInTheDocument();
       expect(screen.getByText("Question Grid")).toBeInTheDocument();
-      expect(screen.getByText(/Attempt:/)).toBeInTheDocument();
+      expect(screen.getByText("Difficulty")).toBeInTheDocument();
+      expect(screen.getByText("Score Weight")).toBeInTheDocument();
+      expect(screen.queryByText(/Attempt:/)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Review & Submit" })).toBeInTheDocument();
     });
   });
 });

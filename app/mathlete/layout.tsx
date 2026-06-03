@@ -12,7 +12,7 @@ export default async function MathleteLayout({
   const notificationSnapshot = await fetchNotificationPreviewSnapshot();
 
   return (
-    <div className="min-h-screen bg-[#fafafb] text-[#1a1e2e]">
+    <div className="mathlete-shell min-h-screen bg-[#fafafb] text-[#1a1e2e]">
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(circle_at_top,rgba(244,151,0,0.18),transparent_48%)]" />
         <div className="absolute right-[-8rem] top-20 h-72 w-72 rounded-full bg-[#1a1e2e]/8 blur-3xl" />
