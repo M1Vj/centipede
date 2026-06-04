@@ -215,7 +215,7 @@ Scheduled competition starts also require:
 
 - `CRON_SECRET`
 
-The app-level cron route at `/api/cron/competitions/start-due` runs every minute in `vercel.json`, requires `Authorization: Bearer $CRON_SECRET`, and uses the Supabase service role key to move due scheduled competitions from `published` to `live`.
+The app-level lifecycle route at `/api/cron/competitions/start-due` requires `Authorization: Bearer $CRON_SECRET` and uses the Supabase service role key to move due scheduled competitions from `published` to `live` and end due scheduled competitions. Vercel cron scheduling is not declared in `vercel.json` so Hobby deployments do not fail on the every-minute cron limit; trigger this route from a Pro Vercel cron, an external scheduler, or an admin-controlled worker when scheduled competition automation is needed.
 
 ### What Is Included
 
