@@ -193,15 +193,15 @@ export function TeamInvitesList() {
           return (
             <article
               key={invite.id}
-              className="rounded-[2rem] border border-white/80 bg-white p-5 shadow-[0_24px_60px_-44px_rgba(15,23,42,0.35)] sm:p-6"
+              className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-44px_rgba(15,23,42,0.35)] transition-all duration-300 hover:border-[#f49700]/50 hover:shadow-md sm:p-6"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#10182b] text-sm font-bold text-white">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
                     {initials || "M"}
                   </div>
                   <div className="space-y-2">
-                    <div className="text-2xl font-semibold tracking-[-0.03em] text-[#10182b]">{teamName}</div>
+                    <div className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{teamName}</div>
                     <p className="text-sm leading-7 text-slate-500">
                       Invited by {inviterName}
                       {inviterDetails ? ` (${inviterDetails})` : ""}
@@ -226,7 +226,7 @@ export function TeamInvitesList() {
                   {teamCode ? (
                     <div className="rounded-[1.35rem] border border-slate-200/80 bg-slate-50/70 p-4">
                       <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Team Code</p>
-                      <p className="mt-2 font-mono text-sm font-semibold tracking-[0.16em] text-[#13233b]">{teamCode}</p>
+                      <p className="mt-2 font-mono text-sm font-semibold tracking-[0.16em] text-foreground">{teamCode}</p>
                     </div>
                   ) : null}
                 </div>
@@ -234,7 +234,7 @@ export function TeamInvitesList() {
                 <div className="flex flex-wrap items-center gap-2 md:justify-end">
                   <Button
                     type="button"
-                    className="h-11 rounded-full bg-[#f49700] px-5 text-sm font-bold text-white hover:bg-[#e68b00]"
+                    className="h-11 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
                     onClick={() => void handleInviteAction(invite.id, "accept")}
                     pending={isAccepting}
                     pendingText="Accepting..."

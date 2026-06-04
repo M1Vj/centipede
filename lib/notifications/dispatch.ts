@@ -19,6 +19,7 @@ export type CanonicalNotificationEvent =
   | "competition_registration_withdrawn"
   | "competition_started"
   | "competition_announcement_posted"
+  | "answer_key_released"
   | "leaderboard_published"
   | "dispute_resolved"
   | "score_recalculated"
@@ -62,6 +63,7 @@ export type CompetitionNotificationEvent =
   | "competition_registration_withdrawn"
   | "competition_started"
   | "competition_announcement_posted"
+  | "answer_key_released"
   | "competition_leaderboard_published"
   | "competition_problem_dispute_resolved"
   | "leaderboard_published"
@@ -115,6 +117,7 @@ const EVENT_PREFERENCE_KEYS: Record<CanonicalNotificationEvent, NotificationPref
   competition_registration_withdrawn: "registration_reminders",
   competition_started: "registration_reminders",
   competition_announcement_posted: "announcements",
+  answer_key_released: "leaderboard_publication",
   leaderboard_published: "leaderboard_publication",
   dispute_resolved: "leaderboard_publication",
   score_recalculated: "score_recalculation",
@@ -132,6 +135,7 @@ const EVENT_CHANNEL_CLASSES: Record<CanonicalNotificationEvent, NotificationChan
   competition_registration_withdrawn: "email_eligible",
   competition_started: "email_eligible",
   competition_announcement_posted: "email_eligible",
+  answer_key_released: "email_eligible",
   leaderboard_published: "email_eligible",
   dispute_resolved: "email_eligible",
   score_recalculated: "in_app_only",
@@ -144,6 +148,7 @@ const MANDATORY_INBOX_EVENTS = new Set<CanonicalNotificationEvent>([
   "team_invite_sent",
   "competition_started",
   "competition_announcement_posted",
+  "answer_key_released",
 ]);
 
 const EVENT_TEMPLATES: Record<CanonicalNotificationEvent, { title: string; body: string }> = {
@@ -178,6 +183,10 @@ const EVENT_TEMPLATES: Record<CanonicalNotificationEvent, { title: string; body:
   competition_announcement_posted: {
     title: "Competition announcement",
     body: "A competition announcement was posted.",
+  },
+  answer_key_released: {
+    title: "Answer key released",
+    body: "A competition answer key is now available.",
   },
   leaderboard_published: {
     title: "Leaderboard published",

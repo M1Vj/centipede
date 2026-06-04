@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 
 const migration = readFileSync("supabase/migrations/20260504160000_14b_leaderboard_history.sql", "utf8");
+const disputeCorrectnessAndScoreMigration = readFileSync(
+  "supabase/migrations/20260603200000_dispute_correctness_and_score_updates.sql",
+  "utf8",
+);
 
 describe("branch 14 SQL contracts", () => {
   test("keeps event-producing leaderboard RPCs service-role only", () => {
@@ -43,5 +47,13 @@ describe("branch 14 SQL contracts", () => {
   test("aligns branch 13 dispute table with branch 14 update trigger", () => {
     expect(migration).toContain("add column if not exists updated_at timestamptz not null default timezone('utc', now())");
     expect(migration).toContain("new.updated_at := timezone('utc', now())");
+  });
+
+  test("accepted dispute score trigger updates attempt answers before leaderboard refresh", () => {
+    expect(disputeCorrectnessAndScoreMigration).toContain("create trigger problem_disputes_apply_accepted_score");
+    expect(disputeCorrectnessAndScoreMigration).toContain("new.status = 'accepted'::public.dispute_status");
+    expect(disputeCorrectnessAndScoreMigration).toContain("set is_correct = true");
+    expect(disputeCorrectnessAndScoreMigration).toContain("points_awarded = excluded.points_awarded");
+    expect(disputeCorrectnessAndScoreMigration).toContain("set raw_score = v_raw_score");
   });
 });

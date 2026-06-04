@@ -28,19 +28,20 @@ interface MathliveFieldProps {
   previewLabel?: string;
   previewFallbackText?: string;
   showPreviewToggle?: boolean;
+  variant?: "authoring" | "arena";
 }
 
 const SYMBOL_TOOLBAR = [
-  { label: "a/b", latex: "\\frac{a}{b}" },
-  { label: "sqrt", latex: "\\sqrt{x}" },
-  { label: "pi", latex: "\\pi" },
-  { label: "theta", latex: "\\theta" },
-  { label: "x^2", latex: "x^2" },
-  { label: "x_n", latex: "x_n" },
-  { label: "<=", latex: "\\le" },
-  { label: ">=", latex: "\\ge" },
-  { label: "!=", latex: "\\neq" },
-  { label: "times", latex: "\\times" },
+  { label: "a/b", ariaLabel: "Insert fraction", latex: "\\frac{a}{b}" },
+  { label: "√x", ariaLabel: "Insert square root", latex: "\\sqrt{x}" },
+  { label: "π", ariaLabel: "Insert pi", latex: "\\pi" },
+  { label: "θ", ariaLabel: "Insert theta", latex: "\\theta" },
+  { label: "x^2", ariaLabel: "Insert exponent", latex: "x^2" },
+  { label: "x_n", ariaLabel: "Insert subscript", latex: "x_n" },
+  { label: "≤", ariaLabel: "Insert less than or equal", latex: "\\le" },
+  { label: "≥", ariaLabel: "Insert greater than or equal", latex: "\\ge" },
+  { label: "≠", ariaLabel: "Insert not equal", latex: "\\neq" },
+  { label: "×", ariaLabel: "Insert multiplication sign", latex: "\\times" },
 ] as const;
 
 type EditorMode = "math" | "text";
@@ -69,11 +70,11 @@ const MATHLIVE_SURFACE_STYLE = {
 } as CSSProperties;
 
 const ACTIVE_MODE_BUTTON_CLASS =
-  "rounded-xl border border-[#f49700] bg-[#f49700] text-[#1A1E2E] shadow-sm hover:bg-[#e08900] hover:text-[#1A1E2E] focus-visible:ring-[#f49700]/30";
+  "rounded-xl border border-[#f49700] bg-[#f49700] text-white shadow-lg shadow-[#f49700]/20 hover:bg-[#e08900] hover:text-white focus-visible:ring-[#f49700]/30";
 const INACTIVE_MODE_BUTTON_CLASS =
   "rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:border-[#f49700]/40 hover:bg-slate-50 hover:text-[#1A1E2E] focus-visible:ring-[#f49700]/30";
 const SYMBOL_BUTTON_CLASS =
-  "rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:border-[#f49700]/40 hover:bg-slate-50 hover:text-[#1A1E2E] focus-visible:ring-[#f49700]/30";
+  "min-w-12 rounded-xl border border-slate-200 bg-white px-3 font-black text-[#1A1E2E] shadow-sm hover:border-[#f49700]/50 hover:bg-[#fff7e8] hover:text-[#1A1E2E] focus-visible:ring-[#f49700]/30";
 const INLINE_ICON_BUTTON_CLASS =
   "inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#1A1E2E] transition-colors hover:bg-slate-200/80 hover:text-[#1A1E2E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/30 disabled:pointer-events-none disabled:opacity-50";
 
@@ -506,6 +507,7 @@ export function MathliveField({
   previewLabel,
   previewFallbackText,
   showPreviewToggle = true,
+  variant = "authoring",
 }: MathliveFieldProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const fieldRef = useRef<MathfieldElement | null>(null);
@@ -1087,7 +1089,12 @@ export function MathliveField({
     >
       <Label htmlFor={id}>{label}</Label>
       <div
-        className="relative min-w-0 overflow-x-auto rounded-2xl border border-slate-200 bg-[#fafafb] px-3 py-2 shadow-sm transition-all focus-within:border-[#f49700]/50 focus-within:ring-2 focus-within:ring-[#f49700]/15"
+        className={cn(
+          "relative min-w-0 overflow-x-auto border px-3 py-2 transition-all focus-within:border-[#f49700]/50 focus-within:ring-2 focus-within:ring-[#f49700]/15",
+          variant === "arena"
+            ? "rounded-[24px] border-[#1a1e2e]/15 bg-white shadow-[0_18px_48px_-38px_rgba(26,30,46,0.55)]"
+            : "rounded-2xl border-slate-200 bg-[#fafafb] shadow-sm",
+        )}
         onPointerDown={handleEditorSurfacePointerDown}
       >
         <div className="pointer-events-none absolute right-3 top-3 z-10 flex items-center gap-1">
@@ -1182,6 +1189,8 @@ export function MathliveField({
             onPointerDown={handleControlPointerDown}
             onClick={() => handleInsertSymbol(item.latex)}
             disabled={disabled}
+            aria-label={item.ariaLabel}
+            title={item.ariaLabel}
           >
             {item.label}
           </Button>
@@ -1192,6 +1201,7 @@ export function MathliveField({
           latex={previewLatex}
           label={previewLabel ?? `${label} preview`}
           fallbackText={previewFallbackText}
+          variant={variant === "arena" ? "arena" : "card"}
         />
       ) : null}
       {!isReady && !hasLoadError ? (

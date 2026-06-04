@@ -131,6 +131,10 @@ export async function POST(
     return jsonError("invalid_response", "Dispute resolution returned no payload.", 502);
   }
 
+  if (payload.competition_id && payload.competition_id !== competitionId) {
+    return jsonError("competition_mismatch", "Dispute does not belong to this competition.", 409);
+  }
+
   if (payload.machine_code !== "ok") {
     return jsonError(
       payload.machine_code,

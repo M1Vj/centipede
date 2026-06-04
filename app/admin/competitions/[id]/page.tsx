@@ -70,7 +70,7 @@ async function CompetitionContent({ params }: { params: Promise<{ id: string }> 
       Paused
     </Badge>
   ) : (
-    <Badge variant="default" className="gap-1 bg-green-500 hover:bg-green-600 text-white border-0">
+    <Badge variant="default" className="gap-1 border-0 bg-[#1a1e2e] text-white hover:bg-[#10182b]">
       <Play className="size-3" />
       Active
     </Badge>
@@ -100,7 +100,7 @@ async function CompetitionContent({ params }: { params: Promise<{ id: string }> 
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 shadow-[0_8px_30px_-12px_rgba(245,158,11,0.5)]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f49700]/10 text-[#f49700] shadow-[0_8px_30px_-12px_rgba(244,151,0,0.5)]">
                 <Trophy className="size-6" />
               </div>
               <div>
@@ -175,10 +175,6 @@ async function CompetitionContent({ params }: { params: Promise<{ id: string }> 
               <div className="flex justify-between items-center py-2 border-b border-border/40">
                 <span className="text-muted-foreground">Shuffle Questions</span>
                 <span className="font-medium">{competition.shuffle_questions ? "Yes" : "No"}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-border/40">
-                <span className="text-muted-foreground">Anti-Cheat Tabs</span>
-                <span className="font-medium">{competition.log_tab_switch ? "Enabled" : "Disabled"}</span>
               </div>
             </div>
           </div>

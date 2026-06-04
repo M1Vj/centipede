@@ -43,10 +43,10 @@ export function RootChrome({ children }: { children: ReactNode }) {
       ) : hideGlobalChrome ? null : (
         <header className="sticky top-0 z-50 px-4 pt-6">
           <div className="shell">
-            <div className="flex min-h-16 items-center justify-between gap-3 rounded-full border border-slate-600/50 bg-[#0f172a]/95 px-3 py-2 text-slate-100 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.95)] backdrop-blur-xl sm:px-5">
+            <div className="flex min-h-16 items-center justify-between gap-3 rounded-full border border-white/5 bg-secondary/95 px-3 py-2 text-slate-100 shadow-2xl backdrop-blur-xl sm:px-5">
               <ProgressLink
                 href="/"
-                className="rounded-full px-1 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f49700]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f172a]"
+                className="rounded-full px-1 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/80 focus-visible:ring-offset-2 focus-visible:ring-offset-secondary"
               >
                 <MathwizBrand className="text-white" labelClassName="text-lg" size={40} />
               </ProgressLink>

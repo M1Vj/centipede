@@ -4,6 +4,7 @@ import {
   createReviewSummary,
   normalizeDisputeReason,
 } from "@/lib/submission/helpers";
+import { extractAnswerKeyLatex } from "@/lib/submission/server";
 
 describe("submission domain helpers", () => {
   test("counts persisted answer status flags and infers missing rows as blank", () => {
@@ -61,6 +62,7 @@ describe("submission domain helpers", () => {
         competitionStatus: "ended",
         hasParticipantContext: true,
         hasTrustedEnd: false,
+        scheduledEndReached: false,
       }),
     ).toBe(false);
 
@@ -74,11 +76,62 @@ describe("submission domain helpers", () => {
     ).toBe(false);
   });
 
+  test("allows scheduled answer keys after scheduled end even if status has not caught up", () => {
+    expect(
+      canParticipantViewAnswerKey({
+        answerKeyVisibility: "after_end",
+        competitionType: "scheduled",
+        competitionStatus: "live",
+        hasParticipantContext: true,
+        hasTrustedEnd: false,
+        scheduledEndReached: true,
+      }),
+    ).toBe(true);
+  });
+
+  test("allows open competition answer keys only after the final completed attempt", () => {
+    expect(
+      canParticipantViewAnswerKey({
+        answerKeyVisibility: "after_end",
+        competitionType: "open",
+        competitionStatus: "live",
+        hasParticipantContext: true,
+        hasTrustedEnd: false,
+        attemptsAllowed: 3,
+        latestAttemptNo: 2,
+        latestAttemptStatus: "submitted",
+      }),
+    ).toBe(false);
+
+    expect(
+      canParticipantViewAnswerKey({
+        answerKeyVisibility: "after_end",
+        competitionType: "open",
+        competitionStatus: "live",
+        hasParticipantContext: true,
+        hasTrustedEnd: false,
+        attemptsAllowed: 3,
+        latestAttemptNo: 3,
+        latestAttemptStatus: "submitted",
+      }),
+    ).toBe(true);
+  });
+
   test("normalizes dispute reason without exposing empty or abusive payloads", () => {
     expect(normalizeDisputeReason("  Answer key seems wrong.\nPlease review.  ")).toBe(
       "Answer key seems wrong. Please review.",
     );
     expect(normalizeDisputeReason("")).toBeNull();
     expect(normalizeDisputeReason("x".repeat(1201))).toHaveLength(1000);
+  });
+
+  test("formats answer-key snapshots for human-readable display", () => {
+    expect(extractAnswerKeyLatex({ acceptedAnswers: ["QuadraticFormula"] })).toEqual([
+      "Quadratic Formula",
+    ]);
+    expect(extractAnswerKeyLatex({ acceptedAnswers: ["4", "04"] })).toEqual(["4", "04"]);
+    expect(extractAnswerKeyLatex('{"acceptedAnswers":["QuadraticFormula"]}')).toEqual([
+      "Quadratic Formula",
+    ]);
   });
 });

@@ -137,7 +137,10 @@ function buildAnswerKeyData(): AnswerKeyPageData {
         contentLatex: "2+2",
         explanationLatex: "Add two pairs.",
         answerKeyLatex: ["4", "04"],
+        isCorrect: false,
+        pointsAwarded: 0,
         existingDisputeStatus: null,
+        existingDisputeResolutionNote: null,
       },
     ],
   };
@@ -206,6 +209,8 @@ describe("answer key UI", () => {
 
     expect(screen.getByText("Answer key")).toBeInTheDocument();
     expect(screen.getByText("Accepted answers")).toBeInTheDocument();
+    expect(screen.getByText("Wrong")).toBeInTheDocument();
+    expect(screen.getByText("0/4 awarded")).toBeInTheDocument();
     await waitFor(() => expect(document.querySelector(".katex")).not.toBeNull());
 
     fireEvent.click(screen.getByRole("button", { name: "Dispute problem 1" }));
@@ -231,7 +236,7 @@ describe("answer key UI", () => {
     );
 
     expect(screen.getByText("Registered participant")).toBeInTheDocument();
-    expect(screen.getByText("No attempt")).toBeInTheDocument();
+    expect(screen.getAllByText("No attempt").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /Dispute problem/i })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Accepted answer 1")).toBeInTheDocument();
     expect(screen.getByLabelText("Accepted answer 2")).toBeInTheDocument();
@@ -254,5 +259,30 @@ describe("answer key UI", () => {
 
     expect(screen.getByRole("button", { name: "Dispute open" })).toBeDisabled();
     expect(screen.getByText(/Dispute submitted for organizer review/i)).toBeInTheDocument();
+  });
+
+  test("blocks disputes for correct items and renders resolution notes", () => {
+    render(
+      <AnswerKeyView
+        data={{
+          ...buildAnswerKeyData(),
+          problems: [
+            {
+              ...buildAnswerKeyData().problems[0],
+              isCorrect: true,
+              pointsAwarded: 4,
+              existingDisputeStatus: "accepted",
+              existingDisputeResolutionNote: "Credit awarded after organizer review.",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Correct")).toBeInTheDocument();
+    expect(screen.getByText("4/4 awarded")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Correct - no dispute" })).toBeDisabled();
+    expect(screen.getByText("Resolution note")).toBeInTheDocument();
+    expect(screen.getByText("Credit awarded after organizer review.")).toBeInTheDocument();
   });
 });

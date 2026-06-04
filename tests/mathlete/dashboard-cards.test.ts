@@ -7,6 +7,7 @@ function makeRegistration(input: {
   competitionId: string;
   competitionName: string;
   competitionStatus: string;
+  competitionType?: "open" | "scheduled";
   startTime: string | null;
   endTime?: string | null;
   durationMinutes?: number;
@@ -22,7 +23,7 @@ function makeRegistration(input: {
     competition: {
       id: input.competitionId,
       name: input.competitionName,
-      type: "scheduled",
+      type: input.competitionType ?? "scheduled",
       format: "individual",
       status: input.competitionStatus,
       startTime: input.startTime,
@@ -111,5 +112,26 @@ describe("mathlete dashboard card mapping", () => {
     expect(cards.liveCards).toEqual([]);
     expect(cards.upcomingCards).toEqual([]);
     expect(cards.registrationCards).toEqual([]);
+  });
+
+  test("excludes open competition registration rows from live and registration cards", () => {
+    const cards = buildMathleteDashboardCards(
+      [
+        makeRegistration({
+          id: "registration-open",
+          competitionId: "open-competition",
+          competitionName: "Open Practice Arena",
+          competitionStatus: "live",
+          competitionType: "open",
+          startTime: null,
+        }),
+      ],
+      new Date("2026-05-04T07:21:00.000Z").getTime(),
+    );
+
+    expect(cards.liveCards).toEqual([]);
+    expect(cards.upcomingCards).toEqual([]);
+    expect(cards.registrationCards).toEqual([]);
+    expect(cards.activityItems).toEqual([]);
   });
 });

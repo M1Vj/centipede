@@ -76,13 +76,13 @@ async function AuditLogsList() {
             <div className="flex items-center gap-4 p-4">
               <div
                 className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 ${log.type === "admin"
-                  ? "bg-rose-500/10 text-rose-600"
+                  ? "bg-red-50 text-red-600"
                   : log.badge === "PUBLISHED"
-                    ? "bg-green-500/10 text-green-600"
+                    ? "bg-[#f49700]/10 text-[#b86f00]"
                     : log.badge === "PAUSED"
-                      ? "bg-amber-500/10 text-amber-600"
+                      ? "bg-slate-100 text-slate-600"
                       : log.badge === "RESUMED"
-                        ? "bg-blue-500/10 text-blue-600"
+                        ? "bg-[#1a1e2e]/10 text-[#1a1e2e]"
                         : "bg-primary/10 text-primary"
                   }`}
               >

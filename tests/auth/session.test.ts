@@ -3,6 +3,7 @@ import {
   SESSION_VERSION_COOKIE,
   getSessionSignOutHref,
   getSessionVersionCookieValue,
+  isActiveSessionCurrent,
   isSessionStale,
   parseSessionVersion,
 } from "@/lib/auth/session";
@@ -53,6 +54,24 @@ describe("session helpers", () => {
         { sessionVersion: null },
       ),
     ).toBe(false);
+  });
+
+  test("detects whether an active session marker is still current", () => {
+    const now = new Date("2026-06-03T08:00:00.000Z");
+
+    expect(
+      isActiveSessionCurrent(
+        { active_session_expires_at: "2026-06-03T08:05:00.000Z" },
+        now,
+      ),
+    ).toBe(true);
+    expect(
+      isActiveSessionCurrent(
+        { active_session_expires_at: "2026-06-03T07:55:00.000Z" },
+        now,
+      ),
+    ).toBe(false);
+    expect(isActiveSessionCurrent({}, now)).toBe(false);
   });
 
   test("builds stale-session sign-out href through the session-replaced page", () => {

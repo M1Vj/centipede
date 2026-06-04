@@ -39,8 +39,6 @@ function makeCompetitionRow(status: "draft" | "published") {
     tie_breaker: "earliest_submission",
     shuffle_questions: false,
     shuffle_options: false,
-    log_tab_switch: false,
-    offense_penalties: [],
     published: status === "published",
     is_paused: false,
     created_at: "2026-04-15T00:00:00.000Z",
@@ -71,8 +69,6 @@ function makeLegacyCompetitionRow(status: "draft" | "published") {
     tie_breaker: "earliest_submission",
     shuffle_questions: false,
     shuffle_options: false,
-    log_tab_switch: false,
-    offense_penalties: [],
     published: status === "published",
     is_paused: false,
     created_at: "2026-04-15T00:00:00.000Z",
@@ -88,6 +84,16 @@ function makePublishRequest() {
       "x-forwarded-host": "localhost:3000",
       "x-idempotency-key": "idem-token-123",
     },
+  });
+}
+
+function makeUnexpectedFrom(extraFrom?: (table: string) => unknown) {
+  return vi.fn((table: string) => {
+    if (extraFrom) {
+      return extraFrom(table);
+    }
+
+    throw new Error(`Unexpected table in admin client: ${table}`);
   });
 }
 
@@ -443,6 +449,38 @@ describe("publish route compatibility", () => {
     });
   });
 
+  test("does not preflight selected problem LaTeX before lifecycle RPC", async () => {
+    const supabase = makeSupabaseClient([
+      makeCompetitionRow("draft"),
+      makeCompetitionRow("published"),
+    ]);
+    vi.mocked(createClient).mockResolvedValue(supabase.client as never);
+
+    const rpc = vi.fn().mockResolvedValue({
+      data: ["ok"],
+      error: null,
+    });
+    const from = makeUnexpectedFrom();
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc,
+      from,
+    } as never);
+
+    const response = await POST(makePublishRequest(), {
+      params: Promise.resolve({ competitionId: COMPETITION_ID }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.code).toBe("ok");
+    expect(rpc).toHaveBeenCalledWith("publish_competition", {
+      p_competition_id: COMPETITION_ID,
+      p_request_idempotency_token: "idem-token-123",
+    });
+    expect(from).not.toHaveBeenCalled();
+  });
+
   test("accepts scalar lifecycle RPC payloads without triggering fallback", async () => {
     const supabase = makeSupabaseClient([
       makeCompetitionRow("draft"),
@@ -455,9 +493,7 @@ describe("publish route compatibility", () => {
       error: null,
     });
 
-    const from = vi.fn(() => {
-      throw new Error("Legacy fallback should not execute for successful RPC payloads");
-    });
+    const from = makeUnexpectedFrom();
 
     vi.mocked(createAdminClient).mockReturnValue({
       rpc,
@@ -532,7 +568,7 @@ describe("publish route compatibility", () => {
 
     vi.mocked(createAdminClient).mockReturnValue({
       rpc,
-      from: vi.fn(),
+      from: makeUnexpectedFrom(),
     } as never);
 
     const response = await POST(makePublishRequest(), {
@@ -556,7 +592,7 @@ describe("publish route compatibility", () => {
 
     vi.mocked(createAdminClient).mockReturnValue({
       rpc,
-      from: vi.fn(),
+      from: makeUnexpectedFrom(),
     } as never);
 
     const response = await POST(makePublishRequest(), {
@@ -597,7 +633,7 @@ describe("publish route compatibility", () => {
         data: null,
         error: null,
       }),
-      from: vi.fn(),
+      from: makeUnexpectedFrom(),
     } as never);
 
     const response = await POST(makePublishRequest(), {
@@ -628,7 +664,7 @@ describe("publish route compatibility", () => {
         data: ["ok"],
         error: null,
       }),
-      from: vi.fn(),
+      from: makeUnexpectedFrom(),
     } as never);
 
     const response = await POST(makePublishRequest(), {

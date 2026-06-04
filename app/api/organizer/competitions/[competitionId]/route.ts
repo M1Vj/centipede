@@ -239,6 +239,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ compe
       adminClient,
       competitionId,
       selectedProblemIds,
+      validation.value,
     );
 
     if ("error" in legacySelectionResult) {

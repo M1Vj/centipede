@@ -275,7 +275,7 @@ export function ImportControls({ bankId }: ImportControlsProps) {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex items-center gap-2 bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-8 py-4 rounded-xl font-bold text-[15px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 disabled:opacity-60"
+            className="flex items-center gap-2 bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-8 py-4 rounded-xl font-bold text-[15px] transition-all disabled:opacity-60"
           >
             <Upload className="w-4 h-4" />
             {isSubmitting ? "Importing..." : "Import CSV"}

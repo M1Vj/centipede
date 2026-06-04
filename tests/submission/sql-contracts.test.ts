@@ -22,6 +22,34 @@ const leaderboardSubmitRestoreSql = readFileSync(
   "supabase/migrations/20260506123000_14_restore_submit_grading_leaderboard.sql",
   "utf8",
 );
+const submitGradingAmbiguityFixSql = readFileSync(
+  "supabase/migrations/20260603100000_fix_submit_grading_rpc_ambiguity.sql",
+  "utf8",
+);
+const leaderboardUuidStableAttemptFixSql = readFileSync(
+  "supabase/migrations/20260603103000_fix_leaderboard_uuid_stable_attempt.sql",
+  "utf8",
+);
+const answerKeyVisibilityReleaseSql = readFileSync(
+  "supabase/migrations/20260603110000_answer_key_visibility_release.sql",
+  "utf8",
+);
+const answerKeyNotificationSql = readFileSync(
+  "supabase/migrations/20260603111000_answer_key_release_notifications.sql",
+  "utf8",
+);
+const manualEndAnswerKeyVisibilitySql = readFileSync(
+  "supabase/migrations/20260603112000_manual_end_answer_key_visibility.sql",
+  "utf8",
+);
+const disputeSubmissionFixSql = readFileSync(
+  "supabase/migrations/20260603190000_fix_dispute_submission.sql",
+  "utf8",
+);
+const disputeCorrectnessAndScoreSql = readFileSync(
+  "supabase/migrations/20260603200000_dispute_correctness_and_score_updates.sql",
+  "utf8",
+);
 
 describe("review submission sql contracts", () => {
   test("creates dispute table and state machine enum", () => {
@@ -101,5 +129,82 @@ describe("review submission sql contracts", () => {
     expect(leaderboardSubmitRestoreSql).toContain("perform public.refresh_leaderboard_entries(v_attempt.competition_id)");
     expect(leaderboardSubmitRestoreSql).not.toContain("and coalesce(ca.is_latest_visible_result, true) = true");
     expect(leaderboardSubmitRestoreSql).not.toContain("'deferred_owner_schema'::text");
+  });
+
+  test("hardens live submit grading dependencies against output-column ambiguity", () => {
+    expect(submitGradingAmbiguityFixSql).toContain("create or replace function public.grade_attempt");
+    expect(submitGradingAmbiguityFixSql).toContain("create or replace function public.refresh_leaderboard_entries");
+    expect(submitGradingAmbiguityFixSql.match(/#variable_conflict use_column/g)).toHaveLength(2);
+    expect(submitGradingAmbiguityFixSql).toContain("where aa.attempt_id = p_attempt_id");
+    expect(submitGradingAmbiguityFixSql).toContain("partition by ca.registration_id, ca.participant_profile_id");
+    expect(submitGradingAmbiguityFixSql).toContain("sum(coalesce(oma.final_score, 0)) as score");
+    expect(submitGradingAmbiguityFixSql).toContain("grant execute on function public.grade_attempt(uuid) to service_role");
+    expect(submitGradingAmbiguityFixSql).toContain(
+      "grant execute on function public.refresh_leaderboard_entries(uuid) to service_role",
+    );
+    expect(submitGradingAmbiguityFixSql).not.toContain("'deferred_owner_schema'::text");
+  });
+
+  test("uses a uuid-safe stable leaderboard tie breaker", () => {
+    expect(leaderboardUuidStableAttemptFixSql).toContain(
+      "create or replace function public.refresh_leaderboard_entries",
+    );
+    expect(leaderboardUuidStableAttemptFixSql).toContain("#variable_conflict use_column");
+    expect(leaderboardUuidStableAttemptFixSql).toContain("(array_agg(oma.id order by oma.id asc))[1] as stable_attempt_id");
+    expect(leaderboardUuidStableAttemptFixSql).toContain("rs.stable_attempt_id asc");
+    expect(leaderboardUuidStableAttemptFixSql).not.toContain("min(oma.id)");
+  });
+
+  test("aligns answer-key RPC visibility with scheduled and open competition policies", () => {
+    expect(answerKeyVisibilityReleaseSql).toContain("create or replace function public.can_view_answer_key");
+    expect(answerKeyVisibilityReleaseSql).toContain("v_competition.type = 'open'::public.competition_type");
+    expect(answerKeyVisibilityReleaseSql).toContain("v_latest_attempt.status = 'in_progress'::public.attempt_status");
+    expect(answerKeyVisibilityReleaseSql).toContain("v_latest_attempt.attempt_no >= greatest");
+    expect(answerKeyVisibilityReleaseSql).toContain("v_competition.status in ('draft'");
+    expect(answerKeyVisibilityReleaseSql).toContain("now() < v_competition.end_time");
+    expect(answerKeyVisibilityReleaseSql).not.toContain("leaderboard_published");
+  });
+
+  test("maps answer-key release notifications in database helpers", () => {
+    expect(answerKeyNotificationSql).toContain("create or replace function public.notification_preference_key");
+    expect(answerKeyNotificationSql).toContain("when 'answer_key_released' then 'leaderboard_publication'");
+    expect(answerKeyNotificationSql).toContain("create or replace function public.notification_requires_mandatory_inbox");
+    expect(answerKeyNotificationSql).toContain("'answer_key_released'");
+  });
+
+  test("allows manually ended scheduled competitions to reveal answer keys", () => {
+    expect(manualEndAnswerKeyVisibilitySql).toContain("create or replace function public.can_view_answer_key");
+    expect(manualEndAnswerKeyVisibilitySql).toContain("v_competition.status in ('ended'");
+    expect(manualEndAnswerKeyVisibilitySql).toContain("return true;");
+    expect(manualEndAnswerKeyVisibilitySql).toContain("now() < v_competition.end_time");
+  });
+
+  test("fixes dispute creation to persist competition scope and avoid cross-problem throttling", () => {
+    expect(disputeSubmissionFixSql).toContain("create or replace function public.create_problem_dispute");
+    expect(disputeSubmissionFixSql).toContain("competition_id,");
+    expect(disputeSubmissionFixSql).toContain("p_competition_id,");
+    expect(disputeSubmissionFixSql).toContain("v_competition.type = 'open'::public.competition_type");
+    expect(disputeSubmissionFixSql).toContain("ca.attempt_no >= greatest(1, v_competition.attempts_allowed)");
+    expect(disputeSubmissionFixSql).toContain("and pd.competition_problem_id = p_competition_problem_id");
+    expect(disputeSubmissionFixSql).toContain("grant execute on function public.create_problem_dispute(uuid, uuid, uuid, uuid, text) to service_role");
+  });
+
+  test("prevents disputes for already-correct answers in trusted RPC", () => {
+    expect(disputeCorrectnessAndScoreSql).toContain("create or replace function public.create_problem_dispute");
+    expect(disputeCorrectnessAndScoreSql).toContain("from public.attempt_answers aa");
+    expect(disputeCorrectnessAndScoreSql).toContain("aa.is_correct = true");
+    expect(disputeCorrectnessAndScoreSql).toContain("'answer_already_correct'");
+    expect(disputeCorrectnessAndScoreSql).toContain("grant execute on function public.create_problem_dispute(uuid, uuid, uuid, uuid, text) to service_role");
+  });
+
+  test("accepted disputes award problem points and recompute attempt score", () => {
+    expect(disputeCorrectnessAndScoreSql).toContain("create or replace function public.apply_accepted_problem_dispute_score");
+    expect(disputeCorrectnessAndScoreSql).toContain("insert into public.attempt_answers");
+    expect(disputeCorrectnessAndScoreSql).toContain("on conflict on constraint attempt_answers_attempt_problem_uq");
+    expect(disputeCorrectnessAndScoreSql).toContain("points_awarded = excluded.points_awarded");
+    expect(disputeCorrectnessAndScoreSql).toContain("set raw_score = v_raw_score");
+    expect(disputeCorrectnessAndScoreSql).toContain("final_score = v_raw_score - v_penalty_score");
+    expect(disputeCorrectnessAndScoreSql).toContain("problem_disputes_apply_accepted_score");
+    expect(disputeCorrectnessAndScoreSql).toContain("after insert or update of status on public.problem_disputes");
   });
 });

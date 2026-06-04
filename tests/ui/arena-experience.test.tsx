@@ -4,11 +4,13 @@ import { ArenaExperience } from "@/components/arena/arena-experience";
 import type { ArenaPageData } from "@/lib/arena/types";
 
 const routerPushMock = vi.fn();
+const routerReplaceMock = vi.fn();
 const routerRefreshMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: routerPushMock,
+    replace: routerReplaceMock,
     refresh: routerRefreshMock,
   }),
 }));
@@ -87,7 +89,6 @@ function buildPageData(mode: ArenaPageData["mode"]): ArenaPageData {
       durationMinutes: 60,
       attemptsAllowed: 1,
       participantsPerTeam: null,
-      logTabSwitch: true,
       safeExamBrowserMode: "off",
     },
     registration:
@@ -137,6 +138,7 @@ describe("ArenaExperience", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     routerPushMock.mockReset();
+    routerReplaceMock.mockReset();
     routerRefreshMock.mockReset();
   });
 
@@ -168,39 +170,9 @@ describe("ArenaExperience", () => {
     expect(startButton).toBeEnabled();
   });
 
-  test("does not activate anti-cheat observer when tab-switch logging is disabled", () => {
-    const data = buildPageData("arena_runtime");
-    data.competition.logTabSwitch = false;
-    data.activeAttempt = {
-      id: "attempt-1",
-      competitionId: "competition-1",
-      registrationId: "registration-1",
-      attemptNo: 1,
-      status: "in_progress",
-      startedAt: "2026-04-22T12:00:00.000Z",
-      submittedAt: null,
-      totalTimeSeconds: 0,
-      remainingSeconds: 3600,
-      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
-      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
-      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
-      answers: [],
-    };
-
-    render(<ArenaExperience initialData={data} />);
-
-    window.dispatchEvent(new Event("blur"));
-
-    expect(fetchMock).not.toHaveBeenCalledWith(
-      "/api/anti-cheat/offense",
-      expect.anything(),
-    );
-    expect(screen.queryByText("Warning: Focus Lost")).not.toBeInTheDocument();
-    expect(screen.getByText("Anti-cheat tab-switch logging disabled for this competition.")).toBeInTheDocument();
-  });
-
-  test("shows visible anti-cheat status after sustained focus loss is detected", async () => {
+  test("shows local tab-switch warning after sustained focus loss without logging an offense", async () => {
     vi.useFakeTimers();
+    vi.spyOn(document, "hasFocus").mockReturnValue(false);
     const data = buildPageData("arena_runtime");
     data.activeAttempt = {
       id: "attempt-1",
@@ -217,46 +189,6 @@ describe("ArenaExperience", () => {
       scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
       answers: [],
     };
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ penaltyApplied: "warning" }), { status: 200 }),
-    );
-
-    render(<ArenaExperience initialData={data} />);
-
-    expect(screen.getByText(/Anti-cheat active/i)).toBeInTheDocument();
-    expect(screen.getByText(/Browser signal:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Browser signal counters: visibilitychange 0, blur 0/i)).toBeInTheDocument();
-    window.dispatchEvent(new Event("blur"));
-
-    expect(screen.queryByText(/Anti-cheat event detected: blur/i)).not.toBeInTheDocument();
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1500);
-    });
-
-    expect(screen.getByText(/Anti-cheat event detected: blur/i)).toBeInTheDocument();
-    expect(screen.getByText(/Browser signal counters: visibilitychange 0, blur 1/i)).toBeInTheDocument();
-  });
-
-  test("shows warning overlay after sustained focus loss before offense request resolves", async () => {
-    vi.useFakeTimers();
-    const data = buildPageData("arena_runtime");
-    data.activeAttempt = {
-      id: "attempt-1",
-      competitionId: "competition-1",
-      registrationId: "registration-1",
-      attemptNo: 1,
-      status: "in_progress",
-      startedAt: "2026-04-22T12:00:00.000Z",
-      submittedAt: null,
-      totalTimeSeconds: 0,
-      remainingSeconds: 3600,
-      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
-      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
-      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
-      answers: [],
-    };
-    fetchMock.mockReturnValue(new Promise(() => {}));
 
     render(<ArenaExperience initialData={data} />);
 
@@ -269,153 +201,10 @@ describe("ArenaExperience", () => {
     });
 
     expect(screen.getByRole("alertdialog")).toHaveTextContent("Warning: Focus Lost");
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/anti-cheat/offense",
-      expect.objectContaining({
-        keepalive: true,
-      }),
-    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  test("keeps the warning overlay visible when offense logging fails", async () => {
-    vi.useFakeTimers();
-    const data = buildPageData("arena_runtime");
-    data.activeAttempt = {
-      id: "attempt-1",
-      competitionId: "competition-1",
-      registrationId: "registration-1",
-      attemptNo: 1,
-      status: "in_progress",
-      startedAt: "2026-04-22T12:00:00.000Z",
-      submittedAt: null,
-      totalTimeSeconds: 0,
-      remainingSeconds: 3600,
-      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
-      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
-      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
-      answers: [],
-    };
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ code: "log_failed" }), { status: 500 }),
-    );
-
-    render(<ArenaExperience initialData={data} />);
-    window.dispatchEvent(new Event("blur"));
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1500);
-    });
-
-    expect(screen.getByRole("alertdialog")).toHaveTextContent("Warning: Focus Lost");
-    expect(screen.getByText(/Log status: error/i)).toBeInTheDocument();
-  });
-
-  test("shows deduction copy when the tab-switch threshold applies a score deduction", async () => {
-    vi.useFakeTimers();
-    const data = buildPageData("arena_runtime");
-    data.activeAttempt = {
-      id: "attempt-1",
-      competitionId: "competition-1",
-      registrationId: "registration-1",
-      attemptNo: 1,
-      status: "in_progress",
-      startedAt: "2026-04-22T12:00:00.000Z",
-      submittedAt: null,
-      totalTimeSeconds: 0,
-      remainingSeconds: 3600,
-      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
-      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
-      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
-      answers: [],
-    };
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ penaltyApplied: "deduction" }), { status: 200 }),
-    );
-
-    render(<ArenaExperience initialData={data} />);
-    window.dispatchEvent(new Event("blur"));
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1500);
-    });
-
-    expect(screen.getByRole("alertdialog")).toHaveTextContent("Deduction Applied");
-    expect(screen.getByText(/point deduction has been applied/i)).toBeInTheDocument();
-  });
-
-  test("shows terminal force-submit copy and closes the active attempt locally", async () => {
-    vi.useFakeTimers();
-    const data = buildPageData("arena_runtime");
-    data.activeAttempt = {
-      id: "attempt-1",
-      competitionId: "competition-1",
-      registrationId: "registration-1",
-      attemptNo: 1,
-      status: "in_progress",
-      startedAt: "2026-04-22T12:00:00.000Z",
-      submittedAt: null,
-      totalTimeSeconds: 0,
-      remainingSeconds: 3600,
-      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
-      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
-      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
-      answers: [],
-    };
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ penaltyApplied: "auto_submit" }), { status: 200 }),
-    );
-
-    render(<ArenaExperience initialData={data} />);
-    window.dispatchEvent(new Event("blur"));
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1500);
-    });
-
-    expect(screen.getByRole("alertdialog")).toHaveTextContent("Attempt Force-Submitted");
-    expect(screen.getByRole("alert")).toHaveTextContent("Attempt auto-submitted");
-    expect(screen.queryByText("Question Grid")).not.toBeInTheDocument();
-  });
-
-  test("shows terminal disqualification copy and removes remaining attempts locally", async () => {
-    vi.useFakeTimers();
-    const data = buildPageData("arena_runtime");
-    data.competition.type = "open";
-    data.competition.attemptsAllowed = 3;
-    data.attemptsRemaining = 2;
-    data.activeAttempt = {
-      id: "attempt-1",
-      competitionId: "competition-1",
-      registrationId: "registration-1",
-      attemptNo: 1,
-      status: "in_progress",
-      startedAt: "2026-04-22T12:00:00.000Z",
-      submittedAt: null,
-      totalTimeSeconds: 0,
-      remainingSeconds: 3600,
-      effectiveAttemptDeadlineAt: "2026-04-22T13:00:00.000Z",
-      attemptBaseDeadlineAt: "2026-04-22T13:00:00.000Z",
-      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
-      answers: [],
-    };
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ penaltyApplied: "disqualified" }), { status: 200 }),
-    );
-
-    render(<ArenaExperience initialData={data} />);
-    window.dispatchEvent(new Event("blur"));
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1500);
-    });
-
-    expect(screen.getByRole("alertdialog")).toHaveTextContent("Attempt Disqualified");
-    expect(screen.getByText(/cannot attempt this competition again/i)).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("Attempt disqualified");
-    expect(screen.queryByRole("button", { name: "Start competition" })).not.toBeInTheDocument();
-  });
-
-  test("shows a prominent notice when anti-cheat auto-submitted the latest attempt", () => {
+  test("shows a prominent notice when the latest attempt was auto-submitted", () => {
     const data = buildPageData("detail_register");
     data.registration = {
       id: "registration-1",
@@ -450,7 +239,7 @@ describe("ArenaExperience", () => {
     render(<ArenaExperience initialData={data} />);
 
     expect(screen.getByRole("alert")).toHaveTextContent("Attempt auto-submitted");
-    expect(screen.getByText(/repeated focus-loss offenses were logged/i)).toBeInTheDocument();
+    expect(screen.getByText(/This attempt was submitted automatically/i)).toBeInTheDocument();
   });
 
   test("open competitions can start from pre-entry without a registration id", async () => {
@@ -622,7 +411,160 @@ describe("ArenaExperience", () => {
     expect(fetchMock.mock.calls.map(([input]) => String(input)).some((url) => url.endsWith("/submit"))).toBe(false);
   });
 
-  test("marks non-empty answers filled even when previous persisted status was blank", () => {
+  test("locks and auto-submits when the competition ends during an active attempt", async () => {
+    const runtimeData = buildPageData("arena_runtime");
+    runtimeData.activeAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "in_progress",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: null,
+      totalTimeSeconds: 0,
+      remainingSeconds: 900,
+      effectiveAttemptDeadlineAt: "2026-04-22T12:30:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T12:30:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [
+        {
+          id: "answer-1",
+          attemptId: "attempt-1",
+          competitionProblemId: "cp-1",
+          answerLatex: "",
+          answerTextNormalized: "",
+          statusFlag: "blank",
+          lastSavedAt: "",
+          clientUpdatedAt: "",
+        },
+      ],
+    };
+    runtimeData.latestAttempt = runtimeData.activeAttempt;
+    const endedData = {
+      ...runtimeData,
+      competition: {
+        ...runtimeData.competition,
+        status: "ended" as const,
+      },
+    };
+    endedData.latestAttempt = endedData.activeAttempt;
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/answer")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              machineCode: "ok",
+              data: { lastSavedAt: "2026-04-22T12:15:00.000Z" },
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+
+      if (url.endsWith("/submit")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              machineCode: "ok",
+              data: {
+                attempt: {
+                  id: "attempt-1",
+                  status: "submitted",
+                },
+              },
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: endedData,
+          }),
+          { status: 200 },
+        ),
+      );
+    });
+
+    render(<ArenaExperience initialData={runtimeData} />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), {
+      target: { value: "42" },
+    });
+    window.dispatchEvent(new Event("focus"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Competition ended")).toBeInTheDocument();
+      expect(routerPushMock).toHaveBeenCalledWith(
+        "/mathlete/competition/competition-1/review?attemptId=attempt-1",
+      );
+    });
+
+    const calledUrls = fetchMock.mock.calls.map(([input]) => String(input));
+    expect(calledUrls.findIndex((url) => url.endsWith("/answer"))).toBeGreaterThanOrEqual(0);
+    expect(calledUrls.findIndex((url) => url.endsWith("/submit"))).toBeGreaterThan(
+      calledUrls.findIndex((url) => url.endsWith("/answer")),
+    );
+  });
+
+  test("opens final submission page when state sync returns an auto-submitted latest attempt", async () => {
+    const runtimeData = buildPageData("arena_runtime");
+    runtimeData.activeAttempt = {
+      id: "attempt-1",
+      competitionId: "competition-1",
+      registrationId: "registration-1",
+      attemptNo: 1,
+      status: "in_progress",
+      startedAt: "2026-04-22T12:00:00.000Z",
+      submittedAt: null,
+      totalTimeSeconds: 0,
+      remainingSeconds: 0,
+      effectiveAttemptDeadlineAt: "2026-04-22T12:30:00.000Z",
+      attemptBaseDeadlineAt: "2026-04-22T12:30:00.000Z",
+      scheduledCompetitionEndCapAt: "2026-04-22T13:00:00.000Z",
+      answers: [],
+    };
+    runtimeData.latestAttempt = runtimeData.activeAttempt;
+
+    const autoSubmittedData = buildPageData("detail_register");
+    autoSubmittedData.competition = {
+      ...runtimeData.competition,
+      status: "ended",
+    };
+    autoSubmittedData.registration = runtimeData.registration;
+    autoSubmittedData.activeAttempt = null;
+    autoSubmittedData.latestAttempt = {
+      ...runtimeData.activeAttempt,
+      status: "auto_submitted",
+      submittedAt: "2026-04-22T13:00:00.000Z",
+      remainingSeconds: 0,
+    };
+
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: autoSubmittedData,
+        }),
+        { status: 200 },
+      ),
+    );
+
+    render(<ArenaExperience initialData={runtimeData} />);
+
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith(
+        "/mathlete/competition/competition-1/review?attemptId=attempt-1",
+      );
+    });
+    expect(routerPushMock).not.toHaveBeenCalledWith("/mathlete/competition/competition-1");
+  });
+
+  test("marks non-empty answers filled even when previous persisted status was blank", async () => {
+    vi.useFakeTimers();
     const runtimeData = buildPageData("arena_runtime");
     runtimeData.activeAttempt = {
       id: "attempt-1",
@@ -662,14 +604,27 @@ describe("ArenaExperience", () => {
       ),
     );
 
-    render(<ArenaExperience initialData={runtimeData} />);
+    const { container } = render(<ArenaExperience initialData={runtimeData} />);
 
     fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), {
       target: { value: "42" },
     });
 
-    expect(screen.getAllByText("Filled").length).toBeGreaterThan(0);
+    expect(container.querySelector(".arena-runtime-focus")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Your answer" })).toHaveValue("42");
+    expect(screen.getByText("Question Grid")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Q1 Filled" })).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600);
+    });
+
+    const answerCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith("/answer"));
+    expect(answerCall).toBeDefined();
+    expect(JSON.parse(String(answerCall?.[1]?.body))).toMatchObject({
+      rawValue: "42",
+      statusFlag: "filled",
+    });
   });
 
   test("pre-entry start transitions into runtime when route returns active attempt data", async () => {
@@ -740,7 +695,7 @@ describe("ArenaExperience", () => {
       );
     });
 
-    render(<ArenaExperience initialData={preEntryData} />);
+    const { container } = render(<ArenaExperience initialData={preEntryData} />);
 
     for (const checkbox of screen.getAllByRole("checkbox")) {
       fireEvent.click(checkbox);
@@ -749,8 +704,13 @@ describe("ArenaExperience", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start competition" }));
 
     await waitFor(() => {
+      expect(container.querySelector(".arena-runtime-focus")).toBeInTheDocument();
+      expect(screen.getByText("Problem #1")).toBeInTheDocument();
       expect(screen.getByText("Question Grid")).toBeInTheDocument();
-      expect(screen.getByText(/Attempt:/)).toBeInTheDocument();
+      expect(screen.getByText("Difficulty")).toBeInTheDocument();
+      expect(screen.getByText("Score Weight")).toBeInTheDocument();
+      expect(screen.queryByText(/Attempt:/)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Review & Submit" })).toBeInTheDocument();
     });
   });
 });

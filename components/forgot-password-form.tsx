@@ -96,7 +96,7 @@ export function ForgotPasswordForm({
 
         <Button
           type="submit"
-          className="h-12 w-full rounded-xl bg-[#f49701] text-base font-semibold text-[#111827] hover:bg-[#df8e00]"
+          className="h-12 w-full rounded-xl bg-primary text-base font-semibold text-primary-foreground hover:bg-primary/90"
           pending={isLoading}
           pendingText="Sending..."
         >

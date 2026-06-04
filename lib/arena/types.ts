@@ -33,7 +33,6 @@ export interface ArenaCompetitionSummary {
   durationMinutes: number;
   attemptsAllowed: number;
   participantsPerTeam: number | null;
-  logTabSwitch: boolean;
   safeExamBrowserMode: SafeExamBrowserMode;
 }
 
@@ -59,6 +58,8 @@ export interface ArenaAttemptAnswer {
   answerLatex: string;
   answerTextNormalized: string;
   statusFlag: AnswerStatusFlag;
+  isCorrect?: boolean | null;
+  pointsAwarded?: number | null;
   lastSavedAt: string;
   clientUpdatedAt: string;
 }
@@ -87,6 +88,7 @@ export interface ArenaAttemptSummary {
   id: string;
   competitionId: string;
   registrationId: string;
+  participantProfileId?: string | null;
   attemptNo: number;
   status: AttemptStatus;
   startedAt: string;

@@ -17,11 +17,17 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
+  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormStatusMessage } from "@/components/ui/feedback-states";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { getErrorMessage } from "@/lib/errors";
+import {
+  claimAccountInstance,
+  isAccountOpenInAnotherInstance,
+} from "@/lib/auth/account-instance";
 
 export function LoginForm({
   className,
@@ -34,6 +40,10 @@ export function LoginForm({
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [pendingAction, setPendingAction] = useState<"email" | "google" | null>(null);
+  const [pendingReplacementSession, setPendingReplacementSession] = useState<Session | null>(null);
+  const [pendingReplacementUserId, setPendingReplacementUserId] = useState<string | null>(null);
+  const [hasLocalInstanceConflict, setHasLocalInstanceConflict] = useState(false);
+  const [isResolvingReplacement, setIsResolvingReplacement] = useState(false);
   const [status, setStatus] = useState<{
     message: string | null;
     type: "error" | "pending";
@@ -43,7 +53,7 @@ export function LoginForm({
   });
   const feedbackRouter = useFeedbackRouter();
   const { statusId, statusRef } = useFormStatusRegion(status.message);
-  const isLoading = pendingAction !== null;
+  const isLoading = pendingAction !== null || isResolvingReplacement;
 
   useEffect(() => {
     if (!user) {
@@ -100,7 +110,7 @@ export function LoginForm({
     }
   };
 
-  const refreshAcceptedSession = async (session: Session) => {
+  const requestSessionAction = async (session: Session, mode: "check" | "replace") => {
     const response = await fetch("/auth/session", {
       method: "POST",
       headers: {
@@ -109,11 +119,95 @@ export function LoginForm({
       body: JSON.stringify({
         accessToken: session.access_token,
         refreshToken: session.refresh_token,
+        mode,
       }),
     });
 
     if (!response.ok) {
       throw new Error("Unable to refresh the active session.");
+    }
+
+    return (await response.json()) as {
+      hasActiveSession?: boolean;
+    };
+  };
+
+  const refreshAcceptedSession = async (session: Session) => {
+    await requestSessionAction(session, "replace");
+  };
+
+  const checkExistingSession = async (session: Session) => {
+    const result = await requestSessionAction(session, "check");
+    return result.hasActiveSession === true;
+  };
+
+  const resetPendingLogin = async () => {
+    const supabase = getSupabaseClient();
+    setIsResolvingReplacement(true);
+
+    try {
+      if (!hasLocalInstanceConflict) {
+        await supabase.auth.signOut();
+        await fetch("/auth/sign-out", {
+          method: "POST",
+        });
+      }
+
+      setPendingReplacementSession(null);
+      setPendingReplacementUserId(null);
+      setHasLocalInstanceConflict(false);
+      setStatus({
+        message: hasLocalInstanceConflict
+          ? "This tab was not opened. The existing tab stayed active."
+          : "You are signed out on this device. The existing session was left open.",
+        type: "pending",
+      });
+    } catch (nextError: unknown) {
+      setStatus({
+        message: getErrorMessage(nextError, "Unable to cancel this login."),
+        type: "error",
+      });
+    } finally {
+      setIsResolvingReplacement(false);
+      setPendingAction(null);
+    }
+  };
+
+  const openAnyway = async () => {
+    if (!pendingReplacementSession) {
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    setIsResolvingReplacement(true);
+    setStatus({
+      message: "Replacing the existing session...",
+      type: "pending",
+    });
+
+    try {
+      const {
+        data: { user: nextUser },
+      } = await supabase.auth.getUser();
+
+      if (!nextUser) {
+        throw new Error("Login succeeded but no user session was returned.");
+      }
+
+      claimAccountInstance(pendingReplacementUserId ?? nextUser.id);
+      await refreshAcceptedSession(pendingReplacementSession);
+      setPendingReplacementSession(null);
+      setPendingReplacementUserId(null);
+      setHasLocalInstanceConflict(false);
+      await redirectAfterLogin(nextUser.id);
+    } catch (nextError: unknown) {
+      setStatus({
+        message: getErrorMessage(nextError, "Unable to replace the existing session."),
+        type: "error",
+      });
+    } finally {
+      setIsResolvingReplacement(false);
+      setPendingAction(null);
     }
   };
 
@@ -179,6 +273,17 @@ export function LoginForm({
         throw new Error("Login succeeded but no active session was returned.");
       }
 
+      const hasLocalConflict = isAccountOpenInAnotherInstance(nextUser.id);
+      const hasActiveSession = hasLocalConflict || await checkExistingSession(signInData.session);
+      if (hasActiveSession) {
+        setPendingReplacementSession(signInData.session);
+        setPendingReplacementUserId(nextUser.id);
+        setHasLocalInstanceConflict(hasLocalConflict);
+        setPendingAction(null);
+        setStatus({ message: null, type: "pending" });
+        return;
+      }
+
       await refreshAcceptedSession(signInData.session);
       await redirectAfterLogin(nextUser.id);
     } catch (nextError: unknown) {
@@ -225,7 +330,7 @@ export function LoginForm({
           trailing={
             <button
               type="button"
-              className="inline-flex items-center justify-center text-slate-400 transition hover:text-[#0f172a]"
+              className="inline-flex items-center justify-center text-slate-400 transition hover:text-foreground"
               onClick={() => setShowPassword((value) => !value)}
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
@@ -246,7 +351,7 @@ export function LoginForm({
           </label>
           <ProgressLink
             href="/auth/forgot-password"
-            className="text-sm font-semibold text-[#0f172a] underline-offset-4 hover:text-[#f49700] hover:underline"
+            className="text-sm font-semibold text-foreground underline-offset-4 hover:text-primary hover:underline"
           >
             Forgot Password?
           </ProgressLink>
@@ -262,7 +367,7 @@ export function LoginForm({
 
         <Button
           type="submit"
-          className="h-12 w-full rounded-xl bg-[#f49701] text-base font-bold text-white hover:bg-[#df8e00]"
+          className="h-12 w-full rounded-xl bg-primary text-base font-bold text-primary-foreground hover:bg-primary/90"
           pending={pendingAction === "email"}
           pendingText="Signing in..."
           disabled={pendingAction === "google"}
@@ -306,6 +411,42 @@ export function LoginForm({
               </DialogDescription>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pendingReplacementSession !== null}>
+        <DialogContent
+          showCloseButton={false}
+          className="w-full max-w-md rounded-2xl"
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Account already signed in</DialogTitle>
+            <DialogDescription>
+              This account is already logged in somewhere else. You can cancel this login and stay
+              signed out here, or open anyway and replace the old session.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void resetPendingLogin()}
+              disabled={isResolvingReplacement}
+            >
+              Log out yourself
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void openAnyway()}
+              pending={isResolvingReplacement}
+              pendingText="Replacing..."
+            >
+              Open anyway
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

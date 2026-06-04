@@ -554,6 +554,7 @@ Purpose: mathlete-reported question disputes after the competition.
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid pk |
+| `competition_id` | uuid fk -> competitions.id | denormalized required competition scope for dispute ownership and organizer reads |
 | `competition_problem_id` | uuid fk -> competition_problems.id |
 | `attempt_id` | uuid fk -> competition_attempts.id |
 | `reporter_id` | uuid fk -> profiles.id |
@@ -564,7 +565,7 @@ Purpose: mathlete-reported question disputes after the competition.
 | `created_at` | timestamptz |
 | `resolved_at` | timestamptz nullable |
 
-Dispute-create guard: insert is allowed only after competition end (`competitions.status IN ('ended','archived')`) and only when the reporter owns the referenced attempt/registration for the same competition problem. Branch `13-review-submission` creates disputes through the trusted `create_problem_dispute(competition_id, competition_problem_id, attempt_id, reporter_id, reason)` helper only. Duplicate open or reviewing disputes for the same `(attempt_id, competition_problem_id, reporter_id)` return the existing row as a replay instead of inserting a second row. Additional dispute spam from the same reporter and attempt inside the short anti-spam window returns deterministic `dispute_rate_limited`.
+Dispute-create guard: insert is allowed only after scheduled competition end (`competitions.status IN ('ended','archived')`) or, for open competitions, after the participant has exhausted allowed attempts with a terminal attempt (`submitted`, `auto_submitted`, or `graded`). The reporter must own the referenced attempt/registration for the same competition problem. Branch `13-review-submission` creates disputes through the trusted `create_problem_dispute(competition_id, competition_problem_id, attempt_id, reporter_id, reason)` helper only. Duplicate open or reviewing disputes for the same `(attempt_id, competition_problem_id, reporter_id)` return the existing row as a replay instead of inserting a second row. Additional dispute spam for the same reporter, attempt, and problem inside the short anti-spam window returns deterministic `dispute_rate_limited`; different problems in the same answer key must remain disputable without waiting.
 
 ### `competition_problem_corrections`
 
@@ -1020,6 +1021,7 @@ Risky migrations and backfills:
 - 2026-04-25: Added forward fix for authenticated `register_for_competition` ambiguity by aliasing `competition_registrations` reads and updates, keeping browser registration on the participant-facing overload while preserving execute grants.
 - 2026-04-25: Added cron-driven scheduled competition start worker plus `/api/cron/competitions/start-due`, and forward migration `20260425061000_12_fix_registration_and_lifecycle_ambiguity.sql` to alias competition registration and lifecycle queries so PL/pgSQL output parameters no longer collide with `status` or `competition_id`.
 - 2026-05-04: Added branch-13 review-submission backend migrations for trusted review summaries, answer-key visibility/snapshot helpers, and participant dispute creation with duplicate replay plus anti-spam handling. Confirmed final submit calls `grade_attempt(attempt_id)` immediately, never writes `leaderboard_entries` directly, and includes forward fixes for `submit_competition_attempt` PL/pgSQL output-column ambiguity plus `grade_attempt` timestamp return compatibility.
+- 2026-06-03: Fixed participant dispute creation contract so `problem_disputes.competition_id` is persisted, open competitions allow disputes once the participant's answer key is visible after the terminal allowed attempt, and short-window anti-spam applies only to the same `(reporter_id, attempt_id, competition_problem_id)` target, not every problem in the answer key.
 - 2026-05-06: Added post-develop branch-13 forward migration `20260506120000_13_reapply_submit_grade_contracts_after_develop.sql` so databases already migrated through develop still receive the trusted submit/grade ambiguity and timestamp contracts after anti-cheat migrations. Submit route now catches trusted RPC exceptions as structured JSON and refreshes with review-submission payload shape after successful submit.
 - 2026-05-06: Added post-develop lint forward migration `20260506121000_13_fix_db_lint_contracts_after_develop.sql` to qualify active lifecycle/arena/organizer columns and restore timestamptz-compatible scoring placeholder returns after local Supabase lint reported error-level active function defects.
 - 2026-05-03: Added optional quiz-scoped Safe Exam Browser competition policy columns, required-mode Config Key hash constraints, organizer and participant config-download contract, and attempt-start Config Key verification behavior.

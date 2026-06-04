@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, test, vi } from "vitest";
 import { MathleteWorkspaceNav } from "@/components/mathlete/workspace-nav";
@@ -38,7 +39,9 @@ vi.mock("@/components/logout-button", () => ({
 }));
 
 describe("MathleteWorkspaceNav", () => {
-  test("omits dashboard anchor shortcuts from primary navigation", () => {
+  test("omits dashboard anchor shortcuts from primary navigation", async () => {
+    const user = userEvent.setup();
+
     render(<MathleteWorkspaceNav unreadCount={4} />);
 
     expect(screen.getByRole("button", { name: "Mathlete notifications, 4 unread" })).toBeInTheDocument();
@@ -49,5 +52,13 @@ describe("MathleteWorkspaceNav", () => {
     );
     expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/mathlete/history");
     expect(screen.queryByRole("link", { name: "Registrations" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "M" }));
+
+    expect(screen.queryByRole("menuitem", { name: "Dashboard" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Settings" })).toHaveAttribute(
+      "href",
+      "/mathlete/settings",
+    );
   });
 });

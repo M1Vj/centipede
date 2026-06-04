@@ -57,7 +57,10 @@ export type AnswerKeyProblem = {
   contentLatex: string;
   explanationLatex: string;
   answerKeyLatex: string[];
+  isCorrect: boolean | null;
+  pointsAwarded: number | null;
   existingDisputeStatus: string | null;
+  existingDisputeResolutionNote: string | null;
 };
 
 export type AnswerKeyPageData = {

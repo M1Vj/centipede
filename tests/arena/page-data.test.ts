@@ -33,8 +33,6 @@ const competitionRow = {
   tie_breaker: "earliest_final_submission",
   shuffle_questions: false,
   shuffle_options: false,
-  log_tab_switch: true,
-  offense_penalties: [],
   scoring_snapshot_json: null,
   draft_revision: 1,
   draft_version: 1,
@@ -83,9 +81,184 @@ describe("arena page data", () => {
     } as never);
   });
 
-  test("carries competition tab-switch logging flag into arena payload", async () => {
+  test("carries competition identity into arena payload", async () => {
     const data = await loadArenaPageData("competition-1", "mathlete-1");
 
-    expect(data?.competition.logTabSwitch).toBe(true);
+    expect(data?.competition.id).toBe("competition-1");
+  });
+
+  test("allows active registered team members to start and write team attempts", async () => {
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return resolvedQuery({
+            ...competitionRow,
+            format: "team",
+            participants_per_team: 3,
+            max_teams: 10,
+            max_participants: null,
+          });
+        }
+
+        if (table === "team_memberships") {
+          return resolvedQuery([
+            {
+              team_id: "team-1",
+              role: "member",
+              teams: [{ id: "team-1", name: "Team One" }],
+            },
+          ]);
+        }
+
+        if (table === "competition_registrations") {
+          return resolvedQuery([
+            {
+              id: "registration-1",
+              competition_id: "competition-1",
+              profile_id: null,
+              team_id: "team-1",
+              status: "registered",
+              status_reason: null,
+              registered_at: "2026-05-02T00:00:00.000Z",
+              updated_at: "2026-05-02T00:00:00.000Z",
+            },
+          ]);
+        }
+
+        return resolvedQuery([]);
+      }),
+    } as never);
+
+    const data = await loadArenaPageData("competition-1", "mathlete-1");
+
+    expect(data?.registration).toMatchObject({
+      teamId: "team-1",
+      actorIsLeader: false,
+      actorCanStart: true,
+      actorCanWrite: true,
+      teamName: "Team One",
+    });
+  });
+
+  test("uses the joined team name when Supabase returns a single related team object", async () => {
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return resolvedQuery({
+            ...competitionRow,
+            format: "team",
+            participants_per_team: 3,
+            max_teams: 10,
+            max_participants: null,
+          });
+        }
+
+        if (table === "team_memberships") {
+          return resolvedQuery([
+            {
+              team_id: "team-1",
+              role: "member",
+              teams: { id: "team-1", name: "Team One" },
+            },
+          ]);
+        }
+
+        if (table === "competition_registrations") {
+          return resolvedQuery([
+            {
+              id: "registration-1",
+              competition_id: "competition-1",
+              profile_id: null,
+              team_id: "team-1",
+              status: "registered",
+              status_reason: null,
+              registered_at: "2026-05-02T00:00:00.000Z",
+              updated_at: "2026-05-02T00:00:00.000Z",
+            },
+          ]);
+        }
+
+        return resolvedQuery([]);
+      }),
+    } as never);
+
+    const data = await loadArenaPageData("competition-1", "mathlete-1");
+
+    expect(data?.registration?.teamName).toBe("Team One");
+    expect(data?.eligibleTeams).toContainEqual(
+      expect.objectContaining({
+        id: "team-1",
+        name: "Team One",
+      }),
+    );
+  });
+
+  test("scopes team attempts to the signed-in member instead of the shared team registration", async () => {
+    const attemptEqCalls: Array<[string, unknown]> = [];
+    const attemptQuery = {
+      select() {
+        return this;
+      },
+      eq(column: string, value: unknown) {
+        attemptEqCalls.push([column, value]);
+        return this;
+      },
+      order() {
+        return Promise.resolve({ data: [], error: null });
+      },
+    };
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return resolvedQuery({
+            ...competitionRow,
+            format: "team",
+            participants_per_team: 2,
+            max_teams: 10,
+            max_participants: null,
+          });
+        }
+
+        if (table === "team_memberships") {
+          return resolvedQuery([
+            {
+              team_id: "team-1",
+              role: "member",
+              teams: [{ id: "team-1", name: "Team One" }],
+            },
+          ]);
+        }
+
+        if (table === "competition_registrations") {
+          return resolvedQuery([
+            {
+              id: "registration-1",
+              competition_id: "competition-1",
+              profile_id: null,
+              team_id: "team-1",
+              status: "registered",
+              status_reason: null,
+              registered_at: "2026-05-02T00:00:00.000Z",
+              updated_at: "2026-05-02T00:00:00.000Z",
+            },
+          ]);
+        }
+
+        if (table === "competition_attempts") {
+          return attemptQuery;
+        }
+
+        return resolvedQuery([]);
+      }),
+    } as never);
+
+    const data = await loadArenaPageData("competition-1", "mathlete-1");
+
+    expect(attemptEqCalls).toContainEqual(["registration_id", "registration-1"]);
+    expect(attemptEqCalls).toContainEqual(["participant_profile_id", "mathlete-1"]);
+    expect(data?.activeAttempt).toBeNull();
+    expect(data?.latestAttempt).toBeNull();
+    expect(data?.mode).toBe("pre_entry");
   });
 });

@@ -194,15 +194,15 @@ export function ReviewSubmissionView({ data }: ReviewSubmissionViewProps) {
       ) : null}
 
       {isTerminal ? (
-        <section className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 text-emerald-950 sm:p-6">
+        <section className="rounded-[1.5rem] border border-[#f49700]/30 bg-[#fff7e8] p-5 text-[#1a1e2e] sm:p-6">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-4">
-              <CheckCircle2 className="mt-1 h-6 w-6 text-emerald-600" />
+              <CheckCircle2 className="mt-1 h-6 w-6 text-[#f49700]" />
               <div>
                 <h2 className="text-2xl font-black tracking-normal">
                   {attempt.finalScore === null ? "Submitted" : `Score ${attempt.finalScore}`}
                 </h2>
-                <p className="mt-1 text-sm leading-6 text-emerald-800">{policyCopy}</p>
+                <p className="mt-1 text-sm leading-6 text-[#8a5400]">{policyCopy}</p>
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -217,7 +217,7 @@ export function ReviewSubmissionView({ data }: ReviewSubmissionViewProps) {
               ) : null}
               <ProgressLink
                 href={`/mathlete/competition/${data.competition.id}/answer-key`}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-4 text-sm font-bold text-emerald-950 hover:bg-emerald-50"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-[#1a1e2e] hover:bg-slate-50"
               >
                 <FileCheck2 className="h-4 w-4" />
                 View answer key
@@ -252,7 +252,11 @@ export function ReviewSubmissionView({ data }: ReviewSubmissionViewProps) {
                   </Badge>
                 </div>
                 <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <KatexPreview latex={problem.contentLatex} fallbackText="Problem statement unavailable." />
+                  <KatexPreview
+                    latex={problem.contentLatex}
+                    label="Problem prompt"
+                    fallbackText="Problem statement unavailable."
+                  />
                 </div>
                 <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4">
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
@@ -294,7 +298,7 @@ export function ReviewSubmissionView({ data }: ReviewSubmissionViewProps) {
             <h2 className="text-sm font-black uppercase tracking-[0.18em]">Submit policy</h2>
             <p className="mt-3 text-sm leading-6 text-slate-600">{policyCopy}</p>
             {unresolvedCount > 0 ? (
-              <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold leading-6 text-amber-800">
+              <p className="mt-3 rounded-xl border border-[#f49700]/30 bg-[#fff7e8] p-3 text-sm font-semibold leading-6 text-[#8a5400]">
                 {unresolvedCount} blank/reset item{unresolvedCount === 1 ? "" : "s"} remain.
               </p>
             ) : null}

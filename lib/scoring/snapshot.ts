@@ -13,8 +13,6 @@ const REQUIRED_SNAPSHOT_KEYS = [
   "multiAttemptGradingMode",
   "shuffleQuestions",
   "shuffleOptions",
-  "logTabSwitch",
-  "offensePenalties",
   "safeExamBrowserMode",
   "safeExamBrowserConfigKeyHashes",
   "customPointsByProblemId",
@@ -51,10 +49,6 @@ function sortCustomPoints(
 export function createImmutableScoringSnapshot(
   config: ScoringRuleConfig,
 ): ScoringSnapshot {
-  const offensePenalties = [...config.offensePenalties]
-    .map((rule) => ({ ...rule }))
-    .sort((left, right) => left.threshold - right.threshold);
-
   const snapshot: ScoringSnapshot = {
     scoringMode: config.scoringMode,
     penaltyMode: config.penaltyMode,
@@ -63,8 +57,6 @@ export function createImmutableScoringSnapshot(
     multiAttemptGradingMode: config.multiAttemptGradingMode,
     shuffleQuestions: config.shuffleQuestions,
     shuffleOptions: config.shuffleOptions,
-    logTabSwitch: config.logTabSwitch,
-    offensePenalties,
     safeExamBrowserMode: config.safeExamBrowserMode,
     safeExamBrowserConfigKeyHashes: [...config.safeExamBrowserConfigKeyHashes].sort((left, right) =>
       left.localeCompare(right),
@@ -89,8 +81,6 @@ function toScoringRuleInput(value: unknown): ScoringRuleInput {
     multiAttemptGradingMode: record.multiAttemptGradingMode,
     shuffleQuestions: record.shuffleQuestions,
     shuffleOptions: record.shuffleOptions,
-    logTabSwitch: record.logTabSwitch,
-    offensePenalties: record.offensePenalties,
     safeExamBrowserMode: record.safeExamBrowserMode,
     safeExamBrowserConfigKeyHashes: record.safeExamBrowserConfigKeyHashes,
     customPointsByProblemId: record.customPointsByProblemId,

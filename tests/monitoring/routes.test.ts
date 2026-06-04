@@ -73,8 +73,6 @@ function makeCompetitionRow(overrides: Record<string, unknown> = {}) {
     tie_breaker: "earliest_final_submission",
     shuffle_questions: false,
     shuffle_options: false,
-    log_tab_switch: false,
-    offense_penalties_json: [],
     safe_exam_browser_mode: "off",
     safe_exam_browser_config_key_hashes: [],
     scoring_snapshot_json: null,

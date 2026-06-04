@@ -1,8 +1,47 @@
 import { AuthShell } from "@/components/auth-shell";
 import { SignUpForm } from "@/components/sign-up-form";
 import { ProgressLink } from "@/components/ui/progress-link";
+import { isProfileComplete, PROFILE_SELECT_FIELDS, type AuthProfile } from "@/lib/auth/profile";
+import { getAuthRedirect } from "@/lib/auth/routing";
+import { hasEnvVars } from "@/lib/supabase/env";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
-export default function Page() {
+async function redirectAuthenticatedUser() {
+  if (!hasEnvVars) {
+    return;
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return;
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select(PROFILE_SELECT_FIELDS)
+    .eq("id", user.id)
+    .maybeSingle<AuthProfile>();
+
+  const redirectPath = getAuthRedirect({
+    pathname: "/auth/sign-up",
+    isAuthenticated: true,
+    hasCompletedProfile: isProfileComplete(profile),
+    role: profile?.role,
+  });
+
+  if (redirectPath) {
+    redirect(redirectPath);
+  }
+}
+
+export default async function Page() {
+  await redirectAuthenticatedUser();
+
   return (
     <AuthShell
       eyebrow="Register"

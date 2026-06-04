@@ -6,21 +6,12 @@ import {
   TIE_BREAKER_ALIASES,
   type AttemptGradingMode,
   type CompetitionType,
-  type OffensePenaltyKind,
-  type OffensePenaltyRule,
   type PenaltyMode,
   type SafeExamBrowserMode,
   type ScoringMode,
   type ScoringRuleConfig,
   type TieBreaker,
 } from "./types";
-
-const OFFENSE_PENALTY_KINDS: readonly OffensePenaltyKind[] = [
-  "warning",
-  "deduction",
-  "forced_submit",
-  "disqualification",
-];
 
 export interface ScoringValidationError {
   field: string;
@@ -42,8 +33,6 @@ export interface ScoringRuleInput {
   competitionType?: unknown;
   shuffleQuestions?: unknown;
   shuffleOptions?: unknown;
-  logTabSwitch?: unknown;
-  offensePenalties?: unknown;
   safeExamBrowserMode?: unknown;
   safeExamBrowserConfigKeyHashes?: unknown;
   customPointsByProblemId?: unknown;
@@ -120,8 +109,6 @@ export function createDefaultScoringRuleConfig(): ScoringRuleConfig {
     multiAttemptGradingMode: "highest_score",
     shuffleQuestions: false,
     shuffleOptions: false,
-    logTabSwitch: false,
-    offensePenalties: [],
     safeExamBrowserMode: "off",
     safeExamBrowserConfigKeyHashes: [],
     customPointsByProblemId: {},
@@ -150,87 +137,6 @@ export function normalizeAttemptGradingModeToken(
   return ATTEMPT_GRADING_MODE_ALIASES[normalized] ?? null;
 }
 
-function validateOffensePenaltyRules(value: unknown): ScoringValidationResult<OffensePenaltyRule[]> {
-  if (value === undefined || value === null) {
-    return ok([]);
-  }
-
-  if (!Array.isArray(value)) {
-    return fail([
-      {
-        field: "offensePenalties",
-        reason: "Offense penalties must be an array.",
-      },
-    ]);
-  }
-
-  const errors: ScoringValidationError[] = [];
-  const normalizedRules: OffensePenaltyRule[] = [];
-
-  value.forEach((entry, index) => {
-    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
-      errors.push({
-        field: "offensePenalties",
-        reason: `Penalty rule ${index + 1} must be an object.`,
-      });
-      return;
-    }
-
-    const record = entry as Record<string, unknown>;
-    const threshold = normalizeNonNegativeInteger(record.threshold, -1);
-    const penaltyKind = normalizeToken(record.penaltyKind) as OffensePenaltyKind;
-    const deductionValue = normalizeNonNegativeInteger(record.deductionValue, 0);
-
-    if (threshold < 1) {
-      errors.push({
-        field: "offensePenalties",
-        reason: `Penalty rule ${index + 1} must have threshold >= 1.`,
-      });
-      return;
-    }
-
-    if (!OFFENSE_PENALTY_KINDS.includes(penaltyKind)) {
-      errors.push({
-        field: "offensePenalties",
-        reason: `Penalty rule ${index + 1} has an invalid penalty kind.`,
-      });
-      return;
-    }
-
-    if (penaltyKind === "deduction" && deductionValue <= 0) {
-      errors.push({
-        field: "offensePenalties",
-        reason: `Penalty rule ${index + 1} requires deductionValue > 0 when penaltyKind is deduction.`,
-      });
-      return;
-    }
-
-    normalizedRules.push({
-      threshold,
-      penaltyKind,
-      deductionValue,
-    });
-  });
-
-  if (errors.length > 0) {
-    return fail(errors);
-  }
-
-  const seenThresholds = new Set<number>();
-  const deduped = normalizedRules
-    .sort((left, right) => left.threshold - right.threshold)
-    .filter((rule) => {
-      if (seenThresholds.has(rule.threshold)) {
-        return false;
-      }
-
-      seenThresholds.add(rule.threshold);
-      return true;
-    });
-
-  return ok(deduped);
-}
-
 function validateCustomPointsByProblemId(
   value: unknown,
 ): ScoringValidationResult<Record<string, number>> {
@@ -242,7 +148,7 @@ function validateCustomPointsByProblemId(
     return fail([
       {
         field: "customPointsByProblemId",
-        reason: "Custom points must be an object keyed by competition_problem_id.",
+        reason: "Custom points must be an object keyed by selected problem id.",
       },
     ]);
   }
@@ -396,11 +302,6 @@ export function validateScoringRuleInput(
     errors.push(...customPointsResult.errors);
   }
 
-  const offensePenaltiesResult = validateOffensePenaltyRules(input.offensePenalties);
-  if (!offensePenaltiesResult.ok || offensePenaltiesResult.value === null) {
-    errors.push(...offensePenaltiesResult.errors);
-  }
-
   const safeExamBrowserMode = normalizeSafeExamBrowserMode(input.safeExamBrowserMode);
   const safeExamBrowserConfigKeyHashes = normalizeSafeExamBrowserConfigKeyHashes(
     input.safeExamBrowserConfigKeyHashes,
@@ -443,8 +344,6 @@ export function validateScoringRuleInput(
     multiAttemptGradingMode,
     shuffleQuestions: normalizeBoolean(input.shuffleQuestions, defaults.shuffleQuestions),
     shuffleOptions: normalizeBoolean(input.shuffleOptions, defaults.shuffleOptions),
-    logTabSwitch: normalizeBoolean(input.logTabSwitch, defaults.logTabSwitch),
-    offensePenalties: offensePenaltiesResult.value ?? [],
     safeExamBrowserMode,
     safeExamBrowserConfigKeyHashes,
     customPointsByProblemId,

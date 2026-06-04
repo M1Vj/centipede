@@ -326,7 +326,7 @@ export function ProblemList({
                 onClick={() => setCurrentPage(n)}
                 className={`w-9 h-9 flex items-center justify-center rounded-xl font-bold text-[14px] transition-all ${
                   n === safePage
-                    ? "bg-[#f49700] text-[#10182b] shadow-sm shadow-[#f49700]/20"
+                    ? "bg-[#f49700] text-[#10182b]"
                     : "border border-slate-200 text-slate-600 hover:border-slate-300 hover:text-[#10182b] bg-white"
                 }`}
               >

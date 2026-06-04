@@ -29,14 +29,14 @@ async function DashboardStats() {
       value: stats.users, 
       icon: Users, 
       href: "/admin/users",
-      color: "bg-blue-500/10 text-blue-600"
+      color: "bg-[#1a1e2e]/10 text-[#1a1e2e]"
     },
     { 
       label: "Pending Apps", 
       value: stats.pendingApplications, 
       icon: FileText, 
       href: "/admin/applications",
-      color: "bg-amber-500/10 text-amber-600",
+      color: "bg-[#f49700]/10 text-[#b86f00]",
       alert: stats.pendingApplications > 0
     },
     { 
@@ -44,14 +44,14 @@ async function DashboardStats() {
       value: stats.activeCompetitions, 
       icon: Trophy, 
       href: "/admin/competitions",
-      color: "bg-emerald-500/10 text-emerald-600"
+      color: "bg-[#f49700]/10 text-[#b86f00]"
     },
     { 
       label: "Problem Banks", 
       value: stats.problemBanks, 
       icon: Library, 
       href: "/admin/problem-banks",
-      color: "bg-purple-500/10 text-purple-600"
+      color: "bg-slate-100 text-slate-600"
     },
   ];
 
@@ -71,7 +71,7 @@ async function DashboardStats() {
             <div className="flex items-baseline gap-2">
               <div className="text-3xl font-bold tracking-tight">{card.value}</div>
               {card.alert && (
-                <div className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600 uppercase tracking-tighter">
+                <div className="flex items-center gap-1 rounded-full bg-[#f49700]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tighter text-[#b86f00]">
                   <AlertCircle className="size-3" />
                   Action Required
                 </div>
@@ -142,7 +142,7 @@ export default async function AdminDashboardPage() {
         <Card className="border-border/60">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <AlertCircle className="size-4 text-amber-500" />
+              <AlertCircle className="size-4 text-red-600" />
               <CardTitle>Security Notifications</CardTitle>
             </div>
             <CardDescription>Critical alerts and sensitive system warnings.</CardDescription>

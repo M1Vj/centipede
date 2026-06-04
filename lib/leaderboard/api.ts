@@ -30,13 +30,12 @@ type LeaderboardEntryRow = {
   display_name: string | null;
   score: number | string | null;
   total_time_seconds: number | null;
-  offense_count: number | null;
   published_visibility: boolean | null;
   computed_at: string | null;
 };
 
 const LEADERBOARD_ENTRY_SELECT_COLUMNS =
-  "id, competition_id, registration_id, attempt_id, rank, display_name, score, total_time_seconds, offense_count, published_visibility, computed_at";
+  "id, competition_id, registration_id, attempt_id, rank, display_name, score, total_time_seconds, published_visibility, computed_at";
 
 function normalizeFiniteInteger(value: unknown, fallback: number) {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -87,7 +86,6 @@ function normalizeLeaderboardEntry(row: LeaderboardEntryRow): LeaderboardEntry |
     displayName: typeof row.display_name === "string" && row.display_name.trim() ? row.display_name : "Participant",
     score: normalizeFiniteNumber(row.score, 0),
     totalTimeSeconds: normalizeFiniteInteger(row.total_time_seconds, 0),
-    offenseCount: normalizeFiniteInteger(row.offense_count, 0),
     publishedVisibility: row.published_visibility === true,
     computedAt: typeof row.computed_at === "string" ? row.computed_at : "",
   };

@@ -20,7 +20,7 @@ Use this checklist as the canonical execution order for the rebuild. Mark an ite
 - [x] 14-B-leaderboard-history -> feature/leaderboard-history (merge: a41f4a7, PR #31)
 - [x] 15-B-notifications-polish -> feature/notifications-polish (merge: 8d4d6ee, PR #33)
 - [x] 16-B-participant-monitoring -> feature/participant-monitoring (merge: d87a4e7, PR #34)
-- [ ] 17-A-testing-bug-fixes -> feature/testing-bug-fixes
+- [x] 17-A-testing-bug-fixes -> feature/testing-bug-fixes (merge: b16204c, PR #35)
 ```
 
 ## Usage Rules

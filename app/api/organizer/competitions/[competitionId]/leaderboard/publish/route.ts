@@ -148,6 +148,22 @@ export async function POST(
     );
   }
 
+  const refreshResult = await adminResult.adminClient.rpc("refresh_leaderboard_entries", {
+    p_competition_id: competitionId,
+  });
+
+  if (refreshResult.error) {
+    if (isPublishLeaderboardCompatibilityError(refreshResult.error)) {
+      return jsonError(
+        "service_unavailable",
+        "Leaderboard refresh is temporarily unavailable while migrations are incomplete.",
+        503,
+      );
+    }
+
+    return jsonDatabaseError(refreshResult.error);
+  }
+
   await dispatchCompetitionNotification({
     event: "competition_leaderboard_published",
     eventIdentityKey: token,

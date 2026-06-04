@@ -26,6 +26,7 @@ function buildInitialCompetition(status: CompetitionRecord["status"]): Competiti
   return {
     id: "competition-1",
     organizerId: "organizer-1",
+    leaderboardPublished: false,
     name: "Open Lifecycle",
     description: "Lifecycle test",
     instructions: "Follow instructions",
@@ -50,8 +51,6 @@ function buildInitialCompetition(status: CompetitionRecord["status"]): Competiti
     tieBreaker: "earliest_final_submission",
     shuffleQuestions: false,
     shuffleOptions: false,
-    logTabSwitch: false,
-    offensePenalties: [],
     safeExamBrowserMode: "off",
     safeExamBrowserConfigKeyHashes: [],
     scoringSnapshotJson: null,
@@ -84,6 +83,10 @@ function renderWizard() {
   );
 }
 
+function openReviewStep() {
+  fireEvent.click(screen.getByRole("button", { name: "Review" }));
+}
+
 describe("CompetitionWizard lifecycle error and sync behavior", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -111,6 +114,7 @@ describe("CompetitionWizard lifecycle error and sync behavior", () => {
     );
 
     renderWizard();
+    openReviewStep();
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     const dialog = await screen.findByRole("alertdialog", { name: "Start competition?" });
@@ -153,6 +157,7 @@ describe("CompetitionWizard lifecycle error and sync behavior", () => {
     );
 
     renderWizard();
+    openReviewStep();
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     const dialog = await screen.findByRole("alertdialog", { name: "Start competition?" });

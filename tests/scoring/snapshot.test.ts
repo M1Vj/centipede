@@ -16,11 +16,6 @@ describe("scoring snapshot", () => {
       multiAttemptGradingMode: "highest_score",
       shuffleQuestions: true,
       shuffleOptions: true,
-      logTabSwitch: true,
-      offensePenalties: [
-        { threshold: 3, penaltyKind: "deduction", deductionValue: 2 },
-        { threshold: 1, penaltyKind: "warning", deductionValue: 0 },
-      ],
       safeExamBrowserMode: "required",
       safeExamBrowserConfigKeyHashes: ["b".repeat(64), "a".repeat(64)],
       customPointsByProblemId: {
@@ -30,7 +25,6 @@ describe("scoring snapshot", () => {
     });
 
     expect(assertSnapshotIsImmutable(snapshot)).toBe(true);
-    expect(snapshot.offensePenalties.map((rule) => rule.threshold)).toEqual([1, 3]);
     expect(snapshot.safeExamBrowserConfigKeyHashes).toEqual(["a".repeat(64), "b".repeat(64)]);
     expect(Object.keys(snapshot.customPointsByProblemId)).toEqual(["problem_a", "problem_b"]);
   });
@@ -45,8 +39,6 @@ describe("scoring snapshot", () => {
       competitionType: "open",
       shuffleQuestions: false,
       shuffleOptions: true,
-      logTabSwitch: false,
-      offensePenalties: [{ threshold: 2, penaltyKind: "deduction", deductionValue: 1 }],
       safeExamBrowserMode: "off",
       safeExamBrowserConfigKeyHashes: [],
       customPointsByProblemId: {},
@@ -62,7 +54,6 @@ describe("scoring snapshot", () => {
     const parsed = parseScoringSnapshotPayload({
       penaltyMode: "fixed_deduction",
       deductionValue: -10,
-      offensePenalties: [{ threshold: -1, penaltyKind: "deduction", deductionValue: 3 }],
     });
 
     expect(parsed.ok).toBe(false);
@@ -79,7 +70,7 @@ describe("scoring snapshot", () => {
     expect(parsed.errors.some((error) => error.field === "snapshot")).toBe(true);
   });
 
-  test("rejects shallow-frozen snapshots where nested rules remain mutable", () => {
+  test("rejects shallow-frozen snapshots where nested collections remain mutable", () => {
     const shallowFrozen = Object.freeze({
       scoringMode: "difficulty",
       penaltyMode: "none",
@@ -88,13 +79,9 @@ describe("scoring snapshot", () => {
       multiAttemptGradingMode: "highest_score",
       shuffleQuestions: false,
       shuffleOptions: false,
-      logTabSwitch: false,
-      offensePenalties: Object.freeze([
-        { threshold: 1, penaltyKind: "warning", deductionValue: 0 },
-      ]),
       safeExamBrowserMode: "off",
       safeExamBrowserConfigKeyHashes: Object.freeze([]),
-      customPointsByProblemId: Object.freeze({}),
+      customPointsByProblemId: { problem_a: 1 },
     });
 
     expect(isScoringSnapshot(shallowFrozen)).toBe(false);

@@ -11,6 +11,16 @@ type CalendarEvent = {
   competitionId: string;
 };
 
+const WEEKDAY_LABELS = [
+  { key: "sunday", label: "S" },
+  { key: "monday", label: "M" },
+  { key: "tuesday", label: "T" },
+  { key: "wednesday", label: "W" },
+  { key: "thursday", label: "T" },
+  { key: "friday", label: "F" },
+  { key: "saturday", label: "S" },
+];
+
 function buildCalendarRows(events: CalendarEvent[]) {
   const baseDate = events[0]?.date ?? new Date();
   const monthLabel = baseDate.toLocaleString(undefined, {
@@ -84,8 +94,8 @@ export function CompetitionCalendar({ competitions }: { competitions: Discoverab
           </div>
         </div>
         <div className="mt-4 grid grid-cols-7 gap-2 text-center text-xs font-semibold text-slate-400">
-          {"SMTWTFS".split("").map((day) => (
-            <span key={day}>{day}</span>
+          {WEEKDAY_LABELS.map((day) => (
+            <span key={day.key}>{day.label}</span>
           ))}
         </div>
         <div className="mt-3 space-y-2 text-center text-sm">

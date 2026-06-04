@@ -1,28 +1,26 @@
 "use client";
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { flushSync } from "react-dom";
-import { Bookmark, ChevronLeft, ChevronRight, Clock, Download, ShieldCheck } from "lucide-react";
+import { Bookmark, ChevronLeft, ChevronRight, Download, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import {
-  AntiCheatObserver,
-  type AntiCheatSignal,
-  type PenaltyApplied,
-} from "@/components/anti-cheat/anti-cheat-observer";
-import { WarningOverlay } from "@/components/anti-cheat/warning-overlay";
+import { TabSwitchWarningObserver } from "@/components/arena/tab-switch-warning-observer";
+import { TabSwitchWarningOverlay } from "@/components/arena/tab-switch-warning-overlay";
 import { MathliveField } from "@/components/math-editor/mathlive-field";
 import { KatexPreview } from "@/components/math-editor/katex-preview";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ProgressLink } from "@/components/ui/progress-link";
 import { createIdempotencyToken } from "@/components/competitions/utils";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { formatTimerText, getTimerAnnouncementText, resolvePersistedAnswerStatusFlag } from "@/lib/arena/helpers";
+import {
+  formatTimerText,
+  getTimerAnnouncementText,
+  isTerminalAttemptStatus,
+  resolvePersistedAnswerStatusFlag,
+} from "@/lib/arena/helpers";
 import type {
   AnswerStatusFlag,
   ArenaAttemptAnswer,
@@ -36,16 +34,6 @@ type ArenaExperienceProps = {
 };
 
 type RequestState = "idle" | "pending" | "error";
-type AntiCheatStatus = {
-  eventSource: string;
-  visibilityState: string;
-  status: "active" | "detected" | "sent" | "queued" | "error";
-  penalty: PenaltyApplied;
-  happenedAt: string | null;
-};
-type AntiCheatSignalState = AntiCheatSignal & {
-  counts: Record<string, number>;
-};
 
 type PendingSave = {
   clientUpdatedAt: string;
@@ -66,6 +54,19 @@ type ApplyPageDataOptions = {
 type FlushSaveOptions = {
   keepalive?: boolean;
 };
+
+type SubmitAttemptResponse = {
+  data?: {
+    attempt?: {
+      id: string;
+    };
+  };
+  message?: string;
+};
+
+function formatOptionMarker(index: number) {
+  return String.fromCharCode(65 + index);
+}
 
 function getProblemStatusClassName(status: AnswerStatusFlag) {
   if (status === "solved") {
@@ -127,15 +128,13 @@ function getAttemptTerminalNotice(status: string | null | undefined) {
       return {
         tone: "warning" as const,
         title: "Attempt auto-submitted",
-        message:
-          "Anti-cheat policy auto-submitted this attempt after repeated focus-loss offenses were logged.",
+        message: "This attempt was submitted automatically.",
       };
     case "disqualified":
       return {
         tone: "destructive" as const,
         title: "Attempt disqualified",
-        message:
-          "Anti-cheat policy disqualified this attempt after repeated focus-loss offenses were logged.",
+        message: "This attempt is no longer editable.",
       };
     case "submitted":
       return {
@@ -165,12 +164,16 @@ async function readJson<T>(response: Response): Promise<T> {
   return payload;
 }
 
+function getFinalSubmissionPath(competitionId: string, attemptId: string) {
+  return `/mathlete/competition/${competitionId}/review?attemptId=${attemptId}`;
+}
+
 export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   const [pageData, setPageData] = useState(initialData);
   const [selectedProblemId, setSelectedProblemId] = useState(
     initialData.problems[0]?.competitionProblemId ?? "",
   );
-  const [activePenalty, setActivePenalty] = useState<PenaltyApplied>(null);
+  const [tabSwitchWarningOpen, setTabSwitchWarningOpen] = useState(false);
   const [requestState, setRequestState] = useState<RequestState>("idle");
   const [requestMessage, setRequestMessage] = useState<string | null>(null);
   const [withdrawPending, setWithdrawPending] = useState(false);
@@ -186,24 +189,13 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   const [remainingSeconds, setRemainingSeconds] = useState(
     initialData.activeAttempt?.remainingSeconds ?? 0,
   );
-  const [antiCheatStatus, setAntiCheatStatus] = useState<AntiCheatStatus>({
-    eventSource: "ready",
-    visibilityState: "visible",
-    status: "active",
-    penalty: null,
-    happenedAt: null,
-  });
-  const [antiCheatSignal, setAntiCheatSignal] = useState<AntiCheatSignalState>({
-    eventSource: "ready",
-    visibilityState: "visible",
-    hidden: false,
-    hasFocus: true,
-    checkedAt: "",
-    counts: {},
-  });
   const [connectionState, setConnectionState] = useState<"live" | "syncing" | "offline">("live");
   const [timerAnnouncement, setTimerAnnouncement] = useState("");
   const expiryHandledAttemptRef = useRef<string | null>(null);
+  const competitionEndHandledAttemptRef = useRef<string | null>(null);
+  const [competitionEndFinalization, setCompetitionEndFinalization] = useState<
+    "idle" | "submitting" | "submitted" | "error"
+  >("idle");
   const router = useRouter();
 
   function clearPendingSaves() {
@@ -344,8 +336,72 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
     await closeInterval();
   });
 
+  const finalizeEndedCompetition = useEffectEvent(async () => {
+    const attemptId = pageData.activeAttempt?.id;
+    if (!attemptId) {
+      return;
+    }
+
+    setCompetitionEndFinalization("submitting");
+    setRequestState("pending");
+    setRequestMessage(null);
+
+    try {
+      await flushAllSaves();
+
+      const response = await fetch(`/api/mathlete/competition/${pageData.competition.id}/submit`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          attemptId,
+        }),
+      });
+      const payload = await readJson<SubmitAttemptResponse>(response);
+
+      if (!response.ok) {
+        setCompetitionEndFinalization("error");
+        setRequestState("error");
+        setRequestMessage(payload.message ?? "Competition ended, but automatic submission failed.");
+        return;
+      }
+
+      const submittedAttemptId = payload.data?.attempt?.id ?? attemptId;
+      setCompetitionEndFinalization("submitted");
+      setRequestState("idle");
+      setRequestMessage(null);
+      router.push(getFinalSubmissionPath(pageData.competition.id, submittedAttemptId));
+    } catch {
+      setCompetitionEndFinalization("error");
+      setRequestState("error");
+      setRequestMessage("Competition ended, but automatic submission failed. Check connection and try again.");
+    }
+  });
+
   const activeAttemptId = pageData.activeAttempt?.id ?? null;
+  const competitionHasEnded =
+    pageData.competition.status === "ended" || pageData.competition.status === "archived";
+  const latestAttempt = pageData.latestAttempt;
+  const shouldOpenFinalSubmissionPage =
+    !activeAttemptId &&
+    latestAttempt?.status !== "disqualified" &&
+    isTerminalAttemptStatus(latestAttempt?.status) &&
+    (competitionHasEnded || latestAttempt?.status === "auto_submitted");
   const useFinalMinutePolling = remainingSeconds <= 60;
+
+  useEffect(() => {
+    if (!latestAttempt || !shouldOpenFinalSubmissionPage) {
+      return;
+    }
+
+    router.replace(getFinalSubmissionPath(pageData.competition.id, latestAttempt.id));
+  }, [
+    latestAttempt,
+    pageData.competition.id,
+    router,
+    shouldOpenFinalSubmissionPage,
+  ]);
 
   useEffect(() => {
     if (!activeAttemptId) {
@@ -388,6 +444,24 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent callbacks read latest state without deps.
   }, [activeAttemptId, remainingSeconds]);
+
+  useEffect(() => {
+    if (!activeAttemptId || !competitionHasEnded) {
+      if (!activeAttemptId) {
+        competitionEndHandledAttemptRef.current = null;
+        setCompetitionEndFinalization("idle");
+      }
+      return;
+    }
+
+    if (competitionEndHandledAttemptRef.current === activeAttemptId) {
+      return;
+    }
+
+    competitionEndHandledAttemptRef.current = activeAttemptId;
+    void finalizeEndedCompetition();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent callback reads latest state without restarting finalization.
+  }, [activeAttemptId, competitionHasEnded]);
 
   useEffect(() => {
     if (!activeAttemptId) {
@@ -742,23 +816,18 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
   );
   const safeExamBrowserRequired = pageData.competition.safeExamBrowserMode === "required";
   const safeExamBrowserConfigHref = `/api/mathlete/competition/${pageData.competition.id}/safe-exam-browser-config`;
-  const canWrite = Boolean(pageData.registration?.actorCanWrite && pageData.activeAttempt);
+  const canWrite = Boolean(
+    pageData.registration?.actorCanWrite &&
+      pageData.activeAttempt &&
+      !competitionHasEnded &&
+      competitionEndFinalization === "idle",
+  );
   const canWithdraw = Boolean(
     pageData.registration?.status === "registered" && !pageData.activeAttempt && !pageData.latestAttempt,
   );
   const selectedProblemIndex = selectedProblem
     ? pageData.problems.findIndex((problem) => problem.competitionProblemId === selectedProblem.competitionProblemId)
     : -1;
-  const blankCount = pageData.problems.filter((problem) => {
-    const statusFlag = answers.get(problem.competitionProblemId)?.statusFlag ?? "blank";
-    return statusFlag === "blank" || statusFlag === "reset";
-  }).length;
-  const filledCount = pageData.problems.filter(
-    (problem) => (answers.get(problem.competitionProblemId)?.statusFlag ?? "blank") === "filled",
-  ).length;
-  const solvedCount = pageData.problems.filter(
-    (problem) => (answers.get(problem.competitionProblemId)?.statusFlag ?? "blank") === "solved",
-  ).length;
   const selectedStatus = selectedAnswer?.statusFlag ?? "blank";
   const terminalAttemptNotice = getAttemptTerminalNotice(pageData.latestAttempt?.status);
   const selectedProblemTitle = selectedProblem
@@ -771,159 +840,58 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
       : "Open access";
 
   return (
-    <div className="min-h-screen bg-[#fafafb] px-4 py-6 font-['Poppins'] text-[#1a1e2e] sm:px-6 lg:px-10">
-      <AntiCheatObserver
-        attemptId={pageData.activeAttempt?.id ?? ""}
-        isActive={
-          pageData.competition.logTabSwitch &&
-          !!pageData.activeAttempt &&
-          pageData.activeAttempt.status === "in_progress"
-        }
-        onPenalty={(penalty) => {
-          if (penalty && penalty !== "none") {
-            flushSync(() => {
-              setActivePenalty(penalty);
-              setAntiCheatStatus((prev) => ({
-                ...prev,
-                penalty,
-                happenedAt: prev.happenedAt ?? new Date().toISOString(),
-              }));
-              if (penalty === "auto_submit" || penalty === "disqualified") {
-                const terminalStatus = penalty === "auto_submit" ? "auto_submitted" : "disqualified";
-                setPageData((prev) => ({
-                  ...prev,
-                  mode: "detail_register",
-                  activeAttempt: null,
-                  latestAttempt: prev.activeAttempt
-                    ? {
-                        ...prev.activeAttempt,
-                        status: terminalStatus,
-                        submittedAt: prev.activeAttempt.submittedAt ?? new Date().toISOString(),
-                        remainingSeconds: 0,
-                      }
-                    : prev.latestAttempt
-                      ? {
-                          ...prev.latestAttempt,
-                          status: terminalStatus,
-                          submittedAt: prev.latestAttempt.submittedAt ?? new Date().toISOString(),
-                          remainingSeconds: 0,
-                        }
-                      : null,
-                  attemptsRemaining: penalty === "disqualified" ? 0 : prev.attemptsRemaining,
-                  canResume: false,
-                }));
-              }
-            });
-          }
-        }}
-        onSignal={(signal) => {
-          setAntiCheatSignal((prev) => ({
-            ...signal,
-            counts:
-              signal.eventSource === "poll"
-                ? prev.counts
-                : {
-                    ...prev.counts,
-                    [signal.eventSource]: (prev.counts[signal.eventSource] ?? 0) + 1,
-                  },
-          }));
-        }}
-        onEvent={({ eventSource, visibilityState, status, penalty }) => {
-          setAntiCheatStatus({
-            eventSource,
-            visibilityState,
-            status,
-            penalty: penalty ?? null,
-            happenedAt: new Date().toISOString(),
-          });
-          if (status === "queued" || penalty === "auto_submit" || penalty === "disqualified") {
-            window.setTimeout(() => {
-              void refreshState({
-                preservePending: false,
-              });
-            }, status === "queued" ? 1200 : 0);
-          }
-        }}
+    <div
+      className={cn(
+        "min-h-screen bg-[#fafafb] px-4 py-6 font-['Poppins'] text-[#1a1e2e] sm:px-6 lg:px-10",
+        pageData.mode === "arena_runtime" ? "arena-runtime-focus" : "",
+      )}
+    >
+      <TabSwitchWarningObserver
+        isActive={!!pageData.activeAttempt && pageData.activeAttempt.status === "in_progress"}
+        onWarning={() => setTabSwitchWarningOpen(true)}
       />
-      <WarningOverlay
-        penalty={activePenalty === "none" ? null : activePenalty}
-        onAcknowledge={() => setActivePenalty(null)}
+      <TabSwitchWarningOverlay
+        open={tabSwitchWarningOpen}
+        onAcknowledge={() => setTabSwitchWarningOpen(false)}
       />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <ProgressLink
-              href="/mathlete"
-              className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400 transition hover:text-[#1a1e2e]"
-            >
-              Mathlete
-            </ProgressLink>
-            <Badge variant="secondary">{pageData.competition.status}</Badge>
-            <Badge variant="outline">{pageData.mode.replace("_", " ")}</Badge>
-          </div>
-          <h1 className="text-3xl font-black tracking-tight text-[#1a1e2e]">
-            {pageData.competition.name}
-          </h1>
-          <p className="max-w-3xl text-sm leading-6 text-slate-500">
-            {pageData.competition.description || "Competition details and arena controls live here."}
-          </p>
-        </div>
-
-        {pageData.activeAttempt ? (
-          <div className="rounded-3xl border border-slate-100 bg-white px-5 py-4 text-right shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-              Remaining Time
-            </p>
-            <p className="mt-2 font-mono text-3xl font-black text-[#1a1e2e]">
-              {formatTimerText(remainingSeconds)}
-            </p>
-            <p className="mt-2 text-xs text-slate-500">
-              Sync: {connectionState}
-            </p>
-            <span className="sr-only" aria-live="polite">
-              {timerAnnouncement}
-            </span>
-          </div>
-        ) : null}
-      </div>
-
-      {pageData.activeAttempt ? (
-        <div
-          className={cn(
-            "mt-4 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm",
-            pageData.competition.logTabSwitch
-              ? antiCheatStatus.status === "active"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                : antiCheatStatus.status === "error"
-                  ? "border-red-200 bg-red-50 text-red-900"
-                  : "border-amber-200 bg-amber-50 text-amber-950"
-              : "border-slate-200 bg-slate-50 text-slate-500",
-          )}
-          role="status"
-          aria-live="polite"
-        >
-          {pageData.competition.logTabSwitch ? (
-            <div className="space-y-1">
-              <p>
-                {antiCheatStatus.status === "active"
-                  ? "Anti-cheat active. Switch tabs or apps to test focus-loss detection."
-                  : `Anti-cheat event detected: ${antiCheatStatus.eventSource} (${antiCheatStatus.visibilityState}). Log status: ${antiCheatStatus.status}.`}
-              </p>
-              <p className="text-xs font-medium">
-                Browser signal: {antiCheatSignal.visibilityState}
-                {antiCheatSignal.hidden ? " / hidden" : " / visible"}
-                {antiCheatSignal.hasFocus ? " / focused" : " / not focused"}
-                {antiCheatSignal.eventSource ? ` / last: ${antiCheatSignal.eventSource}` : ""}
-              </p>
-              <p className="text-xs font-medium">
-                Browser signal counters: visibilitychange {antiCheatSignal.counts.visibilitychange ?? 0}, blur{" "}
-                {antiCheatSignal.counts.blur ?? 0}, focus {antiCheatSignal.counts.focus ?? 0},
-                pagehide {antiCheatSignal.counts.pagehide ?? 0}
-              </p>
+      {pageData.mode !== "arena_runtime" ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                Mathlete
+              </span>
+              <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">
+                {pageData.competition.status}
+              </span>
+              <span className="rounded-full border border-border px-2.5 py-0.5 text-xs font-semibold text-foreground">
+                {pageData.mode.replace("_", " ")}
+              </span>
             </div>
-          ) : (
-            "Anti-cheat tab-switch logging disabled for this competition."
-          )}
+            <h1 className="text-3xl font-black tracking-tight text-[#1a1e2e]">
+              {pageData.competition.name}
+            </h1>
+            <p className="max-w-3xl text-sm leading-6 text-slate-500">
+              {pageData.competition.description || "Competition details and arena controls live here."}
+            </p>
+          </div>
+
+          {pageData.activeAttempt ? (
+            <div className="rounded-3xl border border-slate-100 bg-white px-5 py-4 text-right shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                Remaining Time
+              </p>
+              <p className="mt-2 font-mono text-3xl font-black text-[#1a1e2e]">
+                {formatTimerText(remainingSeconds)}
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                Sync: {connectionState}
+              </p>
+              <span className="sr-only" aria-live="polite">
+                {timerAnnouncement}
+              </span>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -936,13 +904,26 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
         </Alert>
       ) : null}
 
+      {competitionHasEnded && pageData.activeAttempt ? (
+        <Alert className="mt-4 border-2 border-[#f49700]/40 bg-[#fff7e8] text-[#8a5400]" role="status">
+          <p className="mb-2 text-sm font-black">Competition ended</p>
+          <AlertDescription>
+            {competitionEndFinalization === "error"
+              ? "Your work is locked. Automatic submission could not complete, so keep this page open and check your connection."
+              : competitionEndFinalization === "submitted"
+                ? "Your attempt was submitted. Redirecting to the final submission page."
+                : "Your work is locked. Saving pending answers, submitting your attempt, and opening the final submission page."}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {terminalAttemptNotice ? (
         <Alert
           variant={terminalAttemptNotice.tone === "destructive" ? "destructive" : "default"}
           className={cn(
             "mt-4 border-2",
             terminalAttemptNotice.tone === "warning"
-              ? "border-amber-300 bg-amber-50 text-amber-950"
+              ? "border-[#f49700]/40 bg-[#fff7e8] text-[#8a5400]"
               : "",
           )}
           role="alert"
@@ -997,8 +978,8 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                     {pageData.latestAttempt ? `, latest attempt ${pageData.latestAttempt.status}` : ""}.
                   </p>
                   {!pageData.registration.actorCanStart ? (
-                    <p className="mt-2 text-amber-700">
-                      Only active team leader can start or submit team attempts.
+                    <p className="mt-2 text-[#8a5400]">
+                      Only active members of the registered team can start or submit team attempts.
                     </p>
                   ) : null}
                 </div>
@@ -1037,7 +1018,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
 
             <div className="mt-8 space-y-4">
               {safeExamBrowserRequired ? (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950">
+                <div className="rounded-2xl border border-[#f49700]/30 bg-[#fff7e8] p-5 text-[#8a5400]">
                   <div className="flex items-start gap-3">
                     <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
                     <div className="space-y-2">
@@ -1122,16 +1103,16 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
 
             {pageData.registration && !pageData.registration.actorCanStart ? (
               <Alert>
-                <p className="mb-2 text-sm font-semibold text-foreground">Leader action required</p>
+                <p className="mb-2 text-sm font-semibold text-foreground">Team membership required</p>
                 <AlertDescription>
-                  Team attempt writes are leader-only. You can open runtime once leader starts.
+                  You must be an active member of the registered team to open the runtime.
                 </AlertDescription>
               </Alert>
             ) : null}
 
             <Button
               type="button"
-              className="mt-auto h-auto w-full rounded-xl bg-[#f49700] py-5 text-sm font-black uppercase tracking-[0.18em] text-white shadow-xl shadow-[#f49700]/25 hover:bg-[#e08900]"
+              className="mt-auto h-auto w-full rounded-xl bg-[#f49700] py-5 text-sm font-black uppercase tracking-[0.18em] text-white hover:bg-[#e08900]"
               onClick={() => void startOrResumeAttempt()}
               pending={requestState === "pending"}
               pendingText="Opening arena"
@@ -1161,18 +1142,15 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
       ) : null}
 
       {pageData.mode === "arena_runtime" && selectedProblem ? (
-        <div className="mt-6 flex flex-col justify-center gap-8 lg:flex-row">
-          <main className="flex w-full max-w-[860px] flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_55px_-35px_rgba(26,30,46,0.45)] ring-1 ring-slate-100 sm:p-8 lg:p-10">
+        <div className="flex min-h-screen flex-col justify-center gap-6 py-4 sm:py-6 lg:flex-row">
+          <main className="flex w-full max-w-[960px] flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_55px_-35px_rgba(26,30,46,0.45)] ring-1 ring-slate-100 sm:p-8 lg:p-10">
             <div className="mb-8 flex flex-col justify-between gap-6 sm:flex-row sm:items-start">
               <div>
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">
-                  {pageData.competition.name}
-                </p>
                 <h2 className="max-w-[560px] text-3xl font-black leading-tight tracking-tight text-[#1a1e2e] md:text-4xl">
                   {selectedProblemTitle}
                 </h2>
               </div>
-              <div className="flex flex-wrap gap-3 sm:justify-end">
+              <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-end">
                 <div className="flex min-w-[78px] flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <span className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
                     Difficulty
@@ -1183,13 +1161,13 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                 </div>
                 <div className="flex min-w-[78px] flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <span className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                    Points
+                    Score Weight
                   </span>
                   <span className="text-[13px] font-black text-[#1a1e2e]">
                     {selectedProblem.points ?? "-"}
                   </span>
                 </div>
-                <div className={cn("flex min-w-[78px] flex-col items-center justify-center rounded-xl border p-3", getBadgeStatusClassName(selectedStatus))}>
+                <div className={cn("col-span-2 flex min-w-[78px] flex-col items-center justify-center rounded-xl border p-3", getBadgeStatusClassName(selectedStatus))}>
                   <span className="mb-1 text-[9px] font-bold uppercase tracking-wider opacity-70">
                     Status
                   </span>
@@ -1204,6 +1182,8 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
               <KatexPreview
                 latex={selectedProblem.contentLatex}
                 className="min-h-24 text-base leading-7 md:text-lg"
+                label={null}
+                variant="arena"
                 fallbackText="Problem statement unavailable."
               />
             </div>
@@ -1221,35 +1201,40 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
 
             {selectedProblem.type === "mcq" || selectedProblem.type === "tf" ? (
               <div className="mb-10 grid gap-4">
-                {selectedProblem.options.map((option) => {
+                {selectedProblem.options.map((option, optionIndex) => {
                   const selected = (selectedAnswer?.localValue ?? "") === option.id;
+                  const optionMarker = formatOptionMarker(optionIndex);
                   return (
                     <button
                       key={option.id}
                       type="button"
                       className={cn(
-                        "flex w-full items-start gap-4 rounded-2xl border-2 p-5 text-left transition",
+                        "flex w-full items-start gap-4 rounded-[20px] border-2 p-5 text-left transition",
                         selected
-                          ? "border-[#f49700] bg-[#f49700]/5 text-[#1a1e2e]"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+                          ? "border-[#f49700] bg-[#fff7e8] text-[#1a1e2e] shadow-sm"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-[#f49700]/40 hover:bg-slate-50",
                       )}
                       aria-pressed={selected}
+                      aria-label={`Option ${optionMarker}`}
                       disabled={!canWrite}
                       onClick={() => updateAnswer(selectedProblem, option.id)}
                     >
                       <span
                         className={cn(
-                          "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black",
-                          selected ? "border-[#f49700]" : "border-slate-300",
+                          "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black",
+                          selected
+                            ? "border-[#f49700] bg-[#f49700] text-white"
+                            : "border-slate-300 bg-white text-slate-500",
                         )}
                       >
-                        {selected ? <span className="h-3 w-3 rounded-full bg-[#f49700]" /> : null}
+                        {optionMarker}
                       </span>
-                      <span className="flex min-w-0 flex-1 items-start gap-3 text-base md:text-lg">
-                        <span className="shrink-0 font-black opacity-60">{option.id}.</span>
+                      <span className="min-w-0 flex-1 text-base md:text-lg">
                         <KatexPreview
                           latex={option.label}
-                          className={cn("min-w-0 flex-1 leading-6", selected ? "font-bold" : "")}
+                          label={null}
+                          variant="choice"
+                          className={cn("min-w-0 leading-6", selected ? "font-bold" : "")}
                           fallbackText={option.label}
                         />
                       </span>
@@ -1267,7 +1252,9 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                   preferredInitialMode={selectedProblem.type === "identification" ? "text" : "math"}
                   onChange={(nextValue) => updateAnswer(selectedProblem, nextValue)}
                   description="Answers autosave after a short idle window and on visibility changes."
+                  previewLabel="Answer preview"
                   showPreviewToggle
+                  variant="arena"
                 />
               </div>
             )}
@@ -1276,7 +1263,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
               <Alert className="mb-6">
                 <p className="mb-2 text-sm font-semibold text-foreground">Read-only runtime</p>
                 <AlertDescription>
-                  Team members can observe synced answers, but only active leader can write or submit.
+                  You must be an active member of the registered team to write or submit.
                 </AlertDescription>
               </Alert>
             ) : null}
@@ -1329,53 +1316,19 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                   Next Problem
                   <ChevronRight className="h-4 w-4" />
                 </Button>
+                <Button
+                  type="button"
+                  className="h-auto flex-1 rounded-xl bg-[#f49700] px-6 py-3 font-bold text-white shadow-lg shadow-[#f49700]/20 hover:bg-[#e08900] sm:flex-none"
+                  disabled={!pageData.registration?.actorCanWrite}
+                  onClick={() => void openReviewPage()}
+                >
+                  Review & Submit
+                </Button>
               </div>
             </div>
           </main>
 
-          <aside className="flex w-full shrink-0 flex-col gap-6 lg:w-[380px]">
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_16px_42px_-34px_rgba(26,30,46,0.42)] ring-1 ring-slate-100">
-              <div className="mb-6 flex items-center justify-between gap-4">
-                <h3 className="text-sm font-black uppercase tracking-wider text-[#1a1e2e]">
-                  Progress Overview
-                </h3>
-                <div className="flex items-center gap-2 rounded-full bg-[#f49700]/10 px-3 py-1.5 text-sm font-black text-[#f49700]">
-                  <Clock className="h-4 w-4" />
-                  {formatTimerText(remainingSeconds)}
-                </div>
-              </div>
-              <span className="sr-only" aria-live="polite">
-                {timerAnnouncement}
-              </span>
-
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="flex flex-col items-center rounded-xl border border-slate-200 bg-slate-50 py-4">
-                  <span className="mb-1 text-2xl font-black leading-none text-slate-400">
-                    {blankCount}
-                  </span>
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                    Blank
-                  </span>
-                </div>
-                <div className="flex flex-col items-center rounded-xl border border-[#1A1E2E] bg-[#1A1E2E] py-4 shadow-sm shadow-[#1A1E2E]/20">
-                  <span className="mb-1 text-2xl font-black leading-none text-white">
-                    {filledCount}
-                  </span>
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-white/80">
-                    Filled
-                  </span>
-                </div>
-                <div className="flex flex-col items-center rounded-xl border border-[#fef3c7]/50 bg-[#fffbeb] py-4">
-                  <span className="mb-1 text-2xl font-black leading-none text-[#f49700]">
-                    {solvedCount}
-                  </span>
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-[#f49700]/70">
-                    Solved
-                  </span>
-                </div>
-              </div>
-            </section>
-
+          <aside className="w-full shrink-0 lg:w-[340px]">
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_16px_42px_-34px_rgba(26,30,46,0.42)] ring-1 ring-slate-100">
               <div className="mb-6 flex items-center justify-between gap-4">
                 <h3 className="text-sm font-black uppercase tracking-wider text-[#1a1e2e]">
@@ -1404,7 +1357,7 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                       className={cn(
                         "flex aspect-square w-full items-center justify-center rounded-lg border text-[13px] font-bold transition hover:scale-105",
                         getProblemStatusClassName(statusFlag),
-                        isCurrent ? "border-2 border-[#f49700] shadow-md shadow-[#f49700]/30" : "border-transparent",
+                        isCurrent ? "border-2 border-[#f49700]" : "border-transparent",
                       )}
                     >
                       {problem.orderIndex}
@@ -1413,31 +1366,6 @@ export function ArenaExperience({ initialData }: ArenaExperienceProps) {
                 })}
               </div>
             </section>
-
-            <section className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-[0_14px_36px_-34px_rgba(26,30,46,0.38)] ring-1 ring-slate-100">
-              <div className="grid gap-2">
-                <p>
-                  <span className="font-bold text-[#1a1e2e]">Attempt:</span>{" "}
-                  #{pageData.activeAttempt?.attemptNo}
-                </p>
-                <p>
-                  <span className="font-bold text-[#1a1e2e]">Sync:</span> {connectionState}
-                </p>
-                <p>
-                  <span className="font-bold text-[#1a1e2e]">Latest save:</span>{" "}
-                  {selectedAnswer?.lastSavedAt ? new Date(selectedAnswer.lastSavedAt).toLocaleTimeString() : "Pending"}
-                </p>
-              </div>
-            </section>
-
-            <Button
-              type="button"
-              className="mt-auto h-auto w-full rounded-xl bg-[#f49700] py-5 text-sm font-black uppercase tracking-[0.18em] text-white shadow-xl shadow-[#f49700]/30 hover:bg-[#e08900]"
-              disabled={!pageData.registration?.actorCanWrite}
-              onClick={() => void openReviewPage()}
-            >
-              Review & Submit
-            </Button>
           </aside>
         </div>
       ) : null}

@@ -1,7 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { LeaderboardStandings } from "@/components/leaderboard/leaderboard-standings";
 import { KatexPreview } from "@/components/math-editor/katex-preview";
+import type { CompetitionFormat } from "@/lib/competition/types";
+import type { AnswerKeyVisibility } from "@/lib/submission/types";
 import type { CompetitionDispute } from "@/lib/disputes/api";
 import type { ExportJob } from "@/lib/exports/api";
 import type { LeaderboardEntry } from "@/lib/leaderboard/types";
@@ -9,6 +12,8 @@ import type { LeaderboardEntry } from "@/lib/leaderboard/types";
 type LeaderboardManagementPanelProps = {
   competitionId: string;
   leaderboardPublished: boolean;
+  answerKeyVisibility: AnswerKeyVisibility;
+  format: CompetitionFormat;
   entries: LeaderboardEntry[];
   disputes: CompetitionDispute[];
   exportJobs: ExportJob[];
@@ -75,16 +80,21 @@ function isExportJobStatus(value: unknown): value is ExportJob["status"] {
 export function LeaderboardManagementPanel({
   competitionId,
   leaderboardPublished,
+  answerKeyVisibility,
+  format,
   entries,
   disputes,
   exportJobs,
 }: LeaderboardManagementPanelProps) {
   const [published, setPublished] = useState(leaderboardPublished);
+  const [releasedAnswerKey, setReleasedAnswerKey] = useState(answerKeyVisibility === "after_end");
   const [disputeRows, setDisputeRows] = useState(disputes);
   const [jobRows, setJobRows] = useState(exportJobs);
   const [publishAction, setPublishAction] = useState<ActionState>(() => initialActionState());
+  const [answerKeyAction, setAnswerKeyAction] = useState<ActionState>(() => initialActionState());
   const [exportAction, setExportAction] = useState<ActionState>(() => initialActionState());
   const [disputeAction, setDisputeAction] = useState<ActionState>(() => initialActionState());
+  const [resolutionDrafts, setResolutionDrafts] = useState<Record<string, string>>({});
 
   const nonTerminalDisputeIds = useMemo(
     () =>
@@ -134,6 +144,53 @@ export function LeaderboardManagementPanel({
       setPublishAction({
         pending: false,
         error: error instanceof Error ? error.message : "Unable to publish leaderboard.",
+        success: null,
+      });
+    }
+  }
+
+  async function releaseAnswerKey() {
+    setAnswerKeyAction({ pending: true, error: null, success: null });
+    try {
+      const response = await fetch(
+        `/api/organizer/competitions/${competitionId}/answer-key/release`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-idempotency-key": crypto.randomUUID(),
+          },
+          credentials: "same-origin",
+          body: "{}",
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | { message?: string; notifiedCount?: number; notificationFailureCount?: number }
+        | null;
+
+      if (!response.ok) {
+        setAnswerKeyAction({
+          pending: false,
+          error: payload?.message ?? "Unable to release answer key.",
+          success: null,
+        });
+        return;
+      }
+
+      setReleasedAnswerKey(true);
+      const notifiedCount = payload?.notifiedCount ?? 0;
+      const notificationFailureCount = payload?.notificationFailureCount ?? 0;
+      setAnswerKeyAction({
+        pending: false,
+        error: notificationFailureCount > 0
+          ? `${notificationFailureCount} notification(s) could not be sent.`
+          : null,
+        success: `Answer key released. ${notifiedCount} mathlete(s) notified.`,
+      });
+    } catch (error) {
+      setAnswerKeyAction({
+        pending: false,
+        error: error instanceof Error ? error.message : "Unable to release answer key.",
         success: null,
       });
     }
@@ -222,14 +279,10 @@ export function LeaderboardManagementPanel({
     disputeId: string,
     status: "reviewing" | "accepted" | "rejected" | "resolved",
   ) {
-    let resolutionNote = "";
-    if (status === "accepted" || status === "rejected" || status === "resolved") {
-      const response = window.prompt("Resolution note", "");
-      if (response === null) {
-        return;
-      }
+    const dispute = disputeRows.find((row) => row.id === disputeId);
+    const resolutionNote = (resolutionDrafts[disputeId] ?? dispute?.resolutionNote ?? "").trim();
 
-      resolutionNote = response.trim();
+    if (status === "accepted" || status === "rejected" || status === "resolved") {
       if (!resolutionNote) {
         setDisputeAction({
           pending: false,
@@ -282,6 +335,11 @@ export function LeaderboardManagementPanel({
             : dispute,
         ),
       );
+      setResolutionDrafts((current) => {
+        const next = { ...current };
+        delete next[disputeId];
+        return next;
+      });
 
       setDisputeAction({
         pending: false,
@@ -337,13 +395,49 @@ export function LeaderboardManagementPanel({
         ) : null}
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <header className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-black text-[#10182b]">Leaderboard standings</h2>
-            <p className="mt-1 text-sm text-slate-500">{entries.length} entries</p>
+            <h2 className="text-xl font-black text-[#10182b]">Answer key release</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Hidden answer keys can be released to eligible mathletes with an inbox link.
+            </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.12em] ${
+                releasedAnswerKey ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              {releasedAnswerKey ? "Released" : "Hidden"}
+            </span>
+            <button
+              type="button"
+              disabled={answerKeyAction.pending || releasedAnswerKey}
+              onClick={releaseAnswerKey}
+              className="rounded-xl bg-[#10182b] px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {answerKeyAction.pending ? "Releasing..." : releasedAnswerKey ? "Released" : "Release answer key"}
+            </button>
+          </div>
+        </div>
+        {answerKeyAction.error ? (
+          <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
+            {answerKeyAction.error}
+          </p>
+        ) : null}
+        {answerKeyAction.success ? (
+          <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+            {answerKeyAction.success}
+          </p>
+        ) : null}
+      </section>
+
+      <LeaderboardStandings
+        entries={entries}
+        format={format}
+        actions={
+          <>
             <button
               type="button"
               disabled={exportAction.pending}
@@ -360,39 +454,9 @@ export function LeaderboardManagementPanel({
             >
               Export XLSX
             </button>
-          </div>
-        </header>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-              <tr>
-                <th className="px-6 py-3">Rank</th>
-                <th className="px-6 py-3">Participant</th>
-                <th className="px-6 py-3">Score</th>
-                <th className="px-6 py-3">Time</th>
-                <th className="px-6 py-3">Offenses</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {entries.map((entry) => (
-                <tr key={entry.id}>
-                  <td className="px-6 py-4 font-bold text-[#10182b]">#{entry.rank}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-700">{entry.displayName}</td>
-                  <td className="px-6 py-4 text-slate-700">{entry.score.toLocaleString()}</td>
-                  <td className="px-6 py-4 text-slate-700">{entry.totalTimeSeconds}s</td>
-                  <td className="px-6 py-4 text-slate-700">{entry.offenseCount}</td>
-                </tr>
-              ))}
-              {entries.length === 0 ? (
-                <tr>
-                  <td className="px-6 py-8 text-center text-slate-500" colSpan={5}>
-                    No leaderboard entries yet.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+          </>
+        }
+      >
         {exportAction.error ? (
           <p className="mx-6 my-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
             {exportAction.error}
@@ -403,7 +467,7 @@ export function LeaderboardManagementPanel({
             {exportAction.success}
           </p>
         ) : null}
-      </section>
+      </LeaderboardStandings>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-black text-[#10182b]">Disputes</h2>
@@ -445,6 +509,29 @@ export function LeaderboardManagementPanel({
                   <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
                     {dispute.resolutionNote}
                   </p>
+                ) : null}
+                {!terminal ? (
+                  <div className="mt-3 space-y-2">
+                    <label
+                      htmlFor={`resolution-note-${dispute.id}`}
+                      className="text-xs font-black uppercase tracking-[0.12em] text-slate-500"
+                    >
+                      Resolution note
+                    </label>
+                    <textarea
+                      id={`resolution-note-${dispute.id}`}
+                      value={resolutionDrafts[dispute.id] ?? ""}
+                      onChange={(event) =>
+                        setResolutionDrafts((current) => ({
+                          ...current,
+                          [dispute.id]: event.target.value,
+                        }))
+                      }
+                      maxLength={1000}
+                      placeholder="Required when accepting, rejecting, or resolving."
+                      className="min-h-24 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-900 outline-none transition focus:border-[#f49700] focus:ring-2 focus:ring-[#f49700]/20"
+                    />
+                  </div>
                 ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button

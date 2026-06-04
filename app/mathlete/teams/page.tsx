@@ -23,7 +23,7 @@ export default async function MathleteTeamsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button asChild className="h-12 rounded-full bg-[#f49700] px-6 text-sm font-bold text-white shadow-[0_18px_36px_-24px_rgba(244,151,0,0.8)] hover:bg-[#e68b00]">
+            <Button asChild className="h-12 rounded-full bg-[#f49700] px-6 text-sm font-bold text-white hover:bg-[#e68b00]">
               <ProgressLink href="/mathlete/teams/create">Create New Team</ProgressLink>
             </Button>
             <Button asChild variant="outline" className="h-12 rounded-full border-slate-200 bg-white px-6 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-800">

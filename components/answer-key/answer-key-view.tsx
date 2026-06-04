@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, ArrowLeft, Flag } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Flag, XCircle } from "lucide-react";
 import { KatexPreview } from "@/components/math-editor/katex-preview";
 import { DisputeDialog } from "@/components/submission/dispute-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -14,11 +14,43 @@ type AnswerKeyViewProps = {
   data: AnswerKeyPageData;
 };
 
+function getResultBadge(problem: AnswerKeyPageData["problems"][number], hasAttempt: boolean) {
+  if (!hasAttempt) {
+    return {
+      label: "No attempt",
+      className: "border-slate-200 bg-slate-50 text-slate-500",
+      icon: null,
+    };
+  }
+
+  if (problem.isCorrect === true) {
+    return {
+      label: "Correct",
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      icon: CheckCircle2,
+    };
+  }
+
+  if (problem.isCorrect === false) {
+    return {
+      label: "Wrong",
+      className: "border-rose-200 bg-rose-50 text-rose-700",
+      icon: XCircle,
+    };
+  }
+
+  return {
+    label: "Not graded",
+    className: "border-slate-200 bg-slate-50 text-slate-500",
+    icon: null,
+  };
+}
+
 export function AnswerKeyView({ data }: AnswerKeyViewProps) {
   const [activeProblemId, setActiveProblemId] = useState<string | null>(null);
   const [submittedDisputes, setSubmittedDisputes] = useState<Set<string>>(new Set());
   const activeProblem = data.problems.find((problem) => problem.competitionProblemId === activeProblemId) ?? null;
-  const locked = !data.canViewAnswerKey || data.competition.answerKeyVisibility === "hidden" || data.problems.length === 0;
+  const locked = !data.canViewAnswerKey || data.problems.length === 0;
 
   if (locked) {
     return (
@@ -68,8 +100,14 @@ export function AnswerKeyView({ data }: AnswerKeyViewProps) {
 
       <div className="space-y-5">
         {data.problems.map((problem) => {
-          const hasSubmittedDispute =
-            submittedDisputes.has(problem.competitionProblemId) || Boolean(problem.existingDisputeStatus);
+          const activeDispute =
+            submittedDisputes.has(problem.competitionProblemId) ||
+            problem.existingDisputeStatus === "open" ||
+            problem.existingDisputeStatus === "reviewing";
+          const isCorrect = problem.isCorrect === true;
+          const canDisputeProblem = data.canDispute && !isCorrect;
+          const resultBadge = getResultBadge(problem, Boolean(data.attempt));
+          const ResultIcon = resultBadge.icon;
 
           return (
             <article
@@ -81,9 +119,22 @@ export function AnswerKeyView({ data }: AnswerKeyViewProps) {
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="secondary">Problem {problem.orderIndex}</Badge>
                     <Badge variant="outline">{problem.points ?? 0} points</Badge>
+                    <Badge className={`gap-1 border ${resultBadge.className}`}>
+                      {ResultIcon ? <ResultIcon className="h-3.5 w-3.5" /> : null}
+                      {resultBadge.label}
+                    </Badge>
+                    {data.attempt ? (
+                      <Badge variant="outline">
+                        {problem.pointsAwarded ?? 0}/{problem.points ?? 0} awarded
+                      </Badge>
+                    ) : null}
                   </div>
                   <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <KatexPreview latex={problem.contentLatex} fallbackText="Problem statement unavailable." />
+                    <KatexPreview
+                      latex={problem.contentLatex}
+                      label="Problem prompt"
+                      fallbackText="Problem statement unavailable."
+                    />
                   </div>
                 </div>
                 {data.canDispute ? (
@@ -91,18 +142,22 @@ export function AnswerKeyView({ data }: AnswerKeyViewProps) {
                     type="button"
                     variant="outline"
                     className="shrink-0 rounded-xl border-slate-200"
-                    disabled={hasSubmittedDispute}
+                    disabled={!canDisputeProblem || activeDispute}
                     onClick={() => setActiveProblemId(problem.competitionProblemId)}
                   >
                     <Flag className="h-4 w-4" />
-                    {hasSubmittedDispute ? "Dispute open" : `Dispute problem ${problem.orderIndex}`}
+                    {isCorrect
+                      ? "Correct - no dispute"
+                      : activeDispute
+                        ? "Dispute open"
+                        : `Dispute problem ${problem.orderIndex}`}
                   </Button>
                 ) : null}
               </div>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                  <h2 className="text-sm font-black uppercase tracking-[0.16em] text-emerald-900">
+                <section className="rounded-2xl border border-[#f49700]/30 bg-[#fff7e8] p-4">
+                  <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[#8a5400]">
                     Accepted answers
                   </h2>
                   <div className="mt-3 space-y-2">
@@ -111,9 +166,9 @@ export function AnswerKeyView({ data }: AnswerKeyViewProps) {
                         <div
                           key={`${answer}-${index}`}
                           aria-label={`Accepted answer ${index + 1}`}
-                          className="rounded-xl border border-emerald-200 bg-white p-3 text-emerald-950"
+                          className="rounded-xl border border-[#f49700]/25 bg-white p-3 text-[#1a1e2e]"
                         >
-                          <KatexPreview latex={answer} fallbackText={answer} />
+                          <KatexPreview latex={answer} label={null} fallbackText={answer} />
                         </div>
                       ),
                     )}
@@ -127,16 +182,27 @@ export function AnswerKeyView({ data }: AnswerKeyViewProps) {
                   <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
                     <KatexPreview
                       latex={problem.explanationLatex}
+                      label={null}
                       fallbackText="No explanation snapshot provided."
                     />
                   </div>
                 </section>
               </div>
 
-              {hasSubmittedDispute ? (
-                <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+              {activeDispute ? (
+                <p className="mt-4 rounded-xl border border-[#f49700]/30 bg-[#fff7e8] p-3 text-sm font-semibold text-[#8a5400]">
                   Dispute submitted for organizer review.
                 </p>
+              ) : null}
+              {problem.existingDisputeResolutionNote ? (
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                    Resolution note
+                  </p>
+                  <p className="mt-2 text-sm font-medium leading-6 text-slate-700">
+                    {problem.existingDisputeResolutionNote}
+                  </p>
+                </div>
               ) : null}
             </article>
           );

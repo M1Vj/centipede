@@ -53,8 +53,6 @@ function makeCompetitionRow(status: MockStatus, overrides: Record<string, unknow
     tie_breaker: "earliest_submission",
     shuffle_questions: false,
     shuffle_options: false,
-    log_tab_switch: false,
-    offense_penalties: [],
     published: status !== "draft",
     is_paused: status === "paused",
     created_at: "2026-04-15T00:00:00.000Z",
