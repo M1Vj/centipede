@@ -33,12 +33,22 @@ export default async function OrganizerCompetitionDetailPage({ params }: PagePro
             <ArrowLeft className="w-4 h-4" /> Back to Competitions
           </ProgressLink>
           {workspaceData.competition.status !== "draft" ? (
-            <ProgressLink
-              href={`/organizer/competition/${competitionId}/leaderboard`}
-              className="ml-auto rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.1em] text-slate-700 hover:border-slate-400"
-            >
-              Leaderboard workspace
-            </ProgressLink>
+            <div className="ml-auto flex flex-wrap gap-2">
+              {workspaceData.competition.status === "live" && workspaceData.competition.format === "team" ? (
+                <ProgressLink
+                  href={`/organizer/competition/${competitionId}/live-teams`}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.1em] text-slate-700 hover:border-slate-400"
+                >
+                  Live team monitor
+                </ProgressLink>
+              ) : null}
+              <ProgressLink
+                href={`/organizer/competition/${competitionId}/leaderboard`}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.1em] text-slate-700 hover:border-slate-400"
+              >
+                Leaderboard workspace
+              </ProgressLink>
+            </div>
           ) : null}
         </div>
 

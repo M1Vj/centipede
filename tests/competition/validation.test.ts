@@ -31,14 +31,6 @@ function buildOpenDraft(): CompetitionDraftFormState {
     tieBreaker: "lowest_total_time",
     shuffleQuestions: true,
     shuffleOptions: true,
-    logTabSwitch: true,
-    offensePenalties: [
-      {
-        threshold: 2,
-        penaltyKind: "warning",
-        deductionValue: 0,
-      },
-    ],
     answerKeyVisibility: "after_end",
     selectedProblemIds: Array.from({ length: 10 }, (_, index) => `problem-${index + 1}`),
   };

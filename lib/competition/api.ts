@@ -1,6 +1,5 @@
 import { normalizeProblemRow } from "@/lib/problem-bank/api-helpers";
 import type { ProblemRecord } from "@/lib/problem-bank/api-helpers";
-import type { OffensePenaltyRule } from "@/lib/scoring/types";
 import { SAFE_EXAM_BROWSER_MODES, type SafeExamBrowserMode } from "@/lib/scoring/types";
 import {
   normalizeAttemptGradingModeToken,
@@ -20,10 +19,10 @@ import {
 } from "./types";
 
 export const COMPETITION_SELECT_COLUMNS =
-  "id, organizer_id, leaderboard_published, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, safe_exam_browser_mode, safe_exam_browser_config_key_hashes, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
+  "id, organizer_id, leaderboard_published, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, safe_exam_browser_mode, safe_exam_browser_config_key_hashes, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
 
 export const LEGACY_COMPETITION_SELECT_COLUMNS =
-  "id, organizer_id, name, description, instructions, type, format, registration_start, registration_end, start_time, duration_minutes, attempts_allowed, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, published, is_paused, created_at";
+  "id, organizer_id, name, description, instructions, type, format, registration_start, registration_end, start_time, duration_minutes, attempts_allowed, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, published, is_paused, created_at";
 
 export const COMPETITION_BANK_SELECT_COLUMNS =
   "id, organizer_id, name, description, is_default_bank, is_visible_to_organizers, is_deleted, created_at, updated_at";
@@ -66,31 +65,6 @@ function toLegacyTieBreaker(value: CompetitionDraftMutationPayload["tieBreaker"]
   return value === "lowest_total_time" ? "average_time" : "earliest_submission";
 }
 
-export function buildOffensePenaltiesJson(input: CompetitionDraftMutationPayload["offensePenalties"]) {
-  const payload: Record<string, number> = {};
-
-  for (const rule of [...input].sort((left, right) => left.threshold - right.threshold)) {
-    if (rule.penaltyKind === "warning" && payload.warning_threshold === undefined) {
-      payload.warning_threshold = rule.threshold;
-    }
-
-    if (rule.penaltyKind === "deduction" && payload.deduction_threshold === undefined) {
-      payload.deduction_threshold = rule.threshold;
-      payload.deduction_value = rule.deductionValue;
-    }
-
-    if (rule.penaltyKind === "forced_submit" && payload.auto_submit_threshold === undefined) {
-      payload.auto_submit_threshold = rule.threshold;
-    }
-
-    if (rule.penaltyKind === "disqualification" && payload.disqualification_threshold === undefined) {
-      payload.disqualification_threshold = rule.threshold;
-    }
-  }
-
-  return payload;
-}
-
 export function buildCompetitionDraftRpcPayload(input: CompetitionDraftMutationPayload) {
   return {
     ...input,
@@ -123,9 +97,6 @@ export function buildLegacyCompetitionMutationPayload(input: CompetitionDraftMut
     tie_breaker: toLegacyTieBreaker(input.tieBreaker),
     shuffle_questions: input.shuffleQuestions,
     shuffle_options: input.shuffleOptions,
-    log_tab_switch: input.logTabSwitch,
-    offense_penalties: input.offensePenalties,
-    offense_penalties_json: buildOffensePenaltiesJson(input.offensePenalties),
     safe_exam_browser_mode: input.safeExamBrowserMode,
     safe_exam_browser_config_key_hashes: input.safeExamBrowserConfigKeyHashes,
     published: false,
@@ -336,42 +307,6 @@ function normalizeRecordMap(value: unknown): Record<string, number> {
   return result;
 }
 
-function normalizeOffensePenalties(value: unknown): OffensePenaltyRule[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((entry) => {
-      const record = asRecord(entry);
-      if (!record) {
-        return null;
-      }
-
-      const threshold =
-        typeof record.threshold === "number" && Number.isFinite(record.threshold)
-          ? Math.trunc(record.threshold)
-          : null;
-      const penaltyKind =
-        typeof record.penaltyKind === "string" ? record.penaltyKind : null;
-      const deductionValue =
-        typeof record.deductionValue === "number" && Number.isFinite(record.deductionValue)
-          ? Math.trunc(record.deductionValue)
-          : 0;
-
-      if (threshold === null || !penaltyKind) {
-        return null;
-      }
-
-      return {
-        threshold,
-        penaltyKind: penaltyKind as OffensePenaltyRule["penaltyKind"],
-        deductionValue,
-      };
-    })
-    .filter((entry): entry is OffensePenaltyRule => entry !== null);
-}
-
 function normalizeSafeExamBrowserMode(value: unknown): SafeExamBrowserMode {
   return SAFE_EXAM_BROWSER_MODES.includes(value as SafeExamBrowserMode)
     ? (value as SafeExamBrowserMode)
@@ -462,8 +397,6 @@ export function normalizeCompetitionRecord(row: unknown): CompetitionRecord | nu
     tieBreaker: normalizeTieBreakerToken(record.tie_breaker) ?? "earliest_final_submission",
     shuffleQuestions: Boolean(record.shuffle_questions),
     shuffleOptions: Boolean(record.shuffle_options),
-    logTabSwitch: Boolean(record.log_tab_switch),
-    offensePenalties: normalizeOffensePenalties(record.offense_penalties),
     safeExamBrowserMode: normalizeSafeExamBrowserMode(record.safe_exam_browser_mode),
     safeExamBrowserConfigKeyHashes: normalizeSafeExamBrowserHashes(record.safe_exam_browser_config_key_hashes),
     scoringSnapshotJson:
@@ -525,8 +458,6 @@ export function competitionRecordToFormState(
     tieBreaker: competition.tieBreaker,
     shuffleQuestions: competition.shuffleQuestions,
     shuffleOptions: competition.shuffleOptions,
-    logTabSwitch: competition.logTabSwitch,
-    offensePenalties: competition.offensePenalties,
     safeExamBrowserMode: competition.safeExamBrowserMode,
     safeExamBrowserConfigKeyHashes: competition.safeExamBrowserConfigKeyHashes,
     answerKeyVisibility: competition.answerKeyVisibility,

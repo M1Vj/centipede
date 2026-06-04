@@ -5,12 +5,15 @@ import { Menu, Settings, UserCircle2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
 import { NotificationBellDropdown } from "@/components/notifications/notification-bell-dropdown";
+import type { NotificationItem } from "@/components/notifications/types";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { cn } from "@/lib/utils";
 
 interface OrganizerNavProps {
   isOrganizer: boolean;
   isAuthenticated: boolean;
+  markAllNotificationsRead?: () => Promise<void> | void;
+  notifications?: NotificationItem[] | null;
   unreadCount?: number | null;
 }
 
@@ -26,7 +29,13 @@ const guestItems = [
   { href: "/organizer/status", label: "Status" },
 ];
 
-export function OrganizerNav({ isOrganizer, isAuthenticated, unreadCount = 0 }: OrganizerNavProps) {
+export function OrganizerNav({
+  isOrganizer,
+  isAuthenticated,
+  markAllNotificationsRead,
+  notifications,
+  unreadCount = 0,
+}: OrganizerNavProps) {
   const pathname = usePathname() ?? "";
   const [menuOpen, setMenuOpen] = useState(false);
   const navItems = isAuthenticated && isOrganizer ? organizerItems : guestItems;
@@ -77,11 +86,16 @@ export function OrganizerNav({ isOrganizer, isAuthenticated, unreadCount = 0 }: 
       {isAuthenticated ? (
         <div className="relative hidden md:block">
           <div className="flex items-center gap-4 rounded-full bg-[#0f121a] py-1 pl-6 pr-2">
-            <NotificationBellDropdown label="Organizer notifications" unreadCount={unreadCount} />
+            <NotificationBellDropdown
+              label="Organizer notifications"
+              markAllAction={markAllNotificationsRead}
+              notifications={notifications}
+              unreadCount={unreadCount}
+            />
             <button
               type="button"
               onClick={() => setMenuOpen((current) => !current)}
-              className="w-8 h-8 rounded-full bg-[#f49700] shadow-md cursor-pointer hover:bg-[#e08900] transition-colors flex items-center justify-center text-white font-bold text-[13px]"
+              className="w-8 h-8 rounded-full bg-[#f49700] cursor-pointer hover:bg-[#e08900] transition-colors flex items-center justify-center text-white font-bold text-[13px]"
               aria-expanded={menuOpen}
               aria-haspopup="menu"
             >

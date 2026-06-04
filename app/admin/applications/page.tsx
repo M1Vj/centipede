@@ -447,7 +447,7 @@ export default async function AdminApplicationsPage({
         <div
           className={`rounded-xl border px-4 py-3 text-sm font-medium ${
             isSuccessFeedback
-              ? "border-green-500/30 bg-green-500/10 text-green-700"
+              ? "border-[#f49700]/30 bg-[#fff7e8] text-[#8a5400]"
               : "border-destructive/30 bg-destructive/10 text-destructive"
           }`}
         >

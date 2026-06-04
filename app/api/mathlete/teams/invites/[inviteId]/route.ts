@@ -31,6 +31,33 @@ type InvitationRow = {
   responded_at: string | null;
 };
 
+type LeaderRecipientRow = {
+  profile_id?: string | null;
+};
+
+async function resolveTeamLeaderNotificationRecipients(
+  admin: NonNullable<ReturnType<typeof createAdminClient>>,
+  input: { teamId: string; fallbackRecipientId: string },
+) {
+  const { data, error } = await admin
+    .from("team_memberships")
+    .select("profile_id")
+    .eq("team_id", input.teamId)
+    .eq("role", "leader")
+    .eq("is_active", true)
+    .returns<LeaderRecipientRow[]>();
+
+  if (error) {
+    return [input.fallbackRecipientId];
+  }
+
+  const leaderIds = (data ?? [])
+    .map((row) => row.profile_id)
+    .filter((profileId): profileId is string => typeof profileId === "string" && profileId.length > 0);
+
+  return leaderIds.length > 0 ? [...new Set(leaderIds)] : [input.fallbackRecipientId];
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   const sameOriginError = requireSameOriginMutation(request);
   if (sameOriginError) {
@@ -206,17 +233,26 @@ export async function PATCH(request: Request, context: RouteContext) {
         await attachTeamActionResource(admin, reservation.entryId, membershipRow.id);
       }
 
-      await dispatchTeamNotification({
-        event: "team_invite_accepted",
-        eventIdentityKey: `team_invite_accepted:${invite.id}`,
-        recipientId: invite.inviterId,
-        actorId: actor.userId,
+      const leaderRecipientIds = await resolveTeamLeaderNotificationRecipients(admin, {
         teamId: invite.teamId,
-        inviteId: invite.id,
-        metadata: {
-          inviteeId: actor.userId,
-        },
+        fallbackRecipientId: invite.inviterId,
       });
+
+      await Promise.all(
+        leaderRecipientIds.map((recipientId) =>
+          dispatchTeamNotification({
+            event: "team_invite_accepted",
+            eventIdentityKey: `team_invite_accepted:${invite.id}`,
+            recipientId,
+            actorId: actor.userId,
+            teamId: invite.teamId,
+            inviteId: invite.id,
+            metadata: {
+              inviteeId: actor.userId,
+            },
+          }),
+        ),
+      );
 
       return jsonOk({
         code: "accepted",

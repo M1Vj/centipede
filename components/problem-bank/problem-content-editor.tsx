@@ -39,6 +39,7 @@ export function ProblemContentEditor({
               preferredInitialMode={inferPreferredInitialModeFromValue(contentLatex)}
               placeholder="Enter problem statement.."
               className="w-full bg-transparent border-none outline-none text-[15px] text-[#10182b] placeholder:text-slate-400 font-medium resize-none h-full"
+              previewLabel="Problem preview"
               showPreviewToggle={true}
             />
           </div>
@@ -57,6 +58,7 @@ export function ProblemContentEditor({
               preferredInitialMode={inferPreferredInitialModeFromValue(explanationLatex)}
               placeholder="Explain the solution step-by-step..."
               className="w-full bg-transparent border-none outline-none text-[15px] text-[#10182b] placeholder:text-slate-400 font-medium resize-none h-full"
+              previewLabel="Explanation preview"
               showPreviewToggle={true}
             />
           </div>

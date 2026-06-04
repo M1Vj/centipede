@@ -182,7 +182,7 @@ async function fetchMonitoringParticipants(admin: AdminClient, competitionId: st
 async function fetchMonitoringAttempts(admin: AdminClient, competitionId: string): Promise<MonitoringAttemptSummary[]> {
   const { data, error } = await admin
     .from("competition_attempts")
-    .select("id, registration_id, status, final_score, raw_score, started_at, updated_at, offense_count")
+    .select("id, registration_id, status, final_score, raw_score, started_at, updated_at")
     .eq("competition_id", competitionId)
     .eq("status", "in_progress");
 
@@ -209,7 +209,6 @@ async function fetchMonitoringAttempts(admin: AdminClient, competitionId: string
       score: readNumber(row.final_score) ?? readNumber(row.raw_score),
       startedAt: readString(row.started_at),
       lastHeartbeatAt: readString(row.updated_at),
-      offenseCount: readNumber(row.offense_count) ?? 0,
     }];
   });
 }

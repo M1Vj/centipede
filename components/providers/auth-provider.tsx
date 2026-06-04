@@ -18,7 +18,12 @@ import {
 import { hasEnvVars } from "@/lib/supabase/env";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { useFeedbackRouter } from "@/hooks/use-feedback-router";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  claimAccountInstance,
+  isAccountOpenInAnotherInstance,
+  releaseAccountInstance,
+} from "@/lib/auth/account-instance";
 
 type AuthContextValue = {
   session: Session | null;
@@ -59,8 +64,10 @@ export function AuthProvider({
   initialProfile?: AuthProfile | null;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const feedbackRouter = useFeedbackRouter();
   const isSigningOutRef = useRef(false);
+  const signingOutUserIdRef = useRef<string | null>(null);
   const [session, setSession] = useState<Session | null>(initialSession);
   const [user, setUser] = useState<User | null>(initialUser);
   const [profile, setProfile] = useState<AuthProfile | null>(initialProfile);
@@ -89,6 +96,7 @@ export function AuthProvider({
     }
 
     isSigningOutRef.current = true;
+    signingOutUserIdRef.current = user?.id ?? null;
 
     // Optimistically update the UI to avoid the late-reload header issue
     setSession(null);
@@ -105,6 +113,10 @@ export function AuthProvider({
       // Smooth client-side transition instead of hard full page reload
       router.refresh();
       feedbackRouter.push("/");
+      if (signingOutUserIdRef.current) {
+        releaseAccountInstance(signingOutUserIdRef.current);
+        signingOutUserIdRef.current = null;
+      }
 
       // Hold the signOut promise (and thus the loading modal) open briefly 
       // to let the Next.js client-side router finish navigating to `/`. 
@@ -152,6 +164,96 @@ export function AuthProvider({
       subscription.unsubscribe();
     };
   }, [syncProfile]);
+
+  useEffect(() => {
+    if (!hasEnvVars || !user || pathname === "/auth/login") {
+      return;
+    }
+
+    let isStopped = false;
+
+    const verifyCurrentSession = async () => {
+      try {
+        const response = await fetch("/auth/session", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!isStopped && response.status === 409) {
+          const payload = (await response.json().catch(() => null)) as {
+            redirectTo?: string;
+          } | null;
+          feedbackRouter.push(payload?.redirectTo ?? "/auth/session-replaced");
+        }
+      } catch {
+        // Transient network failures should not sign users out.
+      }
+    };
+
+    const handleFocus = () => {
+      void verifyCurrentSession();
+    };
+
+    void verifyCurrentSession();
+    window.addEventListener("focus", handleFocus);
+    const intervalId = window.setInterval(verifyCurrentSession, 30_000);
+
+    return () => {
+      isStopped = true;
+      window.removeEventListener("focus", handleFocus);
+      window.clearInterval(intervalId);
+    };
+  }, [feedbackRouter, pathname, user]);
+
+  useEffect(() => {
+    if (!hasEnvVars || !user || pathname === "/auth/login") {
+      return;
+    }
+
+    let isStopped = false;
+
+    const syncAccountInstance = () => {
+      if (isStopped || isSigningOutRef.current) {
+        return;
+      }
+
+      if (isAccountOpenInAnotherInstance(user.id)) {
+        feedbackRouter.push("/auth/session-replaced?next=%2Fauth%2Flogin&reason=session_replaced");
+        return;
+      }
+
+      claimAccountInstance(user.id);
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.storageArea === window.localStorage) {
+        syncAccountInstance();
+      }
+    };
+
+    const handleFocus = () => {
+      syncAccountInstance();
+    };
+
+    const handleBeforeUnload = () => {
+      releaseAccountInstance(user.id);
+    };
+
+    syncAccountInstance();
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    const intervalId = window.setInterval(syncAccountInstance, 5_000);
+
+    return () => {
+      isStopped = true;
+      releaseAccountInstance(user.id);
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.clearInterval(intervalId);
+    };
+  }, [feedbackRouter, pathname, user]);
 
   return (
     <AuthContext.Provider

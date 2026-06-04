@@ -9,6 +9,10 @@ import {
   isLegacyCompetitionSelectError,
   normalizeCompetitionRecord,
 } from "@/lib/competition/api";
+import {
+  ORGANIZER_MANAGEMENT_COMPETITION_STATUSES,
+  isOrganizerManagementCompetition,
+} from "@/lib/competition/organizer-management";
 import type { CompetitionRecord } from "@/lib/competition/types";
 
 export default async function OrganizerCompetitionPage() {
@@ -20,6 +24,7 @@ export default async function OrganizerCompetitionPage() {
     .select(COMPETITION_SELECT_COLUMNS)
     .eq("organizer_id", profile?.id)
     .eq("is_deleted", false)
+    .in("status", [...ORGANIZER_MANAGEMENT_COMPETITION_STATUSES])
     .order("created_at", { ascending: false });
 
   const fallbackResult =
@@ -37,7 +42,8 @@ export default async function OrganizerCompetitionPage() {
   const competitions = !error
     ? (data ?? [])
         .map((row) => normalizeCompetitionRecord(row))
-        .filter((row): row is CompetitionRecord => row !== null && !row.isDeleted)
+        .filter((row): row is CompetitionRecord => row !== null)
+        .filter(isOrganizerManagementCompetition)
     : [];
 
   return (
@@ -56,7 +62,7 @@ export default async function OrganizerCompetitionPage() {
           </div>
           <ProgressLink
             href="/organizer/competition/create"
-            className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3.5 rounded-xl font-bold text-[15px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2 self-start md:self-auto no-underline"
+            className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3.5 rounded-xl font-bold text-[15px] transition-all flex items-center gap-2 self-start md:self-auto no-underline"
           >
             <PlusCircle className="w-5 h-5" /> Create New Competition
           </ProgressLink>
@@ -83,7 +89,7 @@ export default async function OrganizerCompetitionPage() {
             </p>
             <ProgressLink
               href="/organizer/competition/create"
-              className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3 rounded-xl font-bold text-[14px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2 no-underline"
+              className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3 rounded-xl font-bold text-[14px] transition-all flex items-center gap-2 no-underline"
             >
               <PlusCircle className="w-5 h-5" /> Create Draft
             </ProgressLink>

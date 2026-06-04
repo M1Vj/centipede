@@ -62,12 +62,20 @@ export default async function MathleteHistoryPage() {
                     {new Date(item.updatedAt).toLocaleString()}
                   </td>
                   <td className="px-6 py-4">
-                    <ProgressLink
-                      href={`/mathlete/competition/${item.competitionId}/leaderboard`}
-                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.1em] text-slate-700 hover:border-slate-400"
-                    >
-                      View leaderboard
-                    </ProgressLink>
+                    <div className="flex flex-wrap gap-2">
+                      <ProgressLink
+                        href={`/mathlete/competition/${item.competitionId}/leaderboard`}
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.1em] text-slate-700 hover:border-slate-400"
+                      >
+                        View leaderboard
+                      </ProgressLink>
+                      <ProgressLink
+                        href={`/mathlete/competition/${item.competitionId}/answer-key`}
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.1em] text-slate-700 hover:border-slate-400"
+                      >
+                        Answer key
+                      </ProgressLink>
+                    </div>
                   </td>
                 </tr>
               ))}

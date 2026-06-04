@@ -46,6 +46,7 @@ type AttemptRow = {
   id: string;
   competition_id: string;
   registration_id: string;
+  participant_profile_id: string | null;
   attempt_no: number;
   status: ArenaAttemptSummary["status"];
   started_at: string;
@@ -86,7 +87,7 @@ type ProblemTypeRow = {
 type TeamMembershipRow = {
   team_id: string;
   role: string;
-  teams: Array<{ id: string; name: string }> | null;
+  teams: { id: string; name: string } | Array<{ id: string; name: string }> | null;
 };
 type RpcLifecycleRow = {
   machine_code: string;
@@ -103,7 +104,7 @@ type RpcLifecycleRow = {
 };
 
 const COMPETITION_DETAIL_SELECT =
-  "id, organizer_id, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, safe_exam_browser_mode, safe_exam_browser_config_key_hashes, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
+  "id, organizer_id, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, safe_exam_browser_mode, safe_exam_browser_config_key_hashes, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
 
 function getAdminOrThrow() {
   const admin = createAdminClient();
@@ -136,7 +137,6 @@ function mapCompetitionSummary(record: CompetitionRecord): ArenaCompetitionSumma
     durationMinutes: record.durationMinutes,
     attemptsAllowed: record.attemptsAllowed,
     participantsPerTeam: record.participantsPerTeam,
-    logTabSwitch: record.logTabSwitch,
     safeExamBrowserMode: record.safeExamBrowserMode,
   };
 }
@@ -197,9 +197,17 @@ async function fetchEligibleTeams(admin: AdminClient, actorUserId: string) {
 
   return rows.map((row) => ({
     id: row.team_id,
-    name: row.teams?.[0]?.name ?? "Unnamed team",
+    name: resolveTeamName(row.teams),
     role: row.role,
   })) satisfies EligibleTeamSummary[];
+}
+
+function resolveTeamName(team: TeamMembershipRow["teams"]) {
+  if (Array.isArray(team)) {
+    return team[0]?.name ?? "Unnamed team";
+  }
+
+  return team?.name ?? "Unnamed team";
 }
 
 async function fetchRegistrations(
@@ -239,13 +247,14 @@ async function fetchRegistrations(
   return registrations;
 }
 
-async function fetchAttempts(admin: AdminClient, registrationId: string) {
+async function fetchAttempts(admin: AdminClient, registrationId: string, actorUserId: string) {
   const { data, error } = await admin
     .from("competition_attempts")
     .select(
-      "id, competition_id, registration_id, attempt_no, status, started_at, submitted_at, total_time_seconds, effective_attempt_deadline_at, attempt_base_deadline_at, scheduled_competition_end_cap_at",
+      "id, competition_id, registration_id, participant_profile_id, attempt_no, status, started_at, submitted_at, total_time_seconds, effective_attempt_deadline_at, attempt_base_deadline_at, scheduled_competition_end_cap_at",
     )
     .eq("registration_id", registrationId)
+    .eq("participant_profile_id", actorUserId)
     .order("attempt_no", { ascending: false });
 
   if (error) {
@@ -332,7 +341,8 @@ function buildRegistrationSummary(
 
   const team = registration.team_id ? teams.find((entry) => entry.id === registration.team_id) ?? null : null;
   const actorIsLeader = team?.role === "leader";
-  const actorCanStart = registration.team_id ? actorIsLeader : true;
+  const actorIsActiveTeamMember = registration.team_id ? team !== null : true;
+  const actorCanStart = registration.team_id ? actorIsActiveTeamMember : true;
   const actorCanWrite = actorCanStart;
 
   return {
@@ -364,6 +374,7 @@ function buildAttemptSummary(
     id: attempt.id,
     competitionId: attempt.competition_id,
     registrationId: attempt.registration_id,
+    participantProfileId: attempt.participant_profile_id,
     attemptNo: attempt.attempt_no,
     status: attempt.status,
     startedAt: attempt.started_at,
@@ -432,7 +443,7 @@ export async function loadArenaPageData(competitionId: string, actorUserId: stri
   const registrations = await fetchRegistrations(admin, competitionId, actorUserId, eligibleTeams);
   const registrationRow = chooseRelevantRegistration(competition, registrations, eligibleTeams);
   const registration = buildRegistrationSummary(registrationRow, competition, eligibleTeams);
-  const attempts = registration ? await fetchAttempts(admin, registration.id) : [];
+  const attempts = registration ? await fetchAttempts(admin, registration.id, actorUserId) : [];
   const activeAttemptRow = attempts.find((attempt) => attempt.status === "in_progress") ?? null;
   const latestAttemptRow = attempts[0] ?? null;
   const hasDisqualifiedAttempt = attempts.some((attempt) => attempt.status === "disqualified");

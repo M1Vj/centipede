@@ -14,6 +14,8 @@ import {
   normalizeCompetitionRecord,
 } from "@/lib/competition/api";
 import type { CompetitionLifecycleResult, CompetitionRecord } from "@/lib/competition/types";
+import { DIFFICULTY_BASE_POINTS } from "@/lib/scoring/types";
+import type { ProblemDifficulty } from "@/lib/problem-bank/types";
 
 export { buildCompetitionDraftRpcPayload, buildLegacyCompetitionMutationPayload };
 
@@ -24,6 +26,11 @@ type ActorProfileRow = {
   id: string;
   role: string;
   is_active: boolean | null;
+};
+
+type LegacyProblemPointsRow = {
+  id: string;
+  difficulty: ProblemDifficulty | null;
 };
 
 export function jsonError(
@@ -213,7 +220,6 @@ export function buildLegacySchemaCompetitionMutationPayload(
   input: Parameters<typeof buildLegacyCompetitionMutationPayload>[0],
 ) {
   const payload: Record<string, unknown> = { ...buildLegacyCompetitionMutationPayload(input) };
-  delete payload.offense_penalties_json;
   delete payload.safe_exam_browser_mode;
   delete payload.safe_exam_browser_config_key_hashes;
   return payload;
@@ -223,6 +229,10 @@ export async function replaceCompetitionProblemsLegacy(
   adminClient: AdminSupabaseClient,
   competitionId: string,
   selectedProblemIds: string[],
+  scoring?: {
+    scoringMode: "difficulty" | "custom";
+    customPointsByProblemId: Record<string, number>;
+  },
 ) {
   const deleteResult = await adminClient.from("competition_problems").delete().eq("competition_id", competitionId);
   if (deleteResult.error) {
@@ -233,11 +243,37 @@ export async function replaceCompetitionProblemsLegacy(
     return { selectedProblemCount: 0 } as const;
   }
 
+  let problemDifficultyById = new Map<string, ProblemDifficulty | null>();
+  if (scoring) {
+    const problemResult = await adminClient
+      .from("problems")
+      .select("id, difficulty")
+      .in("id", selectedProblemIds);
+
+    if (problemResult.error) {
+      return { error: problemResult.error } as const;
+    }
+
+    problemDifficultyById = new Map(
+      ((problemResult.data ?? []) as LegacyProblemPointsRow[]).map((problem) => [
+        problem.id,
+        problem.difficulty,
+      ]),
+    );
+  }
+
   const rows = selectedProblemIds.map((problemId, index) => ({
     competition_id: competitionId,
     problem_id: problemId,
     order_index: index + 1,
-    points: null,
+    points: scoring
+      ? resolveCompetitionProblemPoints(
+          scoring.scoringMode,
+          scoring.customPointsByProblemId,
+          problemDifficultyById.get(problemId) ?? null,
+          problemId,
+        )
+      : null,
   }));
 
   const insertResult = await adminClient.from("competition_problems").insert(rows);
@@ -255,6 +291,21 @@ export async function replaceCompetitionProblemsLegacy(
   }
 
   return { selectedProblemCount: count ?? selectedProblemIds.length } as const;
+}
+
+export function resolveCompetitionProblemPoints(
+  scoringMode: "difficulty" | "custom",
+  customPointsByProblemId: Record<string, number>,
+  difficulty: ProblemDifficulty | null,
+  problemId: string,
+) {
+  const difficultyPoints = difficulty ? DIFFICULTY_BASE_POINTS[difficulty] : DIFFICULTY_BASE_POINTS.easy;
+  if (scoringMode !== "custom") {
+    return difficultyPoints;
+  }
+
+  const customPoints = customPointsByProblemId[problemId];
+  return Number.isFinite(customPoints) ? Math.max(0, Math.trunc(customPoints)) : difficultyPoints;
 }
 
 export async function validateCompetitionProblemSelection(

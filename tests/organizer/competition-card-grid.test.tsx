@@ -43,6 +43,7 @@ function buildCompetition(status: CompetitionRecord["status"], overrides: Partia
   return {
     id: `${status}-competition`,
     organizerId: "organizer-1",
+    leaderboardPublished: false,
     name: `${status === "draft" ? "Draft" : "Published"} Competition`,
     description: "Competition description",
     instructions: "Competition instructions",
@@ -67,8 +68,6 @@ function buildCompetition(status: CompetitionRecord["status"], overrides: Partia
     tieBreaker: "earliest_final_submission",
     shuffleQuestions: false,
     shuffleOptions: false,
-    logTabSwitch: false,
-    offensePenalties: [],
     safeExamBrowserMode: "off",
     safeExamBrowserConfigKeyHashes: [],
     scoringSnapshotJson: null,
@@ -136,6 +135,67 @@ describe("CompetitionCardGrid delete flow", () => {
     expect(screen.queryByText("Draft Competition")).not.toBeInTheDocument();
   });
 
+  test("archives ended competition from the card list and removes it from management view", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <CompetitionCardGrid
+        competitions={[
+          buildCompetition("ended", { id: "ended-competition", name: "Completed Competition" }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Archive competition" }));
+
+    const dialog = await screen.findByRole("alertdialog", { name: "Archive competition?" });
+    expect(dialog).toHaveTextContent(
+      'This will hide "Completed Competition" from your main competition list while preserving history, reports, and registrations.',
+    );
+
+    await user.click(screen.getByRole("button", { name: "Archive" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/organizer/competitions/ended-competition/archive", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "x-idempotency-key": "dashboard-delete-token",
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(routerRefreshMock).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByText("Completed Competition")).not.toBeInTheDocument();
+  });
+
+  test("keeps ended competition visible when archive request fails", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ message: "Archive requires no active attempts." }), {
+        status: 409,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    render(
+      <CompetitionCardGrid
+        competitions={[
+          buildCompetition("ended", { id: "ended-competition", name: "Completed Competition" }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Archive competition" }));
+    await user.click(await screen.findByRole("button", { name: "Archive" }));
+
+    expect(await screen.findByText("Archive requires no active attempts.")).toBeInTheDocument();
+    expect(screen.getByText("Completed Competition")).toBeInTheDocument();
+    expect(routerRefreshMock).not.toHaveBeenCalled();
+  });
+
   test("links published competition management to participants UI", () => {
     render(
       <CompetitionCardGrid
@@ -149,6 +209,7 @@ describe("CompetitionCardGrid delete flow", () => {
       "href",
       "/organizer/competition/published-competition/participants",
     );
+    expect(screen.queryByText("Individual")).not.toBeInTheDocument();
   });
 
   test("links live and paused competition operations to participant monitoring UI", () => {
@@ -174,13 +235,40 @@ describe("CompetitionCardGrid delete flow", () => {
       "/organizer/competition/paused-competition/participants",
     );
   });
+
+  test("links live team competitions to the team live monitoring UI", () => {
+    render(
+      <CompetitionCardGrid
+        competitions={[
+          buildCompetition("live", {
+            id: "live-team-competition",
+            name: "Live Team Competition",
+            format: "team",
+            participantsPerTeam: 2,
+            maxTeams: 8,
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: /live view/i })).toHaveAttribute(
+      "href",
+      "/organizer/competition/live-team-competition/live-teams",
+    );
+    expect(screen.getByRole("link", { name: "Open live monitoring controls" })).toHaveAttribute(
+      "href",
+      "/organizer/competition/live-team-competition/live-teams",
+    );
+  });
 });
 
 describe("CompetitionCardGrid scheduled lifecycle refresh", () => {
+  const scheduledStartTime = "2026-04-25T12:01:00.000Z";
+
   beforeEach(() => {
     routerRefreshMock.mockReset();
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-04-25T00:00:00.000Z"));
+    vi.setSystemTime(new Date("2026-04-25T12:00:00.000Z"));
   });
 
   afterEach(() => {
@@ -195,11 +283,22 @@ describe("CompetitionCardGrid scheduled lifecycle refresh", () => {
             id: "scheduled-competition",
             name: "Scheduled Competition",
             type: "scheduled",
-            startTime: "2026-04-25T00:01:00.000Z",
+            startTime: scheduledStartTime,
           }),
         ]}
       />,
     );
+
+    expect(screen.getByText("Individual")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        new Date(scheduledStartTime).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+      ),
+    ).toBeInTheDocument();
 
     vi.advanceTimersByTime(60_999);
     expect(routerRefreshMock).not.toHaveBeenCalled();

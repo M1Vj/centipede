@@ -266,13 +266,13 @@ export function CompetitionRegistrationPanel({
       ) : null}
 
       {shouldSelectTeam && leaderTeams.length === 0 ? (
-        <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+        <div className="mt-5 rounded-2xl border border-[#f49700]/30 bg-[#fff7e8] px-4 py-3 text-sm text-[#8a5400]">
           You need to be a team leader to register a team competition.
         </div>
       ) : null}
 
       {activeRegistration?.status === "ineligible" && activeRegistration.status_reason ? (
-        <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+        <div className="mt-4 rounded-2xl border border-[#f49700]/30 bg-[#fff7e8] px-4 py-3 text-sm text-[#8a5400]">
           Current ineligible reason: {activeRegistration.status_reason.replace(/_/g, " ")}
         </div>
       ) : null}
@@ -292,7 +292,7 @@ export function CompetitionRegistrationPanel({
           disabled={!canRegister || (shouldSelectTeam && !selectedTeam)}
           pending={isSubmitting}
           pendingText="Submitting..."
-          className="h-11 rounded-xl bg-[#f49700] px-6 text-sm font-black uppercase tracking-[0.14em] text-white shadow-xl shadow-[#f49700]/30 hover:bg-[#e08900]"
+          className="h-11 rounded-xl bg-[#f49700] px-6 text-sm font-black uppercase tracking-[0.14em] text-white hover:bg-[#e08900]"
         >
           Register now
         </Button>

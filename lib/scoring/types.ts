@@ -56,18 +56,6 @@ export const DIFFICULTY_BASE_POINTS: Record<ProblemDifficulty, number> = {
   difficult: 3,
 };
 
-export type OffensePenaltyKind =
-  | "warning"
-  | "deduction"
-  | "forced_submit"
-  | "disqualification";
-
-export interface OffensePenaltyRule {
-  threshold: number;
-  penaltyKind: OffensePenaltyKind;
-  deductionValue: number;
-}
-
 export interface ScoringRuleConfig {
   scoringMode: ScoringMode;
   penaltyMode: PenaltyMode;
@@ -76,8 +64,6 @@ export interface ScoringRuleConfig {
   multiAttemptGradingMode: AttemptGradingMode;
   shuffleQuestions: boolean;
   shuffleOptions: boolean;
-  logTabSwitch: boolean;
-  offensePenalties: OffensePenaltyRule[];
   safeExamBrowserMode: SafeExamBrowserMode;
   safeExamBrowserConfigKeyHashes: string[];
   customPointsByProblemId: Record<string, number>;
@@ -91,8 +77,6 @@ export interface ScoringSnapshot {
   readonly multiAttemptGradingMode: AttemptGradingMode;
   readonly shuffleQuestions: boolean;
   readonly shuffleOptions: boolean;
-  readonly logTabSwitch: boolean;
-  readonly offensePenalties: readonly OffensePenaltyRule[];
   readonly safeExamBrowserMode: SafeExamBrowserMode;
   readonly safeExamBrowserConfigKeyHashes: readonly string[];
   readonly customPointsByProblemId: Readonly<Record<string, number>>;

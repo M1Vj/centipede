@@ -110,8 +110,6 @@ const currentCompetitionRow = {
   tie_breaker: "earliest_submission",
   shuffle_questions: false,
   shuffle_options: false,
-  log_tab_switch: false,
-  offense_penalties: [],
   safe_exam_browser_mode: "off",
   safe_exam_browser_config_key_hashes: [],
   scoring_snapshot_json: null,
@@ -183,6 +181,72 @@ describe("registration api helpers", () => {
           registrationStart: "2026-04-24T00:00:00.000Z",
         },
       },
+    ]);
+  });
+
+  test("listMyRegistrationDetails filters by competition type before applying the limit", async () => {
+    const { client, registrationQuery } = createSupabaseMock({
+      registrations: {
+        data: [
+          {
+            id: "registration-open",
+            competition_id: "competition-open",
+            team_id: null,
+            status: "registered",
+            status_reason: null,
+            registered_at: "2026-04-25T02:00:00.000Z",
+            updated_at: "2026-04-25T02:00:00.000Z",
+          },
+          {
+            id: "registration-scheduled",
+            competition_id: "competition-scheduled",
+            team_id: null,
+            status: "registered",
+            status_reason: null,
+            registered_at: "2026-04-25T01:00:00.000Z",
+            updated_at: "2026-04-25T01:00:00.000Z",
+          },
+        ],
+        error: null,
+      },
+      competitions: {
+        data: [
+          {
+            ...currentCompetitionRow,
+            id: "competition-open",
+            type: "open",
+            name: "Open Practice Arena",
+            start_time: null,
+            registration_start: null,
+            registration_end: null,
+          },
+          {
+            ...currentCompetitionRow,
+            id: "competition-scheduled",
+            name: "Scheduled Invitational",
+          },
+        ],
+        error: null,
+      },
+    });
+    vi.mocked(createClient).mockResolvedValue(client as never);
+
+    const details = await listMyRegistrationDetails({
+      statuses: ["registered"],
+      competitionTypes: ["scheduled"],
+      limit: 1,
+    });
+
+    expect(registrationQuery.limit).not.toHaveBeenCalled();
+    expect(details).toEqual([
+      expect.objectContaining({
+        id: "registration-scheduled",
+        competition_id: "competition-scheduled",
+        competition: expect.objectContaining({
+          id: "competition-scheduled",
+          type: "scheduled",
+        }),
+      }),
     ]);
   });
 

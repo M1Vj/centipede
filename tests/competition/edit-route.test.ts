@@ -66,8 +66,6 @@ function buildCompetitionRow(overrides: Partial<Record<string, unknown>> = {}) {
     tie_breaker: "earliest_final_submission",
     shuffle_questions: false,
     shuffle_options: false,
-    log_tab_switch: false,
-    offense_penalties: [],
     scoring_snapshot_json: null,
     draft_revision: 1,
     draft_version: 1,
@@ -105,8 +103,6 @@ function buildLegacyCompetitionRow(overrides: Partial<Record<string, unknown>> =
     tie_breaker: "average_time",
     shuffle_questions: false,
     shuffle_options: false,
-    log_tab_switch: false,
-    offense_penalties: [],
     published: false,
     is_paused: false,
     created_at: "2026-04-01T00:00:00.000Z",
@@ -225,8 +221,6 @@ describe("competition edit route legacy compatibility", () => {
   });
 
   test("patch falls back to legacy competition select columns when save RPC is unavailable", async () => {
-    const offensePenalties = [{ threshold: 2, penaltyKind: "warning", deductionValue: 0 }];
-
     vi.mocked(createClient).mockResolvedValue(
       makeServerClient({
         competitionSelectResults: {
@@ -292,8 +286,6 @@ describe("competition edit route legacy compatibility", () => {
         registrationEnd: null,
         startTime: "2026-06-01T09:00:00.000Z",
         endTime: null,
-        logTabSwitch: true,
-        offensePenalties,
         selectedProblemIds: [],
       }),
       { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
@@ -305,12 +297,8 @@ describe("competition edit route legacy compatibility", () => {
     expect(body.competition.name).toBe("Legacy Draft Updated");
     expect(updateQuery.select).toHaveBeenCalledWith(LEGACY_COMPETITION_SELECT_COLUMNS);
     expect(updatePayload).not.toHaveProperty("offense_penalties_json");
-    expect(updatePayload).toEqual(
-      expect.objectContaining({
-        log_tab_switch: true,
-        offense_penalties: offensePenalties,
-      }),
-    );
+    expect(updatePayload).not.toHaveProperty("log_tab_switch");
+    expect(updatePayload).not.toHaveProperty("offense_penalties");
   });
 
   test("patch serializes modern scoring tokens before save", async () => {
@@ -372,8 +360,6 @@ describe("competition edit route legacy compatibility", () => {
         tieBreaker: "lowest_total_time",
         shuffleQuestions: false,
         shuffleOptions: false,
-        logTabSwitch: false,
-        offensePenalties: [],
         answerKeyVisibility: "after_end",
         deductionValue: 1,
         selectedProblemIds: ["problem-1"],
@@ -460,8 +446,6 @@ describe("competition edit route legacy compatibility", () => {
         tieBreaker: "lowest_total_time",
         shuffleQuestions: false,
         shuffleOptions: false,
-        logTabSwitch: false,
-        offensePenalties: [],
         answerKeyVisibility: "after_end",
         deductionValue: 1,
         selectedProblemIds: [],
@@ -553,8 +537,6 @@ describe("competition edit route legacy compatibility", () => {
         tieBreaker: "lowest_total_time",
         shuffleQuestions: false,
         shuffleOptions: false,
-        logTabSwitch: false,
-        offensePenalties: [],
         answerKeyVisibility: "after_end",
         selectedProblemIds: ["problem-1"],
       }),

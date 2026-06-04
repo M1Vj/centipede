@@ -264,7 +264,7 @@ async function OrganizerPageContent() {
             status: competition.status,
             registrationCount: registrationCounts.get(competition.id) ?? 0,
             capacity: competition.format === "team" ? competition.maxTeams : competition.maxParticipants,
-            dateLabel: formatCompactDate(competition.startTime),
+            dateLabel: competition.type === "scheduled" ? formatCompactDate(competition.startTime) : null,
             href: `/organizer/competition/${competition.id}`,
           }));
 

@@ -117,7 +117,7 @@ export function TeamList() {
         </div>
 
         <div className="relative mt-14 grid gap-6 lg:grid-cols-2">
-          <article className="group flex flex-col rounded-[2rem] border border-slate-100 bg-white p-8 text-center shadow-[0_24px_56px_-34px_rgba(15,23,42,0.18)] transition-transform duration-300 hover:-translate-y-1">
+          <article className="group flex flex-col rounded-[2rem] border border-slate-200 bg-white p-8 text-center shadow-[0_24px_56px_-34px_rgba(15,23,42,0.18)] transition-all duration-300 hover:border-[#f49700]/50 hover:shadow-md">
             <div className="mx-auto flex h-[60px] w-[60px] items-center justify-center rounded-2xl bg-[#fef5e6] text-[#f49700]">
               <CirclePlus className="size-7" />
             </div>
@@ -131,25 +131,25 @@ export function TeamList() {
               </p>
             </div>
             <div className="mt-8 grid gap-3 text-left sm:grid-cols-2">
-              <div className="rounded-[1.4rem] border border-slate-100 bg-[#faf7f2] p-4">
+              <div className="rounded-[1.4rem] border border-slate-100 bg-slate-50 p-4">
                 <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
                   Capacity
                 </p>
-                <p className="mt-2 text-base font-semibold text-[#13233b]">Up to 5 members</p>
+                <p className="mt-2 text-base font-semibold text-foreground">Up to 5 members</p>
               </div>
-              <div className="rounded-[1.4rem] border border-slate-100 bg-[#faf7f2] p-4">
+              <div className="rounded-[1.4rem] border border-slate-100 bg-slate-50 p-4">
                 <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
                   Leader Tools
                 </p>
-                <p className="mt-2 text-base font-semibold text-[#13233b]">Invite and manage</p>
+                <p className="mt-2 text-base font-semibold text-foreground">Invite and manage</p>
               </div>
             </div>
-            <Button asChild className="mt-8 h-12 rounded-xl bg-[#f49700] text-sm font-bold text-[#1a1e2e] shadow-[0_14px_30px_-18px_rgba(244,151,0,0.8)] hover:bg-[#e68b00] hover:text-[#1a1e2e]">
+            <Button asChild className="mt-8 h-12 rounded-xl bg-primary text-sm font-bold text-primary-foreground hover:bg-primary/90">
               <ProgressLink href="/mathlete/teams/create">Create Team</ProgressLink>
             </Button>
           </article>
 
-          <article className="relative overflow-hidden rounded-[2rem] border border-white/5 bg-[#1a1e2e] p-8 text-center text-white shadow-[0_30px_64px_-36px_rgba(16,24,43,0.82)] transition-transform duration-300 hover:-translate-y-1">
+          <article className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#1a1e2e] p-8 text-center text-white shadow-[0_30px_64px_-36px_rgba(16,24,43,0.82)] transition-all duration-300 hover:border-[#f49700]/50 hover:shadow-md">
             <div
               aria-hidden="true"
               className="pointer-events-none absolute right-0 top-0 h-40 w-40 rounded-full bg-white/6 blur-[56px]"
@@ -176,7 +176,7 @@ export function TeamList() {
               </p>
             </div>
             <div className="relative mt-8 flex flex-col gap-3 sm:flex-row">
-              <Button asChild className="h-12 flex-1 rounded-xl bg-[#f49700] text-sm font-bold text-[#1a1e2e] hover:bg-[#e68b00] hover:text-[#1a1e2e]">
+              <Button asChild className="h-12 flex-1 rounded-xl bg-primary text-sm font-bold text-primary-foreground hover:bg-primary/90">
                 <ProgressLink href="/mathlete/teams/join">Join via code</ProgressLink>
               </Button>
               <Button asChild variant="ghost" className="h-12 flex-1 rounded-xl text-sm font-semibold text-white hover:bg-white/8 hover:text-white">
@@ -198,24 +198,24 @@ export function TeamList() {
             <article
               key={team.id}
               className={cn(
-                "group relative flex min-h-[220px] flex-col overflow-hidden rounded-[1.75rem] border p-6 shadow-[0_24px_56px_-42px_rgba(15,23,42,0.28)] transition-transform duration-300 hover:-translate-y-1",
+                "group relative flex min-h-[220px] flex-col overflow-hidden rounded-[1.75rem] border p-6 shadow-[0_24px_56px_-42px_rgba(15,23,42,0.28)] transition-all duration-300 hover:border-[#f49700]/50 hover:shadow-md",
                 isLeader
-                  ? "border-[#f49700]/20 bg-[linear-gradient(180deg,#fff8ee_0%,#ffffff_60%)]"
-                  : "border-white/80 bg-white",
+                  ? "border-primary/20 bg-[linear-gradient(180deg,#fff8ee_0%,#ffffff_60%)]"
+                  : "border-slate-200 bg-white",
               )}
             >
               <div
                 aria-hidden="true"
                 className={cn(
                   "pointer-events-none absolute right-0 top-0 h-32 w-32 rounded-full blur-3xl",
-                  isLeader ? "bg-[#f49700]/16" : "bg-[#10182b]/6",
+                  isLeader ? "bg-primary/15" : "bg-secondary/10",
                 )}
               />
 
               <div className="relative flex flex-1 flex-col">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1.5">
-                    <h2 className="text-[1.55rem] font-black tracking-[-0.05em] text-[#10182b]">
+                    <h2 className="text-[1.55rem] font-black tracking-[-0.05em] text-foreground">
                       {team.name}
                     </h2>
                     <p className="text-sm font-medium text-slate-500">
@@ -240,7 +240,7 @@ export function TeamList() {
                 </div>
 
                 <div className="mt-auto pt-6">
-                  <Button asChild className="h-11 w-full rounded-full bg-[#10182b] px-5 text-sm font-semibold text-white hover:bg-[#1b2742]">
+                  <Button asChild className="h-11 w-full rounded-full bg-secondary px-5 text-sm font-semibold text-secondary-foreground hover:bg-secondary/90">
                     <ProgressLink href={`/mathlete/teams/${team.id}`} className="inline-flex items-center gap-2">
                       {isLeader ? "Manage team" : "View team"}
                       <ArrowRight className="size-4" />
@@ -254,14 +254,14 @@ export function TeamList() {
 
         <ProgressLink
           href="/mathlete/teams/create"
-          className="flex min-h-[220px] flex-col justify-between rounded-[1.75rem] border-2 border-dashed border-slate-300 bg-white/55 p-6 transition hover:border-[#f49700]/40 hover:bg-white"
+          className="flex min-h-[220px] flex-col justify-between rounded-[1.75rem] border border-slate-200 bg-white/55 p-6 transition-all duration-300 hover:border-[#f49700]/50 hover:bg-white hover:shadow-md"
         >
           <div className="space-y-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-[1.2rem] bg-slate-100 text-slate-600">
               <CirclePlus className="size-5" />
             </div>
             <div className="space-y-2">
-              <p className="text-[1.45rem] font-black tracking-[-0.05em] text-[#10182b]">
+              <p className="text-[1.45rem] font-black tracking-[-0.05em] text-foreground">
                 Add another team
               </p>
               <p className="text-sm leading-7 text-slate-500">

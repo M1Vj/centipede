@@ -70,6 +70,7 @@ Strict adherence to border radii is required to maintain the MathWiz brand feel.
 ### 5.1 Main Cards
 - **Light Mode:** White background (`bg-white`), subtle border (`border border-slate-100`), and light shadow (`shadow-sm`).
 - **Dark Mode / Accent Cards:** Dark Navy background (`bg-[#1a1e2e]`), no border, strong shadow (`shadow-xl`), often paired with absolute positioned blurred accent blobs for visual flair.
+- **Hover State:** Repeated interactive cards must use the problem-bank card hover treatment: `transition-all duration-300 hover:border-[#f49700]/50 hover:shadow-md`. Keep the default border visible (`border border-slate-200` for light cards) so the orange hairline outline reads consistently on hover. Do not use lift/scale hover motion for standard cards unless the component has a specific game-like interaction need.
 
 ### 5.2 Buttons
 - **Primary Action (Orange):**

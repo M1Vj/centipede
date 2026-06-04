@@ -1,7 +1,14 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { CompetitionSearchFilters } from "@/lib/competition/discovery";
+import {
+  buildCompetitionSearchParams,
+  type CompetitionSearchFilters,
+} from "@/lib/competition/discovery";
 
 type CompetitionFiltersProps = {
   actionPath: string;
@@ -9,7 +16,45 @@ type CompetitionFiltersProps = {
   total: number;
 };
 
+const SEARCH_DEBOUNCE_MS = 300;
+
+function buildFilterHref(actionPath: string, filters: CompetitionSearchFilters) {
+  const params = buildCompetitionSearchParams(filters, 1);
+  const queryString = params.toString();
+
+  return queryString ? `${actionPath}?${queryString}` : actionPath;
+}
+
 export function CompetitionFilters({ actionPath, filters, total }: CompetitionFiltersProps) {
+  const router = useRouter();
+  const [query, setQuery] = useState(filters.query);
+
+  useEffect(() => {
+    setQuery(filters.query);
+  }, [filters.query]);
+
+  useEffect(() => {
+    const normalizedQuery = query.trim().slice(0, 120);
+
+    if (normalizedQuery === filters.query) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      router.replace(
+        buildFilterHref(actionPath, {
+          ...filters,
+          query: normalizedQuery,
+        }),
+        { scroll: false },
+      );
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [actionPath, filters, query, router]);
+
   return (
     <form
       action={actionPath}
@@ -23,7 +68,7 @@ export function CompetitionFilters({ actionPath, filters, total }: CompetitionFi
         </div>
         <Button
           type="submit"
-          className="h-11 rounded-xl bg-[#f49700] px-5 text-sm font-black uppercase tracking-[0.14em] text-white shadow-xl shadow-[#f49700]/30 hover:bg-[#e08900]"
+          className="h-11 rounded-xl bg-[#f49700] px-5 text-sm font-black uppercase tracking-[0.14em] text-white hover:bg-[#e08900]"
         >
           Apply filters
         </Button>
@@ -40,7 +85,10 @@ export function CompetitionFilters({ actionPath, filters, total }: CompetitionFi
           <Input
             id="competition-search"
             name="q"
-            defaultValue={filters.query}
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+            }}
             placeholder="Search by name or description"
             className="h-11 rounded-xl border-slate-200 bg-white text-sm text-[#0f1c2c] shadow-none focus-visible:ring-[#f49700]"
           />

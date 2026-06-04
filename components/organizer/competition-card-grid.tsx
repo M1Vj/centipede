@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   Play,
   Eye,
+  Archive,
 } from "lucide-react";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -95,11 +96,15 @@ function StatusBadge({ status }: { status: CompetitionRecord["status"] }) {
 
 function CompetitionCard({
   competition,
+  archivingCompetitionId,
   deletingCompetitionId,
+  onRequestArchive,
   onRequestDelete,
 }: {
   competition: CompetitionRecord;
+  archivingCompetitionId: string | null;
   deletingCompetitionId: string | null;
+  onRequestArchive: (competition: CompetitionRecord) => void;
   onRequestDelete: (competition: CompetitionRecord) => void;
 }) {
   const isLive = competition.status === "live";
@@ -107,9 +112,15 @@ function CompetitionCard({
   const isUpcoming = competition.status === "published";
   const isDraft = competition.status === "draft";
   const isCompleted = competition.status === "ended" || competition.status === "archived";
+  const canArchive = competition.status === "ended";
+  const isArchiving = archivingCompetitionId === competition.id;
   const isDeleting = deletingCompetitionId === competition.id;
   const deleteButtonLabel = isDraft ? "Delete draft competition" : "Delete competition unavailable";
-  const monitoringHref = `/organizer/competition/${competition.id}/participants`;
+  const monitoringHref =
+    competition.status === "live" && competition.format === "team"
+      ? `/organizer/competition/${competition.id}/live-teams`
+      : `/organizer/competition/${competition.id}/participants`;
+  const showCompetitionMetadata = competition.type === "scheduled";
 
   const cardBase = isDraft
     ? "bg-white rounded-2xl border-2 border-dashed border-[#e2e8f0] p-5 flex flex-col relative h-[260px] hover:bg-slate-50/50 transition-colors"
@@ -148,7 +159,7 @@ function CompetitionCard({
               <Edit3 className="w-4 h-4" /> Drafting Content
             </div>
           </div>
-        ) : (
+        ) : showCompetitionMetadata ? (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-slate-500 text-[13px] font-medium">
             <div className="flex items-center gap-1.5">
               {competition.format === "team" ? (
@@ -170,7 +181,7 @@ function CompetitionCard({
               </div>
             )}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Footer Actions */}
@@ -235,7 +246,7 @@ function CompetitionCard({
           <>
             <ProgressLink
               href={`/organizer/competition/${competition.id}`}
-              className="flex-1 bg-[#f49700] hover:bg-[#e08900] text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2 shadow-sm"
+              className="flex-1 bg-[#f49700] hover:bg-[#e08900] text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2"
             >
               <Edit3 className="w-4 h-4" /> Edit Draft
             </ProgressLink>
@@ -255,12 +266,26 @@ function CompetitionCard({
         )}
 
         {isCompleted && (
-          <ProgressLink
-            href={`/organizer/competition/${competition.id}/leaderboard`}
-            className="flex-1 bg-white border border-slate-200 hover:border-slate-300 text-[#10182b] shadow-sm hover:shadow-md py-3 rounded-xl font-bold text-[14px] transition-all flex items-center justify-center gap-2"
-          >
-            <BarChart2 className="w-4 h-4" /> View Report
-          </ProgressLink>
+          <>
+            <ProgressLink
+              href={`/organizer/competition/${competition.id}/leaderboard`}
+              className="flex-1 bg-white border border-slate-200 hover:border-slate-300 text-[#10182b] shadow-sm hover:shadow-md py-3 rounded-xl font-bold text-[14px] transition-all flex items-center justify-center gap-2"
+            >
+              <BarChart2 className="w-4 h-4" /> View Report
+            </ProgressLink>
+            <button
+              type="button"
+              aria-label="Archive competition"
+              title={canArchive ? "Archive competition" : "Competition already archived"}
+              disabled={!canArchive || isArchiving}
+              onClick={() => {
+                onRequestArchive(competition);
+              }}
+              className="w-12 h-12 shrink-0 bg-white hover:bg-slate-50 hover:text-[#10182b] rounded-xl flex items-center justify-center text-slate-500 transition-colors border border-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-300 disabled:hover:text-slate-300"
+            >
+              <Archive className="w-5 h-5" />
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -274,8 +299,11 @@ interface CompetitionCardGridProps {
 export function CompetitionCardGrid({ competitions }: CompetitionCardGridProps) {
   const [activeTab, setActiveTab] = useState<Tab>("All Events");
   const [items, setItems] = useState(competitions);
+  const [competitionToArchive, setCompetitionToArchive] = useState<CompetitionRecord | null>(null);
   const [competitionToDelete, setCompetitionToDelete] = useState<CompetitionRecord | null>(null);
+  const [archivingCompetitionId, setArchivingCompetitionId] = useState<string | null>(null);
   const [deletingCompetitionId, setDeletingCompetitionId] = useState<string | null>(null);
+  const [archiveError, setArchiveError] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const router = useRouter();
 
@@ -320,6 +348,43 @@ export function CompetitionCardGrid({ competitions }: CompetitionCardGridProps) 
     activeTab === "All Events"
       ? items
       : items.filter((c) => mapStatusToTab(c.status) === activeTab);
+
+  async function handleArchiveCompetition() {
+    const competition = competitionToArchive;
+    if (!competition) {
+      return;
+    }
+
+    if (competition.status !== "ended") {
+      return;
+    }
+
+    setArchivingCompetitionId(competition.id);
+    setArchiveError("");
+    try {
+      const response = await fetch(`/api/organizer/competitions/${competition.id}/archive`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "x-idempotency-key": crypto.randomUUID(),
+        },
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        setArchiveError(payload?.message ?? "Competition could not be archived.");
+        return;
+      }
+
+      setItems((current) => current.filter((item) => item.id !== competition.id));
+      setCompetitionToArchive(null);
+      router.refresh();
+    } catch (error) {
+      setArchiveError(error instanceof Error ? error.message : "Competition could not be archived.");
+    } finally {
+      setArchivingCompetitionId((current) => (current === competition.id ? null : current));
+    }
+  }
 
   async function handleDeleteCompetition() {
     const competition = competitionToDelete;
@@ -383,7 +448,12 @@ export function CompetitionCardGrid({ competitions }: CompetitionCardGridProps) 
           <CompetitionCard
             key={competition.id}
             competition={competition}
+            archivingCompetitionId={archivingCompetitionId}
             deletingCompetitionId={deletingCompetitionId}
+            onRequestArchive={(nextCompetition) => {
+              setArchiveError("");
+              setCompetitionToArchive(nextCompetition);
+            }}
             onRequestDelete={(nextCompetition) => {
               setDeleteError("");
               setCompetitionToDelete(nextCompetition);
@@ -419,6 +489,30 @@ export function CompetitionCardGrid({ competitions }: CompetitionCardGridProps) 
           </p>
         </div>
       )}
+
+      <ConfirmDialog
+        open={competitionToArchive !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCompetitionToArchive(null);
+            setArchiveError("");
+          }
+        }}
+        title="Archive competition?"
+        description={`This will hide "${competitionToArchive?.name || "Untitled competition"}" from your main competition list while preserving history, reports, and registrations.`}
+        confirmLabel="Archive"
+        confirmDisabled={archivingCompetitionId !== null}
+        confirmVariant="default"
+        pending={archivingCompetitionId !== null}
+        pendingLabel="Archiving..."
+        onConfirm={handleArchiveCompetition}
+      >
+        {archiveError ? (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+            {archiveError}
+          </p>
+        ) : null}
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={competitionToDelete !== null}

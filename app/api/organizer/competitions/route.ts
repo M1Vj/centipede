@@ -56,8 +56,6 @@ function buildCreationDraftState(payload: Record<string, unknown> | null): Compe
     tieBreaker: baseState.tieBreaker,
     shuffleQuestions: false,
     shuffleOptions: false,
-    logTabSwitch: false,
-    offensePenalties: [],
     safeExamBrowserMode: "off",
     safeExamBrowserConfigKeyHashes: [],
     answerKeyVisibility: baseState.answerKeyVisibility,
@@ -284,6 +282,7 @@ export async function POST(request: Request) {
           adminClient,
           createdCompetition.id,
           selectionCheck.selectedProblemIds,
+          validation.value,
         );
 
         if ("error" in legacySyncResult) {
@@ -373,6 +372,7 @@ export async function POST(request: Request) {
         adminClient,
         competition.id,
         selectionCheck.selectedProblemIds,
+        validation.value,
       );
 
       if ("error" in legacySyncResult) {

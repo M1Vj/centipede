@@ -29,11 +29,13 @@ export default async function AnswerKeyPage({
           answerKeyVisibility: data.competition.answerKeyVisibility,
           status: data.competition.status,
         },
-        attempt: {
-          id: data.attempt?.id ?? "",
-          attemptNo: data.attempt?.attemptNo ?? 0,
-          finalScore: data.attempt?.finalScore ?? null,
-        },
+        attempt: data.attempt
+          ? {
+              id: data.attempt.id,
+              attemptNo: data.attempt.attemptNo,
+              finalScore: data.attempt.finalScore,
+            }
+          : null,
         canViewAnswerKey: data.visibility.allowed,
         canDispute: data.visibility.allowed && Boolean(data.attempt),
         problems: data.problems.map((problem) => ({
@@ -44,7 +46,10 @@ export default async function AnswerKeyPage({
           contentLatex: problem.contentLatex,
           explanationLatex: problem.explanationLatex,
           answerKeyLatex: problem.answerKeyLatex,
+          isCorrect: problem.isCorrect,
+          pointsAwarded: problem.pointsAwarded,
           existingDisputeStatus: problem.existingDisputeStatus,
+          existingDisputeResolutionNote: problem.existingDisputeResolutionNote,
         })),
       }}
     />

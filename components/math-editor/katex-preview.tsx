@@ -5,10 +5,11 @@ import { cn } from "@/lib/utils";
 
 interface KatexPreviewProps {
   latex: string;
-  label?: string;
+  label?: string | null;
   displayMode?: boolean;
   className?: string;
   fallbackText?: string;
+  variant?: "card" | "arena" | "choice";
 }
 
 interface DollarDelimitedSegment {
@@ -525,6 +526,7 @@ export function KatexPreview({
   displayMode = true,
   className,
   fallbackText = "No preview available.",
+  variant = "card",
 }: KatexPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hasRenderFailure, setHasRenderFailure] = useState(false);
@@ -575,20 +577,29 @@ export function KatexPreview({
     };
   }, [displayMode, normalizedLatex]);
 
+  const surfaceClassName =
+    variant === "choice"
+      ? "min-w-0 text-sm text-[#1a1e2e]"
+      : variant === "arena"
+        ? "min-w-0 rounded-[24px] border border-[#1a1e2e]/10 bg-white px-5 py-4 text-base text-[#1a1e2e] shadow-sm"
+        : "min-w-0 rounded-[20px] border border-slate-200 bg-white p-4 text-sm text-[#1a1e2e] shadow-sm";
+
   return (
     <div className={cn("grid min-w-0 gap-2", className)}>
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <div className="min-w-0 rounded-md border border-border/70 bg-muted/20 p-3 text-sm">
+      {label ? (
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">{label}</p>
+      ) : null}
+      <div className={surfaceClassName}>
         {normalizedLatex ? (
           <div className="min-w-0 overflow-x-auto overflow-y-hidden">
-            <div ref={containerRef} className="w-max" />
+            <div ref={containerRef} className="min-w-max" />
           </div>
         ) : (
-          <p className="text-muted-foreground">{fallbackText}</p>
+          <p className="text-slate-500">{fallbackText}</p>
         )}
       </div>
       {hasRenderFailure ? (
-        <p className="text-xs text-muted-foreground">Rendered in plain text fallback mode.</p>
+        <p className="text-xs font-semibold text-red-600">Rendered in plain text fallback mode.</p>
       ) : null}
     </div>
   );

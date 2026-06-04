@@ -961,9 +961,6 @@ function AttemptSummary({
           <Badge variant="outline" className={riskClass(attempt.riskLevel)}>
             {attempt.riskLevel[0].toUpperCase() + attempt.riskLevel.slice(1)} risk
           </Badge>
-          <Badge variant="outline" className={attempt.offenseCount > 0 ? "border-red-200 text-red-700" : ""}>
-            Offenses {attempt.offenseCount}
-          </Badge>
         </div>
       </div>
       <div className="border-t border-slate-100 px-4 py-3">
@@ -1028,7 +1025,7 @@ function FinishedMathletesPanel({ attempts }: { attempts: MonitoringAttemptSumma
                   </Badge>
                 </div>
                 <p className="mt-2 text-xs font-semibold text-slate-500">
-                  Seen {formatDateTime(attempt.lastSeenAt)} · Offenses {attempt.offenseCount}
+                  Seen {formatDateTime(attempt.lastSeenAt)}
                 </p>
               </div>
               <div className="text-sm font-bold text-slate-900">

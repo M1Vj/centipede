@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { POST as publishLeaderboard } from "@/app/api/organizer/competitions/[competitionId]/leaderboard/publish/route";
+import { POST as releaseAnswerKey } from "@/app/api/organizer/competitions/[competitionId]/answer-key/release/route";
 import { POST as resolveDispute } from "@/app/api/organizer/competitions/[competitionId]/disputes/[disputeId]/resolve/route";
 import { POST as queueExport } from "@/app/organizer/competition/[competitionId]/exports/route";
+import { dispatchCompetitionNotification } from "@/lib/notifications/dispatch";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,7 +16,11 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 vi.mock("@/lib/notifications/dispatch", () => ({
-  dispatchCompetitionNotification: vi.fn().mockResolvedValue(undefined),
+  dispatchCompetitionNotification: vi.fn().mockResolvedValue({
+    ok: true,
+    skipped: false,
+    notificationId: "notification-1",
+  }),
 }));
 
 const COMPETITION_ID = "competition-1";
@@ -38,7 +44,7 @@ function chainQuery(result: QueryResult) {
   return query;
 }
 
-function makeCompetitionRow() {
+function makeCompetitionRow(overrides: Record<string, unknown> = {}) {
   return {
     id: COMPETITION_ID,
     organizer_id: ORGANIZER_ID,
@@ -66,8 +72,6 @@ function makeCompetitionRow() {
     tie_breaker: "earliest_final_submission",
     shuffle_questions: false,
     shuffle_options: false,
-    log_tab_switch: false,
-    offense_penalties_json: [],
     safe_exam_browser_mode: "off",
     safe_exam_browser_config_key_hashes: [],
     scoring_snapshot_json: null,
@@ -78,10 +82,11 @@ function makeCompetitionRow() {
     published_at: null,
     created_at: "2026-05-01T00:00:00.000Z",
     updated_at: "2026-05-01T00:00:00.000Z",
+    ...overrides,
   };
 }
 
-function makeOrganizerClient(userRpc = vi.fn()) {
+function makeOrganizerClient(userRpc = vi.fn(), competitionOverrides: Record<string, unknown> = {}) {
   return {
     auth: {
       getUser: vi.fn().mockResolvedValue({
@@ -105,7 +110,7 @@ function makeOrganizerClient(userRpc = vi.fn()) {
 
       if (table === "competitions") {
         return chainQuery({
-          data: makeCompetitionRow(),
+          data: makeCompetitionRow(competitionOverrides),
           error: null,
         });
       }
@@ -115,9 +120,10 @@ function makeOrganizerClient(userRpc = vi.fn()) {
   };
 }
 
-function makeAdminClient(rpc = vi.fn()) {
+function makeAdminClient(rpc = vi.fn(), from = vi.fn()) {
   return {
     rpc,
+    from,
   };
 }
 
@@ -134,6 +140,10 @@ function makePostRequest(path: string, body: Record<string, unknown> = {}) {
   });
 }
 
+function assertResponse(response: Response | undefined): asserts response is Response {
+  expect(response).toBeDefined();
+}
+
 describe("branch 14 organizer mutation routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -141,16 +151,33 @@ describe("branch 14 organizer mutation routes", () => {
 
   test("publishes leaderboard through service-role RPC after actor authorization", async () => {
     const userRpc = vi.fn();
-    const adminRpc = vi.fn().mockResolvedValue({
-      data: [{
-        machine_code: "ok",
-        competition_id: COMPETITION_ID,
-        leaderboard_published: true,
-        event_id: "event-1",
-        replayed: false,
-        changed: true,
-      }],
-      error: null,
+    const adminRpc = vi.fn().mockImplementation((fnName: string) => {
+      if (fnName === "publish_leaderboard") {
+        return Promise.resolve({
+          data: [{
+            machine_code: "ok",
+            competition_id: COMPETITION_ID,
+            leaderboard_published: true,
+            event_id: "event-1",
+            replayed: false,
+            changed: true,
+          }],
+          error: null,
+        });
+      }
+
+      if (fnName === "refresh_leaderboard_entries") {
+        return Promise.resolve({
+          data: [{
+            machine_code: "ok",
+            competition_id: COMPETITION_ID,
+            refreshed_rows: 1,
+          }],
+          error: null,
+        });
+      }
+
+      return Promise.resolve({ data: null, error: null });
     });
 
     vi.mocked(createClient).mockResolvedValue(makeOrganizerClient(userRpc) as never);
@@ -161,6 +188,7 @@ describe("branch 14 organizer mutation routes", () => {
       { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
     );
 
+    assertResponse(response);
     expect(response.status).toBe(200);
     expect(userRpc).not.toHaveBeenCalled();
     expect(adminRpc).toHaveBeenCalledWith("publish_leaderboard", {
@@ -168,6 +196,83 @@ describe("branch 14 organizer mutation routes", () => {
       p_request_idempotency_token: "idem-token-123",
       p_actor_user_id: ORGANIZER_ID,
     });
+    expect(adminRpc).toHaveBeenCalledWith("refresh_leaderboard_entries", {
+      p_competition_id: COMPETITION_ID,
+    });
+  });
+
+  test("releases hidden answer key and notifies registered mathletes", async () => {
+    const userRpc = vi.fn();
+    const adminRpc = vi.fn();
+    const registrationsQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+    };
+    registrationsQuery.select.mockReturnValue(registrationsQuery);
+    registrationsQuery.eq
+      .mockReturnValueOnce(registrationsQuery)
+      .mockResolvedValueOnce({
+        data: [{
+          id: "registration-1",
+          profile_id: "mathlete-1",
+          team_id: null,
+        }],
+        error: null,
+      });
+
+    const updateQuery = {
+      update: vi.fn(),
+      eq: vi.fn(),
+      select: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { id: COMPETITION_ID },
+        error: null,
+      }),
+    };
+    updateQuery.update.mockReturnValue(updateQuery);
+    updateQuery.eq.mockReturnValue(updateQuery);
+    updateQuery.select.mockReturnValue(updateQuery);
+
+    const from = vi.fn((table: string) => {
+      if (table === "competition_registrations") {
+        return registrationsQuery;
+      }
+
+      if (table === "competitions") {
+        return updateQuery;
+      }
+
+      throw new Error(`Unexpected admin table: ${table}`);
+    });
+
+    vi.mocked(createClient).mockResolvedValue(
+      makeOrganizerClient(userRpc, {
+        answer_key_visibility: "hidden",
+        end_time: "2026-05-01T00:00:00.000Z",
+      }) as never,
+    );
+    vi.mocked(createAdminClient).mockReturnValue(makeAdminClient(adminRpc, from) as never);
+
+    const response = await releaseAnswerKey(
+      makePostRequest(`/api/organizer/competitions/${COMPETITION_ID}/answer-key/release`),
+      { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
+    );
+    assertResponse(response);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      answerKeyVisibility: "after_end",
+      changed: true,
+      notifiedCount: 1,
+    });
+    expect(updateQuery.update).toHaveBeenCalledWith({ answer_key_visibility: "after_end" });
+    expect(dispatchCompetitionNotification).toHaveBeenCalledWith(expect.objectContaining({
+      event: "answer_key_released",
+      recipientId: "mathlete-1",
+      competitionId: COMPETITION_ID,
+      linkPath: `/mathlete/competition/${COMPETITION_ID}/answer-key`,
+    }));
   });
 
   test("resolves accepted disputes through service-role RPC so recalculation can run", async () => {
@@ -197,6 +302,7 @@ describe("branch 14 organizer mutation routes", () => {
       { params: Promise.resolve({ competitionId: COMPETITION_ID, disputeId: DISPUTE_ID }) },
     );
 
+    assertResponse(response);
     expect(response.status).toBe(200);
     expect(userRpc).not.toHaveBeenCalled();
     expect(adminRpc).toHaveBeenCalledWith("resolve_problem_dispute", {
@@ -206,6 +312,39 @@ describe("branch 14 organizer mutation routes", () => {
       p_request_idempotency_token: "idem-token-123",
       p_actor_user_id: ORGANIZER_ID,
     });
+  });
+
+  test("rejects dispute resolution payloads for a different competition", async () => {
+    const userRpc = vi.fn();
+    const adminRpc = vi.fn().mockResolvedValue({
+      data: [{
+        machine_code: "ok",
+        dispute_id: DISPUTE_ID,
+        competition_id: "other-competition",
+        status: "accepted",
+        correction_id: "correction-1",
+        replayed: false,
+        changed: true,
+        resolved_at: "2026-05-01T00:00:00.000Z",
+      }],
+      error: null,
+    });
+
+    vi.mocked(createClient).mockResolvedValue(makeOrganizerClient(userRpc) as never);
+    vi.mocked(createAdminClient).mockReturnValue(makeAdminClient(adminRpc) as never);
+
+    const response = await resolveDispute(
+      makePostRequest(`/api/organizer/competitions/${COMPETITION_ID}/disputes/${DISPUTE_ID}/resolve`, {
+        status: "accepted",
+        resolutionNote: "Answer key corrected.",
+      }),
+      { params: Promise.resolve({ competitionId: COMPETITION_ID, disputeId: DISPUTE_ID }) },
+    );
+
+    assertResponse(response);
+    const body = await response.json();
+    expect(response.status).toBe(409);
+    expect(body.code).toBe("competition_mismatch");
   });
 
   test("queues export jobs through service-role RPC after owner authorization", async () => {
@@ -237,6 +376,7 @@ describe("branch 14 organizer mutation routes", () => {
       { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
     );
 
+    assertResponse(response);
     expect(response.status).toBe(200);
     expect(userRpc).not.toHaveBeenCalled();
     expect(adminRpc).toHaveBeenCalledWith("queue_export_job", {
@@ -262,6 +402,7 @@ describe("branch 14 organizer mutation routes", () => {
       }),
       { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
     );
+    assertResponse(response);
     const body = await response.json();
 
     expect(response.status).toBe(400);
@@ -283,6 +424,7 @@ describe("branch 14 organizer mutation routes", () => {
       }),
       { params: Promise.resolve({ competitionId: COMPETITION_ID }) },
     );
+    assertResponse(response);
     const body = await response.json();
 
     expect(response.status).toBe(400);

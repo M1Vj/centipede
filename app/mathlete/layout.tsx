@@ -1,36 +1,18 @@
 import Image from "next/image";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { MathleteWorkspaceNav } from "@/components/mathlete/workspace-nav";
-import { createClient } from "@/lib/supabase/server";
-
-async function getUnreadNotificationCount() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return 0;
-  }
-
-  const { count } = await supabase
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("recipient_id", user.id)
-    .is("read_at", null);
-
-  return count ?? 0;
-}
+import { markAllNotificationsRead } from "@/lib/notifications/actions";
+import { fetchNotificationPreviewSnapshot } from "@/lib/notifications/preview";
 
 export default async function MathleteLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const unreadCount = await getUnreadNotificationCount();
+  const notificationSnapshot = await fetchNotificationPreviewSnapshot();
 
   return (
-    <div className="min-h-screen bg-[#fafafb] text-[#1a1e2e]">
+    <div className="mathlete-shell min-h-screen bg-[#fafafb] text-[#1a1e2e]">
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(circle_at_top,rgba(244,151,0,0.18),transparent_48%)]" />
         <div className="absolute right-[-8rem] top-20 h-72 w-72 rounded-full bg-[#1a1e2e]/8 blur-3xl" />
@@ -55,7 +37,11 @@ export default async function MathleteLayout({
             </span>
           </ProgressLink>
 
-          <MathleteWorkspaceNav unreadCount={unreadCount} />
+          <MathleteWorkspaceNav
+            markAllNotificationsRead={markAllNotificationsRead}
+            notifications={notificationSnapshot.notifications}
+            unreadCount={notificationSnapshot.unreadCount}
+          />
         </nav>
       </header>
       <main className="relative pb-20">{children}</main>

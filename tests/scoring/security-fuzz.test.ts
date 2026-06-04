@@ -65,8 +65,8 @@ describe("Security Fuzz Tests for Scoring Contracts", () => {
     });
 
     it("should safely limit base problem points from malicious infinity", () => {
-      expect(resolveBaseProblemPoints("custom", "easy", { "C1": Infinity }, "C1")).toBe(0);
-      expect(resolveBaseProblemPoints("custom", "easy", { "C1": NaN }, "C1")).toBe(0);
+      expect(resolveBaseProblemPoints("custom", "easy", { "C1": Infinity }, "C1")).toBe(1);
+      expect(resolveBaseProblemPoints("custom", "easy", { "C1": NaN }, "C1")).toBe(1);
     });
 
     it("should safely limit effective points from malicious infinity", () => {

@@ -14,6 +14,7 @@ type AttemptRow = {
   id: string;
   competition_id: string;
   registration_id: string;
+  participant_profile_id: string | null;
   attempt_no: number;
   status: "in_progress" | "submitted" | "auto_submitted" | "disqualified" | "graded";
   started_at: string;
@@ -32,6 +33,8 @@ type AttemptAnswerRow = {
   answer_latex: string | null;
   answer_text_normalized: string | null;
   status_flag: ArenaAttemptAnswer["statusFlag"];
+  is_correct: boolean | null;
+  points_awarded: number | string | null;
   last_saved_at: string;
   client_updated_at: string | null;
 };
@@ -66,10 +69,12 @@ type TeamMembershipRow = {
 type ProblemDisputeRow = {
   competition_problem_id: string;
   status: "open" | "reviewing" | "accepted" | "rejected" | "resolved";
+  resolution_note: string | null;
+  created_at: string;
 };
 
 const COMPETITION_DETAIL_SELECT =
-  "id, organizer_id, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, log_tab_switch, offense_penalties, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
+  "id, organizer_id, name, description, instructions, type, format, status, answer_key_visibility, registration_start, registration_end, start_time, end_time, duration_minutes, attempts_allowed, multi_attempt_grading_mode, max_participants, participants_per_team, max_teams, scoring_mode, custom_points, penalty_mode, deduction_value, tie_breaker, shuffle_questions, shuffle_options, scoring_snapshot_json, draft_revision, draft_version, is_deleted, published, is_paused, published_at, created_at, updated_at";
 
 function getAdminOrThrow() {
   const admin = createAdminClient();
@@ -130,7 +135,7 @@ async function fetchParticipantRegistrations(admin: AdminClient, competitionId: 
   );
 }
 
-async function fetchAttempt(admin: AdminClient, attemptId: string, registrationIds: string[]) {
+async function fetchAttempt(admin: AdminClient, attemptId: string, registrationIds: string[], actorUserId: string) {
   if (registrationIds.length === 0) {
     return null;
   }
@@ -138,10 +143,11 @@ async function fetchAttempt(admin: AdminClient, attemptId: string, registrationI
   const { data, error } = await admin
     .from("competition_attempts")
     .select(
-      "id, competition_id, registration_id, attempt_no, status, started_at, submitted_at, total_time_seconds, raw_score, penalty_score, final_score, graded_at, is_latest_visible_result",
+      "id, competition_id, registration_id, participant_profile_id, attempt_no, status, started_at, submitted_at, total_time_seconds, raw_score, penalty_score, final_score, graded_at, is_latest_visible_result",
     )
     .eq("id", attemptId)
     .in("registration_id", registrationIds)
+    .eq("participant_profile_id", actorUserId)
     .maybeSingle<AttemptRow>();
 
   if (error) {
@@ -151,7 +157,7 @@ async function fetchAttempt(admin: AdminClient, attemptId: string, registrationI
   return data;
 }
 
-async function fetchLatestAttempt(admin: AdminClient, registrationIds: string[]) {
+async function fetchLatestAttempt(admin: AdminClient, registrationIds: string[], actorUserId: string) {
   if (registrationIds.length === 0) {
     return null;
   }
@@ -159,9 +165,10 @@ async function fetchLatestAttempt(admin: AdminClient, registrationIds: string[])
   const { data, error } = await admin
     .from("competition_attempts")
     .select(
-      "id, competition_id, registration_id, attempt_no, status, started_at, submitted_at, total_time_seconds, raw_score, penalty_score, final_score, graded_at, is_latest_visible_result",
+      "id, competition_id, registration_id, participant_profile_id, attempt_no, status, started_at, submitted_at, total_time_seconds, raw_score, penalty_score, final_score, graded_at, is_latest_visible_result",
     )
     .in("registration_id", registrationIds)
+    .eq("participant_profile_id", actorUserId)
     .order("attempt_no", { ascending: false })
     .limit(1)
     .maybeSingle<AttemptRow>();
@@ -176,7 +183,7 @@ async function fetchLatestAttempt(admin: AdminClient, registrationIds: string[])
 async function fetchAttemptAnswers(admin: AdminClient, attemptId: string) {
   const { data, error } = await admin
     .from("attempt_answers")
-    .select("id, attempt_id, competition_problem_id, answer_latex, answer_text_normalized, status_flag, last_saved_at, client_updated_at")
+    .select("id, attempt_id, competition_problem_id, answer_latex, answer_text_normalized, status_flag, is_correct, points_awarded, last_saved_at, client_updated_at")
     .eq("attempt_id", attemptId);
 
   if (error) {
@@ -192,6 +199,8 @@ async function fetchAttemptAnswers(admin: AdminClient, attemptId: string) {
         answerLatex: answer.answer_latex ?? "",
         answerTextNormalized: answer.answer_text_normalized ?? "",
         statusFlag: answer.status_flag,
+        isCorrect: answer.is_correct,
+        pointsAwarded: answer.points_awarded === null ? null : toNumber(answer.points_awarded),
         lastSavedAt: answer.last_saved_at,
         clientUpdatedAt: answer.client_updated_at ?? "",
       }) satisfies ArenaAttemptAnswer,
@@ -247,9 +256,46 @@ async function fetchCompetitionProblems(admin: AdminClient, competitionId: strin
   }));
 }
 
-function extractAnswerKeyLatex(value: unknown): string[] {
+function parseJsonAnswerKeyString(value: string): unknown {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function formatAnswerLabel(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return trimmed
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function extractAnswerKeyLatex(value: unknown): string[] {
   if (typeof value === "string") {
-    return value.trim() ? [value] : [];
+    const parsed = parseJsonAnswerKeyString(value);
+    if (parsed !== value) {
+      return extractAnswerKeyLatex(parsed);
+    }
+
+    const formatted = formatAnswerLabel(value);
+    return formatted ? [formatted] : [];
   }
 
   if (Array.isArray(value)) {
@@ -258,14 +304,21 @@ function extractAnswerKeyLatex(value: unknown): string[] {
 
   if (value && typeof value === "object") {
     const record = value as Record<string, unknown>;
-    for (const key of ["latex", "answerLatex", "value", "label", "text", "answer"]) {
+    for (const key of ["acceptedAnswers", "accepted_answers", "correctOptionIds", "correct_option_ids"]) {
       const candidate = record[key];
-      if (typeof candidate === "string" && candidate.trim()) {
-        return [candidate];
+      if (Array.isArray(candidate)) {
+        return candidate.flatMap((entry) => extractAnswerKeyLatex(entry)).filter(Boolean);
       }
     }
 
-    return [JSON.stringify(value)];
+    for (const key of ["acceptedAnswer", "accepted_answer", "latex", "answerLatex", "value", "label", "text", "answer"]) {
+      const candidate = record[key];
+      if (typeof candidate === "string" && candidate.trim()) {
+        return extractAnswerKeyLatex(candidate);
+      }
+    }
+
+    return [];
   }
 
   return [];
@@ -312,8 +365,8 @@ export async function loadReviewPageData(competitionId: string, actorUserId: str
   const registrations = await fetchParticipantRegistrations(admin, competitionId, actorUserId);
   const registrationIds = registrations.map((registration) => registration.id);
   const attempt = attemptId
-    ? await fetchAttempt(admin, attemptId, registrationIds)
-    : await fetchLatestAttempt(admin, registrationIds);
+    ? await fetchAttempt(admin, attemptId, registrationIds, actorUserId)
+    : await fetchLatestAttempt(admin, registrationIds, actorUserId);
 
   if (!attempt) {
     return null;
@@ -405,41 +458,67 @@ export async function loadAnswerKeyPageData(competitionId: string, actorUserId: 
   }
 
   const [attempt, problems] = await Promise.all([
-    fetchLatestAttempt(admin, registrationIds),
+    fetchLatestAttempt(admin, registrationIds, actorUserId),
     fetchCompetitionProblems(admin, competitionId),
   ]);
   const visibility = canViewAnswerKeySnapshot({
     answerKeyVisibility: competition.answerKeyVisibility,
     competitionStatus: competition.status,
+    competitionType: competition.type,
     competitionEndTime: competition.endTime,
     hasParticipantContext: true,
+    attemptsAllowed: competition.attemptsAllowed,
+    latestAttemptNo: attempt?.attempt_no ?? 0,
+    latestAttemptStatus: attempt?.status ?? null,
   });
   const disputesByProblem = new Map<string, ProblemDisputeRow["status"]>();
+  const disputeResolutionNotesByProblem = new Map<string, string>();
+  const answersByProblem = new Map<string, ArenaAttemptAnswer>();
 
   if (attempt) {
-    const { data: disputeRows, error } = await admin
-      .from("problem_disputes")
-      .select("competition_problem_id, status")
-      .eq("attempt_id", attempt.id)
-      .eq("reporter_id", actorUserId)
-      .in("status", ["open", "reviewing"]);
+    const [answers, disputeResult] = await Promise.all([
+      fetchAttemptAnswers(admin, attempt.id),
+      admin
+        .from("problem_disputes")
+        .select("competition_problem_id, status, resolution_note, created_at")
+        .eq("attempt_id", attempt.id)
+        .eq("reporter_id", actorUserId)
+        .order("created_at", { ascending: false }),
+    ]);
 
-    if (error) {
-      throw error;
+    for (const answer of answers) {
+      answersByProblem.set(answer.competitionProblemId, answer);
     }
 
-    for (const row of (disputeRows ?? []) as ProblemDisputeRow[]) {
-      disputesByProblem.set(row.competition_problem_id, row.status);
+    if (disputeResult.error) {
+      throw disputeResult.error;
+    }
+
+    for (const row of (disputeResult.data ?? []) as ProblemDisputeRow[]) {
+      if (!disputesByProblem.has(row.competition_problem_id)) {
+        disputesByProblem.set(row.competition_problem_id, row.status);
+      }
+
+      if (row.resolution_note && !disputeResolutionNotesByProblem.has(row.competition_problem_id)) {
+        disputeResolutionNotesByProblem.set(row.competition_problem_id, row.resolution_note);
+      }
     }
   }
 
   return {
     competition: mapCompetition(competition),
     attempt: attempt ? mapAttempt(attempt) : null,
-    problems: problems.map((problem) => ({
-      ...problem,
-      existingDisputeStatus: disputesByProblem.get(problem.competitionProblemId) ?? null,
-    })),
+    problems: problems.map((problem) => {
+      const answer = answersByProblem.get(problem.competitionProblemId);
+
+      return {
+        ...problem,
+        isCorrect: answer?.isCorrect ?? null,
+        pointsAwarded: answer?.pointsAwarded ?? null,
+        existingDisputeStatus: disputesByProblem.get(problem.competitionProblemId) ?? null,
+        existingDisputeResolutionNote: disputeResolutionNotesByProblem.get(problem.competitionProblemId) ?? null,
+      };
+    }),
     visibility,
   };
 }

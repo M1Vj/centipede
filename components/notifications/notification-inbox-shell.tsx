@@ -1,10 +1,11 @@
 import Image from "next/image";
-import { AlertCircle, Check, ChevronRight, MailOpen } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronRight, MailOpen } from "lucide-react";
 import { MathleteWorkspaceNav } from "@/components/mathlete/workspace-nav";
 import { OrganizerNav } from "@/components/organizer/organizer-nav";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/ui/feedback-states";
+import { MarkAllReadButton } from "@/components/notifications/mark-all-read-button";
 import { ProgressLink } from "@/components/ui/progress-link";
 import type { NotificationItem } from "@/components/notifications/types";
 import { cn } from "@/lib/utils";
@@ -46,6 +47,10 @@ export function NotificationInboxShell({
 }: NotificationInboxShellProps) {
   const safeUnreadCount = Math.max(0, unreadCount);
   const workspaceLabel = role === "organizer" ? "Organizer" : role === "mathlete" ? "Mathlete" : "Workspace";
+  const allVisibleNotificationsRead =
+    notifications.length > 0 &&
+    safeUnreadCount === 0 &&
+    notifications.every((notification) => Boolean(notification.readAt));
 
   return (
     <div className="min-h-screen bg-[#fafafb] text-[#1a1e2e]">
@@ -72,9 +77,19 @@ export function NotificationInboxShell({
           </ProgressLink>
 
           {role === "organizer" ? (
-            <OrganizerNav isOrganizer isAuthenticated unreadCount={safeUnreadCount} />
+            <OrganizerNav
+              isOrganizer
+              isAuthenticated
+              markAllNotificationsRead={markAllAction}
+              notifications={notifications}
+              unreadCount={safeUnreadCount}
+            />
           ) : role === "mathlete" ? (
-            <MathleteWorkspaceNav unreadCount={safeUnreadCount} />
+            <MathleteWorkspaceNav
+              markAllNotificationsRead={markAllAction}
+              notifications={notifications}
+              unreadCount={safeUnreadCount}
+            />
           ) : null}
         </nav>
       </header>
@@ -95,25 +110,38 @@ export function NotificationInboxShell({
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <span
-              className="inline-flex h-9 items-center rounded-full border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700"
+              className={cn(
+                "inline-flex h-9 items-center rounded-full border px-3 text-sm font-semibold",
+                allVisibleNotificationsRead
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-slate-50 text-slate-700",
+              )}
               aria-live="polite"
             >
-              {safeUnreadCount} unread
+              {allVisibleNotificationsRead ? "All read" : `${safeUnreadCount} unread`}
             </span>
             <form action={markAllAction}>
-              <Button
-                type="submit"
-                variant="outline"
+              <MarkAllReadButton
+                allRead={allVisibleNotificationsRead}
                 className="w-full rounded-full border-slate-300 sm:w-auto"
                 disabled={safeUnreadCount === 0}
-                aria-label="Mark all notifications as read"
-              >
-                <Check className="size-4" />
-                Mark all read
-              </Button>
+              />
             </form>
           </div>
         </div>
+
+        {allVisibleNotificationsRead ? (
+          <Alert
+            className="border-emerald-200 bg-emerald-50 text-emerald-900"
+            role="status"
+            aria-live="polite"
+          >
+            <CheckCircle2 className="size-4" />
+            <AlertDescription>
+              All notifications are marked as read.
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
         {warning ? (
           <Alert
@@ -147,7 +175,9 @@ export function NotificationInboxShell({
                 <article
                   className={cn(
                     "grid gap-4 rounded-[22px] border bg-white p-4 shadow-sm transition sm:grid-cols-[1fr_auto] sm:items-center md:p-5",
-                    unread ? "border-[#f49700]/40" : "border-slate-200",
+                    unread
+                      ? "border-[#f49700]/40"
+                      : "border-emerald-100 bg-emerald-50/30",
                   )}
                 >
                   <div className="min-w-0 space-y-2">
@@ -192,7 +222,8 @@ export function NotificationInboxShell({
                         </Button>
                       </form>
                     ) : (
-                      <span className="inline-flex h-9 items-center rounded-full bg-slate-50 px-3 text-sm font-semibold text-slate-500">
+                      <span className="inline-flex h-9 items-center gap-1.5 rounded-full bg-emerald-50 px-3 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                        <CheckCircle2 className="size-4" />
                         Read
                       </span>
                     )}

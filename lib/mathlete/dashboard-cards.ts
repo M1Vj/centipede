@@ -137,6 +137,7 @@ export function buildMathleteDashboardCards(
       (row) =>
         row.status === "registered" &&
         row.competition &&
+        row.competition.type === "scheduled" &&
         (row.competition.status === "published" ||
           row.competition.status === "live" ||
           row.competition.status === "paused") &&

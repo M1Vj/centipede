@@ -5,6 +5,7 @@ import {
   validateMcqOptions,
   validateTrueFalseAcceptedAnswer,
 } from "@/lib/problem-bank/validation";
+import { validateProblemWriteInput } from "@/lib/problem-bank/api-helpers";
 
 describe("problem-bank validation", () => {
   test("requires bank name", () => {
@@ -148,5 +149,17 @@ describe("problem-bank validation", () => {
     const fromPipeDelimited = validateCanonicalAcceptedAnswers(" one | One | two ");
     expect(fromPipeDelimited.ok).toBe(true);
     expect(fromPipeDelimited.value).toEqual(["one", "two"]);
+  });
+
+  test("problem writes do not reject malformed or raw LaTeX text", () => {
+    const result = validateProblemWriteInput({
+      type: "identification",
+      difficulty: "easy",
+      contentLatex: "\\frac{1}{",
+      explanationLatex: "Solve $x + 1 and compute 11 \\pmod{12}.",
+      answerKey: { acceptedAnswers: ["11"] },
+    });
+
+    expect(result.ok).toBe(true);
   });
 });

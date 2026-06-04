@@ -1,7 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { type NextRequest, NextResponse } from "next/server";
-import { clearSessionVersionCookie, getSafeNextPath } from "@/lib/auth/session";
+import {
+  clearActiveSessionForUser,
+  clearSessionVersionCookie,
+  getSafeNextPath,
+  getSessionVersionCookieValue,
+} from "@/lib/auth/session";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: NextRequest) {
   return signOutWithPost(request);
@@ -25,8 +31,17 @@ async function signOutWithPost(request: NextRequest) {
   const {
     data: { session },
   } = await supabase.auth.getSession();
+  const sessionVersion = getSessionVersionCookieValue(request.cookies);
 
   if (session) {
+    const userId = session.user.id;
+    try {
+      const adminClient = createAdminClient();
+      await clearActiveSessionForUser(adminClient ?? supabase, userId, sessionVersion);
+    } catch {
+      // Sign-out must still clear local auth even if the active marker cannot be updated.
+    }
+
     await supabase.auth.signOut();
   }
 

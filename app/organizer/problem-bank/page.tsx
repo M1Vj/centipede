@@ -63,7 +63,7 @@ export default async function OrganizerProblemBankPage(props: {
           </div>
           <ProgressLink 
             href="/organizer/problem-bank/create"
-            className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3.5 rounded-xl font-bold text-[15px] transition-all hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center justify-center gap-2 self-start md:self-auto"
+            className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3.5 rounded-xl font-bold text-[15px] transition-all flex items-center justify-center gap-2 self-start md:self-auto"
           >
             <PlusCircle className="w-5 h-5" /> Add Problem Bank
           </ProgressLink>
@@ -140,7 +140,7 @@ export default async function OrganizerProblemBankPage(props: {
 
                       <ProgressLink 
                         href={`/organizer/problem-bank/${bank.id}`}
-                        className="w-full bg-[#f49700] hover:bg-[#e08900] text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2 shadow-sm"
+                        className="w-full bg-[#f49700] hover:bg-[#e08900] text-[#10182b] py-3 rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2"
                       >
                         Manage Bank <Edit3 className="w-4 h-4" />
                       </ProgressLink>

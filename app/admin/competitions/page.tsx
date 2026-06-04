@@ -43,7 +43,7 @@ async function CompetitionsList() {
         <Card key={comp.id} className="surface-card border-border/60 overflow-hidden flex flex-col">
           <CardHeader className="pb-4">
             <div className="flex items-start justify-between gap-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f49700]/10 text-[#f49700]">
                 <Trophy className="size-5" />
               </div>
               <div className="flex flex-col items-end gap-2">
@@ -53,7 +53,7 @@ async function CompetitionsList() {
                       PAUSED
                     </Badge>
                   ) : (
-                    <Badge variant="default" className="bg-green-500 text-white gap-1 text-[10px] border-0">
+                    <Badge variant="default" className="gap-1 border-0 bg-[#1a1e2e] text-[10px] text-white hover:bg-[#10182b]">
                       <Play className="size-2" />
                       ACTIVE
                     </Badge>

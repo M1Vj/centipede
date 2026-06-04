@@ -183,7 +183,7 @@ export function CalendarWidget({
                 <div className="flex items-center justify-center py-1 text-center">
                   <div
                     aria-current="date"
-                    className="relative flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm shadow-primary/10"
+                    className="relative flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground"
                   >
                     <span className="text-[12px] font-bold text-white">{cell.day}</span>
                     {hasScheduledCompetition ? (

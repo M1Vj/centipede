@@ -189,7 +189,7 @@ export function UserActions({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10"
+          className="h-8 w-8 text-muted-foreground hover:bg-[#f49700]/10 hover:text-[#8a5400]"
           title="Suspend user"
           aria-label="Suspend user"
           onClick={() => setSuspendOpen(true)}
@@ -201,7 +201,7 @@ export function UserActions({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10"
+          className="h-8 w-8 text-muted-foreground hover:bg-[#1a1e2e]/10 hover:text-[#1a1e2e]"
           title="Reactivate user"
           aria-label="Reactivate user"
           onClick={handleReactivate}
@@ -245,7 +245,7 @@ export function UserActions({
         confirmDisabled={deleteConfirmText !== "DELETE"}
         contentClassName="max-w-lg"
       >
-        <p className="text-xs font-bold uppercase tracking-widest text-rose-600">Irreversible anonymization</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-red-600">Irreversible anonymization</p>
         <div className="mt-4 space-y-2">
           <label htmlFor={deleteConfirmFieldId} className="text-xs font-semibold text-muted-foreground">
             Confirmation keyword

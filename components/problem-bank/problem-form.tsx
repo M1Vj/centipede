@@ -794,7 +794,7 @@ export function ProblemForm({
   return (
     <div className="flex flex-col gap-6 w-full max-w-[850px] mx-auto font-['Poppins',sans-serif]">
       {draftBannerVisible ? (
-        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-[#f49700]/20 bg-[#f49700]/10 px-6 py-4 text-[14px] text-[#1a1e2e] shadow-sm font-medium">
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-[#f49700]/20 bg-[#f49700]/10 px-6 py-4 text-[14px] text-[#1a1e2e] font-medium">
           <Info className="w-5 h-5 shrink-0 text-[#f49700]" />
           <span className="flex-1">A previously saved draft has been restored.</span>
           <button
@@ -890,7 +890,7 @@ export function ProblemForm({
             <button
               type="submit"
               disabled={!editable || isDeleting || isSaving}
-              className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3 rounded-xl font-bold text-[14px] transition-all shadow-sm hover:shadow-lg hover:shadow-[#f49700]/30 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-[#f49700] hover:bg-[#e08900] text-[#10182b] px-6 py-3 rounded-xl font-bold text-[14px] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" /> {isSaving ? "Saving..." : isEditMode ? "Save problem" : "Add problem"}
             </button>
