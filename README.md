@@ -9,6 +9,7 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 
 | Release Code | Date Released |
 | ------------ | ------------- |
+| CP.010.011   | 2026-05-09    |
 | CP.010.010   | 2026-05-06    |
 | CP.010.009   | 2026-05-05    |
 | CP.010.008   | 2026-04-25    |
@@ -19,6 +20,19 @@ Centipede is a secure, web-based mathematics online competition platform for Mat
 | CP.010.003   | 2026-03-28    |
 | CP.010.002   | 2026-03-14    |
 | CP.010.001   | 2026-02-28    |
+
+---
+
+## CP.010.011 Release Notes
+
+- Added notification inbox, notification preferences, bell dropdowns, role navigation entry points, and backend dispatch contracts for team invites, competition starts, organizer decisions, and export events.
+- Hardened notification delivery so invite and competition-start notifications remain inbox-visible even when optional preference categories are disabled.
+- Added organizer participant monitoring with registered, withdrawn, ineligible, active, disconnected, and finished participant visibility across the competition lifecycle.
+- Added monitoring controls for announcements, pause/resume, duration extension, disconnect reset, manual scheduled end, admin force-pause, moderation delete, realtime updates, and audit-backed control events.
+
+Known Issues:
+
+- None at this time.
 
 ---
 
