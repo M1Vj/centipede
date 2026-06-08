@@ -589,7 +589,11 @@ export function ProblemForm({
       isDraftClearedRef.current = true;
       clearDraft();
       setDraftBannerVisible(false);
-      router.push(backHref);
+      const createdProblemId =
+        !isEditMode && typeof problem?.id === "string" && problem.id.trim()
+          ? problem.id.trim()
+          : null;
+      router.push(createdProblemId ? `${backHref}/problem/${createdProblemId}` : backHref);
       router.refresh();
 
       if (!isEditMode) {

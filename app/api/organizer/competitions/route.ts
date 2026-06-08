@@ -73,6 +73,8 @@ async function fetchCreatedCompetitionByName(
     .select(COMPETITION_SELECT_COLUMNS)
     .eq("organizer_id", organizerId)
     .eq("name", competitionName)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (modernResult.error) {
@@ -91,6 +93,8 @@ async function fetchCreatedCompetitionByName(
     .select(LEGACY_COMPETITION_SELECT_COLUMNS)
     .eq("organizer_id", organizerId)
     .eq("name", competitionName)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (legacyResult.error) {

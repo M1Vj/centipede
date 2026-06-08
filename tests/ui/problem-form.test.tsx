@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -432,6 +432,48 @@ describe("ProblemForm validation logic", () => {
     expect(routerPushMock).toHaveBeenCalledTimes(1);
     expect(routerPushMock).toHaveBeenCalledWith("/organizer/problem-bank/bank-1");
     expect(screen.getByRole("button", { name: "Save problem" })).toBeEnabled();
+  });
+
+  test("opens newly created problem detail so preview controls are immediately available", async () => {
+    const fetchMock = vi.fn(async () =>
+      ({
+        ok: true,
+        json: async () => ({
+          problem: {
+            id: "problem-2",
+            updatedAt: "2026-04-07T00:00:00.000Z",
+          },
+        }),
+      }) as Response,
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ProblemForm bankId="bank-1" backHref="/organizer/problem-bank/bank-1" />);
+
+    fireEvent.change(screen.getByLabelText("Problem Type"), { target: { value: "numeric" } });
+
+    const contentProps = getCapturedMathliveFieldProps("problem-content");
+    const explanationProps = getCapturedMathliveFieldProps("problem-explanation");
+    const answerProps = getCapturedMathliveFieldProps("accepted-answer-0");
+    expect(typeof contentProps?.onChange).toBe("function");
+    expect(typeof explanationProps?.onChange).toBe("function");
+    expect(typeof answerProps?.onChange).toBe("function");
+
+    act(() => {
+      (contentProps?.onChange as (value: string) => void)("What is 2 + 2?");
+      (explanationProps?.onChange as (value: string) => void)("Add the numbers.");
+      (answerProps?.onChange as (value: string) => void)("4");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add problem" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      expect(routerPushMock).toHaveBeenCalledWith("/organizer/problem-bank/bank-1/problem/problem-2");
+    });
+    expect(routerRefreshMock).toHaveBeenCalledTimes(1);
   });
 
   test("preprocesses image before upload and sends converted file in FormData", async () => {
