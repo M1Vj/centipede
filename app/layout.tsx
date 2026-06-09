@@ -61,6 +61,7 @@ const poppinsDisplay = Poppins({
   weight: ["600", "700", "800", "900"],
   subsets: ["latin"],
 });
+const shouldRenderAnalytics = process.env.VERCEL === "1";
 
 async function AuthHydrator({
   children,
@@ -133,7 +134,7 @@ export default function RootLayout({
             </Suspense>
           </NavigationFeedbackProvider>
         </ThemeProvider>
-        <Analytics />
+        {shouldRenderAnalytics ? <Analytics /> : null}
       </body>
     </html>
   );

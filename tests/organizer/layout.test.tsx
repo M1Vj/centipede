@@ -5,11 +5,6 @@ import { type ReactNode } from "react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import OrganizerLayout from "@/app/organizer/layout";
 import { fetchNotificationPreviewSnapshot } from "@/lib/notifications/preview";
-import { createClient } from "@/lib/supabase/server";
-
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(),
-}));
 
 vi.mock("@/lib/notifications/actions", () => ({
   markAllNotificationsRead: vi.fn(),
@@ -35,36 +30,13 @@ vi.mock("@/components/ui/progress-link", () => ({
   ),
 }));
 
-function createSupabaseClientMock({
-  role,
-  userId,
-}: {
-  role?: string;
-  userId: string | null;
-}) {
-  const maybeSingle = vi.fn().mockResolvedValue({
-    data: role ? { role } : null,
-  });
-  const is = vi.fn().mockResolvedValue({
-    count: 3,
-    error: null,
-  });
-  const eq = vi.fn().mockReturnValue({ is, maybeSingle });
-  const select = vi.fn().mockReturnValue({ eq });
-  const from = vi.fn().mockReturnValue({ select });
+const mockUseAuth = vi.fn(() => ({
+  profile: { role: "organizer" },
+}));
 
-  return {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({
-        data: {
-          user: userId ? { id: userId } : null,
-        },
-      }),
-    },
-    from,
-    mocks: { from, is },
-  };
-}
+vi.mock("@/components/providers/auth-provider", () => ({
+  useAuth: () => mockUseAuth(),
+}));
 
 describe("organizer layout navigation", () => {
   beforeEach(() => {
@@ -72,8 +44,7 @@ describe("organizer layout navigation", () => {
   });
 
   test("keeps organizer IA and applies mobile-friendly nav spacing for organizer users", async () => {
-    const client = createSupabaseClientMock({ userId: "organizer-1", role: "organizer" });
-    vi.mocked(createClient).mockResolvedValue(client as never);
+    mockUseAuth.mockReturnValue({ profile: { role: "organizer" } });
     vi.mocked(fetchNotificationPreviewSnapshot).mockResolvedValue({
       notifications: [],
       unreadCount: 3,
@@ -102,13 +73,11 @@ describe("organizer layout navigation", () => {
       expect(within(nav).getByRole("link", { name: label })).toHaveClass("font-semibold");
     }
 
-    expect(client.mocks.from).toHaveBeenCalledWith("profiles");
     expect(fetchNotificationPreviewSnapshot).toHaveBeenCalled();
   });
 
   test("keeps guest organizer IA links for unauthenticated sessions", async () => {
-    const client = createSupabaseClientMock({ userId: null });
-    vi.mocked(createClient).mockResolvedValue(client as never);
+    mockUseAuth.mockReturnValue({ profile: null });
     vi.mocked(fetchNotificationPreviewSnapshot).mockResolvedValue({
       notifications: [],
       unreadCount: 0,
@@ -126,6 +95,5 @@ describe("organizer layout navigation", () => {
     expect(within(nav).getByRole("link", { name: "Status" })).toBeInTheDocument();
     expect(within(nav).queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open organizer navigation" })).toBeInTheDocument();
-    expect(client.mocks.from).not.toHaveBeenCalled();
   });
 });

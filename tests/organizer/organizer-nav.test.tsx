@@ -36,6 +36,12 @@ vi.mock("@/components/logout-button", () => ({
   ),
 }));
 
+vi.mock("@/components/providers/auth-provider", () => ({
+  useAuth: () => ({
+    profile: { role: "organizer" },
+  }),
+}));
+
 describe("OrganizerNav", () => {
   beforeEach(() => {
     vi.clearAllMocks();

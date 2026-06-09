@@ -5,12 +5,13 @@ import { Menu, Settings, UserCircle2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
 import { NotificationBellDropdown } from "@/components/notifications/notification-bell-dropdown";
+import { useAuth } from "@/components/providers/auth-provider";
 import type { NotificationItem } from "@/components/notifications/types";
 import { ProgressLink } from "@/components/ui/progress-link";
 import { cn } from "@/lib/utils";
 
 interface OrganizerNavProps {
-  isOrganizer: boolean;
+  isOrganizer?: boolean;
   isAuthenticated: boolean;
   markAllNotificationsRead?: () => Promise<void> | void;
   notifications?: NotificationItem[] | null;
@@ -37,8 +38,10 @@ export function OrganizerNav({
   unreadCount = 0,
 }: OrganizerNavProps) {
   const pathname = usePathname() ?? "";
+  const { profile } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
-  const navItems = isAuthenticated && isOrganizer ? organizerItems : guestItems;
+  const resolvedIsOrganizer = isOrganizer ?? profile?.role === "organizer";
+  const navItems = isAuthenticated && resolvedIsOrganizer ? organizerItems : guestItems;
 
   useEffect(() => {
     setMenuOpen(false);
@@ -71,7 +74,7 @@ export function OrganizerNav({
             </ProgressLink>
           );
         })}
-        {isAuthenticated && isOrganizer ? (
+        {isAuthenticated && resolvedIsOrganizer ? (
           <>
             <ProgressLink href="/organizer/profile" className="sr-only px-2 py-1">
               Profile
