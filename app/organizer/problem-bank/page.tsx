@@ -13,7 +13,7 @@ type ProblemBankRow = Record<string, unknown> & {
 };
 
 export default async function OrganizerProblemBankPage(props: {
-  searchParams?: Promise<ProblemBankPageSearchParams> | ProblemBankPageSearchParams;
+  searchParams?: Promise<ProblemBankPageSearchParams>;
 }) {
   const { profile } = await getWorkspaceContext({ requireRole: "organizer" });
   const supabase = await createClient();
