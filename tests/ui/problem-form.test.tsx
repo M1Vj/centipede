@@ -308,7 +308,9 @@ describe("ProblemForm validation logic", () => {
     expect(getCapturedMathliveFieldProps("tf-option-label-false")?.showPreviewToggle).toBe(true);
   });
 
-  test("does not render a separate mathlete-visible preview card", () => {
+  test("opens the mathlete-visible preview from the footer preview button", async () => {
+    const user = userEvent.setup();
+
     render(
       <ProblemForm
         bankId="bank-1"
@@ -333,6 +335,13 @@ describe("ProblemForm validation logic", () => {
     expect(screen.queryByText("Mathlete-visible preview")).toBeNull();
     expect(screen.queryByText("Problem Preview")).toBeNull();
     expect(screen.queryByText("Accepted answer preview")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Preview" }));
+
+    const preview = screen.getByRole("region", { name: "Mathlete-visible preview" });
+    expect(preview).toBeInTheDocument();
+    expect(preview).toHaveTextContent("Mathlete-visible preview");
+    expect(preview).toHaveTextContent("Compute 11 \\pmod{12}.");
   });
 
   test("ignores late save completion after unmount to avoid exit-flow runtime errors", async () => {

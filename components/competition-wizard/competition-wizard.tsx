@@ -935,7 +935,7 @@ export function CompetitionWizard({
         }
 
         setStatus("saved");
-        router.push(`/organizer/competition/${competition.id}`);
+        router.replace(`/organizer/competition/${competition.id}`);
       } catch (error) {
         setStatus("error");
         setStatusMessage(error instanceof Error ? error.message : "Competition create failed.");
