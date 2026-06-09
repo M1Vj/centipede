@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useDeferredValue, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Award,
@@ -680,6 +681,31 @@ export function CompetitionWizard({
     }
   }
 
+  function resetCreateWizardState() {
+    setDraftState({
+      ...initialState,
+      selectedProblemIds: [...initialState.selectedProblemIds],
+      customPointsByProblemId: { ...initialState.customPointsByProblemId },
+      safeExamBrowserConfigKeyHashes: [...initialState.safeExamBrowserConfigKeyHashes],
+    });
+    setStatus("idle");
+    setStatusMessage(null);
+    setActiveStep("overview");
+    setReviewProblemPage(1);
+    setDraftRevision(initialCompetition?.draftRevision ?? 1);
+    setCompetitionStatus(initialCompetition?.status ?? "draft");
+    setProblemSearch("");
+    setBankFilter("all");
+    setExpandedBankIds({});
+    setMaxParticipantsInput(initialState.maxParticipants === null ? "" : String(initialState.maxParticipants));
+    setPublishConfirmOpen(false);
+    setStartConfirmOpen(false);
+    setEndConfirmOpen(false);
+    setArchiveConfirmOpen(false);
+    setDeleteConfirmOpen(false);
+    setSavingAction(null);
+  }
+
   function updateDraft<K extends keyof CompetitionDraftFormState>(field: K, value: CompetitionDraftFormState[K]) {
     setDraftState((current) => ({ ...current, [field]: value }));
     setStatus("idle");
@@ -935,6 +961,7 @@ export function CompetitionWizard({
         }
 
         setStatus("saved");
+        flushSync(resetCreateWizardState);
         router.replace(`/organizer/competition/${competition.id}`);
       } catch (error) {
         setStatus("error");

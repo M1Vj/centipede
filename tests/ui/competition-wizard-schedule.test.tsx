@@ -174,6 +174,54 @@ describe("CompetitionWizard schedule behavior", () => {
     expect(routerSpies.push).not.toHaveBeenCalledWith("/organizer/competition/new-draft-competition");
   });
 
+  test("clears create form state before leaving for the created draft detail", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            competition: {
+              id: "new-draft-competition",
+            },
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+      ),
+    );
+
+    renderWizard();
+
+    fireEvent.change(screen.getByLabelText("Competition name"), {
+      target: { value: "Cached draft name" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Cached draft description." },
+    });
+    fireEvent.change(screen.getByLabelText("Rules and instructions"), {
+      target: { value: "Cached draft instructions." },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Schedule/i }));
+    fireEvent.change(screen.getByLabelText("Competition type"), {
+      target: { value: "open" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create draft" }));
+
+    await waitFor(() => {
+      expect(routerSpies.replace).toHaveBeenCalledWith("/organizer/competition/new-draft-competition");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Overview" }));
+
+    expect(screen.getByLabelText("Competition name")).toHaveValue("");
+    expect(screen.getByLabelText("Description")).toHaveValue("");
+    expect(screen.getByLabelText("Rules and instructions")).toHaveValue("");
+  });
+
   test("toggles between default and manual registration timing", () => {
     renderWizard();
     openScheduleStep();
