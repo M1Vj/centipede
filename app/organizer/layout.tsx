@@ -3,7 +3,6 @@ import { ProgressLink } from "@/components/ui/progress-link";
 import { OrganizerNav } from "@/components/organizer/organizer-nav";
 import { markAllNotificationsRead } from "@/lib/notifications/actions";
 import { fetchNotificationPreviewSnapshot } from "@/lib/notifications/preview";
-import { createClient } from "@/lib/supabase/server";
 
 export default async function OrganizerLayout({
   children,
@@ -12,17 +11,6 @@ export default async function OrganizerLayout({
 }) {
   const notificationSnapshot = await fetchNotificationPreviewSnapshot();
 
-  let isOrganizer = false;
-  if (notificationSnapshot.userId) {
-    const supabase = await createClient();
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", notificationSnapshot.userId)
-      .maybeSingle<{ role: string }>();
-    isOrganizer = profile?.role === "organizer";
-  }
-  
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 flex justify-center px-4 pt-4">
@@ -48,7 +36,6 @@ export default async function OrganizerLayout({
 
           {/* Nav + Actions */}
           <OrganizerNav
-            isOrganizer={isOrganizer}
             isAuthenticated={Boolean(notificationSnapshot.userId)}
             markAllNotificationsRead={markAllNotificationsRead}
             notifications={notificationSnapshot.notifications}
