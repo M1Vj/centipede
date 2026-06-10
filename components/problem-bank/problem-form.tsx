@@ -14,7 +14,9 @@ import { ProblemBasicInfo } from "@/components/problem-bank/problem-basic-info";
 import { ProblemContentEditor } from "@/components/problem-bank/problem-content-editor";
 import { ProblemOptionsEditor } from "@/components/problem-bank/problem-options-editor";
 import { ProblemNotesImage } from "@/components/problem-bank/problem-notes-image";
+import { ProblemPreviewCard } from "@/components/problem-bank/problem-preview-card";
 import {
+  normalizeTagsInput,
   validateProblemWriteInput,
   type ProblemWriteInput,
   type ValidatedProblemWriteInput,
@@ -321,6 +323,7 @@ export function ProblemForm({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploadingAsset, setIsUploadingAsset] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [previewVisible, setPreviewVisible] = useState(false);
   const [status, setStatus] = useState<FormStatus>({
     type: "pending",
     message: null,
@@ -400,6 +403,7 @@ export function ProblemForm({
         .join(" | "),
     [acceptedAnswerEntries],
   );
+  const previewTags = useMemo(() => normalizeTagsInput(tagsInput), [tagsInput]);
 
   const canSubmit = editable && !isSaving && !isDeleting && !isUploadingAsset;
 
@@ -589,7 +593,11 @@ export function ProblemForm({
       isDraftClearedRef.current = true;
       clearDraft();
       setDraftBannerVisible(false);
-      router.push(backHref);
+      const createdProblemId =
+        !isEditMode && typeof problem?.id === "string" && problem.id.trim()
+          ? problem.id.trim()
+          : null;
+      router.push(createdProblemId ? `${backHref}/problem/${createdProblemId}` : backHref);
       router.refresh();
 
       if (!isEditMode) {
@@ -851,6 +859,19 @@ export function ProblemForm({
           isUploadingAsset={isUploadingAsset}
         />
 
+        {previewVisible ? (
+          <section aria-label="Mathlete-visible preview">
+            <ProblemPreviewCard
+              type={type}
+              difficulty={difficulty}
+              tags={previewTags}
+              contentLatex={contentLatex}
+              updatedAt={initialValue?.updatedAt ?? null}
+              title="Mathlete-visible preview"
+            />
+          </section>
+        ) : null}
+
         <div id={statusId} ref={statusRef} tabIndex={-1} className="focus:outline-none">
           <FormStatusMessage
             status={status.type}
@@ -883,9 +904,11 @@ export function ProblemForm({
           <div className="flex items-center gap-3">
             <button 
               type="button"
+              onClick={() => setPreviewVisible((visible) => !visible)}
+              aria-expanded={previewVisible}
               className="bg-white border border-slate-200 hover:border-slate-300 text-[#10182b] px-6 py-3 rounded-xl font-bold text-[14px] transition-all flex items-center gap-2 shadow-sm"
             >
-              <Eye className="w-4 h-4" /> Preview
+              <Eye className="w-4 h-4" /> {previewVisible ? "Hide preview" : "Preview"}
             </button>
             <button
               type="submit"

@@ -36,6 +36,7 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const SESSION_VERIFY_COOLDOWN_MS = 10_000;
 
 async function fetchProfile(userId: string) {
   const supabase = getSupabaseClient();
@@ -73,6 +74,8 @@ export function AuthProvider({
   const [profile, setProfile] = useState<AuthProfile | null>(initialProfile);
   const [isLoading, setIsLoading] = useState(false);
   const currentUserIdRef = useRef<string | undefined>(initialUser?.id);
+  const sessionVerifyInFlightRef = useRef<Promise<void> | null>(null);
+  const lastSessionVerifyAtRef = useRef(0);
 
   const syncProfile = useCallback(async (nextUser: User | null) => {
     if (!nextUser || !hasEnvVars) {
@@ -172,22 +175,38 @@ export function AuthProvider({
 
     let isStopped = false;
 
-    const verifyCurrentSession = async () => {
-      try {
-        const response = await fetch("/auth/session", {
-          method: "GET",
-          cache: "no-store",
-        });
-
-        if (!isStopped && response.status === 409) {
-          const payload = (await response.json().catch(() => null)) as {
-            redirectTo?: string;
-          } | null;
-          feedbackRouter.push(payload?.redirectTo ?? "/auth/session-replaced");
-        }
-      } catch {
-        // Transient network failures should not sign users out.
+    const verifyCurrentSession = () => {
+      const now = Date.now();
+      if (sessionVerifyInFlightRef.current) {
+        return sessionVerifyInFlightRef.current;
       }
+
+      if (now - lastSessionVerifyAtRef.current < SESSION_VERIFY_COOLDOWN_MS) {
+        return Promise.resolve();
+      }
+
+      lastSessionVerifyAtRef.current = now;
+      sessionVerifyInFlightRef.current = (async () => {
+        try {
+          const response = await fetch("/auth/session", {
+            method: "GET",
+            cache: "no-store",
+          });
+
+          if (!isStopped && response.status === 409) {
+            const payload = (await response.json().catch(() => null)) as {
+              redirectTo?: string;
+            } | null;
+            feedbackRouter.push(payload?.redirectTo ?? "/auth/session-replaced");
+          }
+        } catch {
+          // Transient network failures should not sign users out.
+        } finally {
+          sessionVerifyInFlightRef.current = null;
+        }
+      })();
+
+      return sessionVerifyInFlightRef.current;
     };
 
     const handleFocus = () => {

@@ -468,12 +468,16 @@ describe("POST /api/organizer/competitions", () => {
 
     const lookupQuery = {
       eq: vi.fn(),
+      order: vi.fn(),
+      limit: vi.fn(),
       maybeSingle: vi.fn().mockResolvedValue({
         data: buildCompetitionRow(),
         error: null,
       }),
     };
     lookupQuery.eq.mockImplementation(() => lookupQuery);
+    lookupQuery.order.mockImplementation(() => lookupQuery);
+    lookupQuery.limit.mockImplementation(() => lookupQuery);
 
     const competitionsTable = {
       insert: vi.fn(() => insertQuery),
@@ -497,6 +501,59 @@ describe("POST /api/organizer/competitions", () => {
     expect(body.code).toBe("created");
     expect(body.competition.id).toBe("competition-1");
     expect(lookupQuery.maybeSingle).toHaveBeenCalled();
+  });
+
+  test("re-reads the newest same-name competition when insert returns no row data", async () => {
+    vi.mocked(createClient).mockResolvedValue(makeServerClient() as never);
+
+    const insertQuery = {
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: null,
+        error: null,
+      }),
+    };
+    insertQuery.select.mockImplementation(() => insertQuery);
+
+    const lookupQuery = {
+      eq: vi.fn(),
+      order: vi.fn(),
+      limit: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: buildCompetitionRow({
+          id: "competition-2",
+          created_at: "2026-04-02T00:00:00.000Z",
+        }),
+        error: null,
+      }),
+    };
+    lookupQuery.eq.mockImplementation(() => lookupQuery);
+    lookupQuery.order.mockImplementation(() => lookupQuery);
+    lookupQuery.limit.mockImplementation(() => lookupQuery);
+
+    const competitionsTable = {
+      insert: vi.fn(() => insertQuery),
+      select: vi.fn(() => lookupQuery),
+    };
+
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === "competitions") {
+          return competitionsTable;
+        }
+
+        throw new Error(`Unexpected table in admin client: ${table}`);
+      }),
+    } as never);
+
+    const response = await POST(makeCreateRequest(buildScheduledCreatePayload()));
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.code).toBe("created");
+    expect(body.competition.id).toBe("competition-2");
+    expect(lookupQuery.order).toHaveBeenCalledWith("created_at", { ascending: false });
+    expect(lookupQuery.limit).toHaveBeenCalledWith(1);
   });
 
   test("re-reads created competition when save draft returns empty lifecycle result", async () => {
