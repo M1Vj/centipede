@@ -140,6 +140,18 @@ describe("arena helpers", () => {
     });
   });
 
+  test.each([
+    ["constructor", "constructor"],
+    ["__proto__", "__proto__"],
+    [" \tConStRuCtOr\n", "constructor"],
+    [" \t__PrOtO__\n", "__proto__"],
+  ])("keeps invalid tf answer %j as normalized text", (token, expected) => {
+    expect(normalizeArenaAnswerValue("tf", token)).toEqual({
+      answerLatex: "",
+      answerTextNormalized: expected,
+    });
+  });
+
   test("formats timer text in fixed hh:mm:ss shape", () => {
     expect(formatTimerText(0)).toBe("00:00:00");
     expect(formatTimerText(65)).toBe("00:01:05");

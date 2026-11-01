@@ -1,7 +1,53 @@
 import { describe, expect, test } from "vitest";
-import { normalizeProblemRow } from "@/lib/problem-bank/api-helpers";
+import {
+  normalizeProblemRow,
+  validateProblemWriteInput,
+} from "@/lib/problem-bank/api-helpers";
 
 describe("problem-bank api helpers", () => {
+  const trueFalseWriteInput = {
+    type: "tf",
+    difficulty: "easy",
+    contentLatex: "One equals one.",
+    options: [
+      { id: "true", label: "True" },
+      { id: "false", label: "False" },
+    ],
+  };
+
+  test.each([
+    [" YES ", "true"],
+    ["0", "false"],
+  ])("accepts a valid tf problem write with alias %j", (token, expected) => {
+    const result = validateProblemWriteInput({
+      ...trueFalseWriteInput,
+      answerKey: { acceptedAnswer: token },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.value?.answerKey).toEqual({ acceptedAnswer: expected });
+  });
+
+  test.each(["constructor", "__proto__", " CONSTRUCTOR ", " __PROTO__ "])(
+    "rejects inherited key %j in an otherwise valid tf problem write",
+    (token) => {
+      const result = validateProblemWriteInput({
+        ...trueFalseWriteInput,
+        answerKey: { acceptedAnswer: token },
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        value: null,
+        errors: [{
+          field: "answer_key_json",
+          reason: "True/false accepted answers must contain exactly one value: true or false.",
+        }],
+      });
+    },
+  );
+
   test("preserves imported dollar-delimited content for edit forms", () => {
     const normalized = normalizeProblemRow({
       id: "problem-1",

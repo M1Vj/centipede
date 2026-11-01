@@ -128,6 +128,9 @@ Organizer competition create and save paths must serialize scoring, penalty, and
 ### 3.17
 Lifecycle RPC normalization must not invent `operation_failed` when payload lacks explicit `machine_code` / `machineCode`. Treat unshaped objects as unknown so organizer routes can fall back to readback success instead of surfacing false failure states.
 
+### 3.18
+True/false alias lookups must accept only the normalization map's own entries. Inherited object keys such as `constructor` and `__proto__` are invalid tokens, not canonical answers; keep regression coverage for authoring validation and scoring text fallbacks.
+
 ## 4. Workflow Rules
 
 ### 4.1

@@ -55,7 +55,9 @@ export function normalizeMcqAnswerToken(value: string): string {
 
 export function normalizeTrueFalseToken(value: string): "true" | "false" | null {
   const normalized = normalizeWhitespace(value).toLowerCase();
-  return TRUE_FALSE_NORMALIZATION_MAP[normalized] ?? null;
+  return Object.prototype.hasOwnProperty.call(TRUE_FALSE_NORMALIZATION_MAP, normalized)
+    ? TRUE_FALSE_NORMALIZATION_MAP[normalized]
+    : null;
 }
 
 function parseSimpleFraction(value: string): number | null {
