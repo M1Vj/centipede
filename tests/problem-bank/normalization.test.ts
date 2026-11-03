@@ -37,6 +37,35 @@ describe("problem-bank normalization", () => {
     expect(normalizeTrueFalseToken("maybe")).toBeNull();
   });
 
+  test.each([
+    ["true", "true"],
+    ["t", "true"],
+    ["yes", "true"],
+    ["y", "true"],
+    ["1", "true"],
+    ["false", "false"],
+    ["f", "false"],
+    ["no", "false"],
+    ["n", "false"],
+    ["0", "false"],
+  ])("normalizes the supported true/false alias %s", (token, expected) => {
+    expect(normalizeTrueFalseToken(token)).toBe(expected);
+    expect(normalizeTrueFalseToken(` \t${token.toUpperCase()}\n`)).toBe(expected);
+  });
+
+  test.each([
+    "constructor",
+    "__proto__",
+    " \tConStRuCtOr\n",
+    " \t__PrOtO__\n",
+    "toString",
+    "valueOf",
+    "hasOwnProperty",
+    "",
+  ])("rejects non-alias true/false token %j", (token) => {
+    expect(normalizeTrueFalseToken(token)).toBeNull();
+  });
+
   test("parses tags as pipe-delimited entries", () => {
     const tags = parsePipeDelimitedTags(" Algebra |geometry| algebra |GEOMETRY| ");
     expect(tags).toEqual(["Algebra", "geometry"]);

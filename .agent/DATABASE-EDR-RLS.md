@@ -173,6 +173,8 @@ Indexes: `problems_bank_idx`, gin on `tags`.
 
 Constraints: `content_latex`, `answer_key_json`, and `updated_at` are non-null; `answer_key_json` must be a JSON object when present; `options_json` is required and must be an array for `mcq` and `tf`; canonical and legacy compatibility columns are synchronized by trigger; hard delete is blocked by trigger and all delete semantics are soft-delete only (`is_deleted = true`); multiple choice options must be unique and answer payload shape depends on `type`.
 
+Application normalization contract for true/false answers: only explicit aliases (`true`, `t`, `yes`, `y`, `1`, `false`, `f`, `no`, `n`, `0`) normalize to canonical `true` or `false`. Inherited object keys such as `constructor` and `__proto__` are not aliases; problem-write validation rejects them, while scoring retains invalid input as normalized text with a null canonical boolean. This is an application-layer guard, not a new SQL constraint or a migration of malformed historical answers.
+
 ### `problem_import_jobs`
 
 Purpose: deterministic import idempotency and row-level failure ledger for bulk problem ingestion.

@@ -139,6 +139,24 @@ describe("problem-bank validation", () => {
     expect(result.ok).toBe(false);
   });
 
+  describe.each(["constructor", "__proto__"])("tf rejects inherited key %s", (token) => {
+    test.each([
+      { shape: "scalar", input: token },
+      { shape: "array", input: [token] },
+      { shape: "wrapped scalar", input: { acceptedAnswer: token } },
+      { shape: "wrapped array", input: { acceptedAnswers: [token] } },
+    ])("rejects the $shape answer format", ({ input }) => {
+      expect(validateTrueFalseAcceptedAnswer(input)).toEqual({
+        ok: false,
+        value: null,
+        errors: [{
+          field: "answer_key_json",
+          reason: "True/false accepted answers must contain exactly one value: true or false.",
+        }],
+      });
+    });
+  });
+
   test("canonical accepted answers support object and pipe-delimited formats", () => {
     const fromObject = validateCanonicalAcceptedAnswers({
       acceptedAnswers: ["  Alpha ", "alpha", "Beta"],

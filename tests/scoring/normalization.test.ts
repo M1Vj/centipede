@@ -20,6 +20,50 @@ describe("scoring normalization", () => {
     expect(normalizeTrueFalseToken("maybe")).toBeNull();
   });
 
+  test.each([
+    ["true", "true"],
+    ["t", "true"],
+    ["yes", "true"],
+    ["y", "true"],
+    ["1", "true"],
+    ["false", "false"],
+    ["f", "false"],
+    ["no", "false"],
+    ["n", "false"],
+    ["0", "false"],
+  ])("normalizes the supported true/false alias %s", (token, expected) => {
+    expect(normalizeTrueFalseToken(token)).toBe(expected);
+    expect(normalizeTrueFalseToken(` \t${token.toUpperCase()}\n`)).toBe(expected);
+  });
+
+  test.each([
+    "constructor",
+    "__proto__",
+    " \tConStRuCtOr\n",
+    " \t__PrOtO__\n",
+    "toString",
+    "valueOf",
+    "hasOwnProperty",
+    "",
+  ])("rejects non-alias true/false token %j", (token) => {
+    expect(normalizeTrueFalseToken(token)).toBeNull();
+  });
+
+  test.each([
+    ["constructor", "constructor"],
+    ["__proto__", "__proto__"],
+    [" \tConStRuCtOr\n", "constructor"],
+    [" \t__PrOtO__\n", "__proto__"],
+    [" Maybe ", "maybe"],
+  ])("preserves a string fallback when scoring invalid tf token %j", (token, expected) => {
+    expect(normalizeAnswerForScoring("tf", token)).toEqual({
+      problemType: "tf",
+      normalizedText: expected,
+      normalizedTrueFalse: null,
+      normalizedNumeric: null,
+    });
+  });
+
   test("parses numeric latex from decimals and fractions", () => {
     expect(parseNumericLatex("0.5")).toBe(0.5);
     expect(parseNumericLatex("1/2")).toBe(0.5);
