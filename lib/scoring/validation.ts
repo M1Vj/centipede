@@ -117,24 +117,32 @@ export function createDefaultScoringRuleConfig(): ScoringRuleConfig {
 
 export function normalizeScoringModeToken(value: unknown): ScoringMode | null {
   const normalized = normalizeToken(value);
-  return SCORING_MODE_ALIASES[normalized] ?? null;
+  return Object.prototype.hasOwnProperty.call(SCORING_MODE_ALIASES, normalized)
+    ? SCORING_MODE_ALIASES[normalized]
+    : null;
 }
 
 export function normalizePenaltyModeToken(value: unknown): PenaltyMode | null {
   const normalized = normalizeToken(value);
-  return PENALTY_MODE_ALIASES[normalized] ?? null;
+  return Object.prototype.hasOwnProperty.call(PENALTY_MODE_ALIASES, normalized)
+    ? PENALTY_MODE_ALIASES[normalized]
+    : null;
 }
 
 export function normalizeTieBreakerToken(value: unknown): TieBreaker | null {
   const normalized = normalizeToken(value);
-  return TIE_BREAKER_ALIASES[normalized] ?? null;
+  return Object.prototype.hasOwnProperty.call(TIE_BREAKER_ALIASES, normalized)
+    ? TIE_BREAKER_ALIASES[normalized]
+    : null;
 }
 
 export function normalizeAttemptGradingModeToken(
   value: unknown,
 ): AttemptGradingMode | null {
   const normalized = normalizeToken(value);
-  return ATTEMPT_GRADING_MODE_ALIASES[normalized] ?? null;
+  return Object.prototype.hasOwnProperty.call(ATTEMPT_GRADING_MODE_ALIASES, normalized)
+    ? ATTEMPT_GRADING_MODE_ALIASES[normalized]
+    : null;
 }
 
 function validateCustomPointsByProblemId(

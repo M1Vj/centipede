@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { validateCompetitionDraftInput } from "@/lib/competition/validation";
 import {
   createDefaultScoringRuleConfig,
   normalizeAttemptGradingModeToken,
@@ -78,4 +79,58 @@ describe("scoring validation", () => {
     expect(result.errors.some((error) => error.field === "customPointsByProblemId")).toBe(true);
   });
 
+});
+
+
+describe("scoring rule alias ownership", () => {
+  const normalizers = [
+    ["scoringMode", normalizeScoringModeToken],
+    ["penaltyMode", normalizePenaltyModeToken],
+    ["tieBreaker", normalizeTieBreakerToken],
+    ["multiAttemptGradingMode", normalizeAttemptGradingModeToken],
+  ] as const;
+
+  for (const [field, normalize] of normalizers) {
+    for (const token of ["constructor", "__proto__", " CONSTRUCTOR ", "__PROTO__"]) {
+      test(`${field} rejects inherited alias ${token}`, () => {
+        expect(normalize(token)).toBeNull();
+        const result = validateScoringRuleInput({
+          [field]: token,
+          competitionType: "open",
+        });
+        expect(result.ok).toBe(false);
+        expect(result.value).toBeNull();
+        expect(result.errors.some((error) => error.field === field)).toBe(true);
+        const draft = validateCompetitionDraftInput({
+          name: "Synthetic competition",
+          description: "Synthetic description",
+          instructions: "Synthetic instructions",
+          type: "open",
+          maxParticipants: 3,
+          [field]: token,
+        });
+        expect(draft.ok).toBe(false);
+        expect(draft.value).toBeNull();
+        expect(draft.errors.some((error) => error.field === field)).toBe(true);
+      });
+    }
+  }
+});
+
+ test("preserves every scoring alias after trimming and case folding", () => {
+  const cases = [
+    [normalizeScoringModeToken, { difficulty: "difficulty", automatic: "difficulty", custom: "custom" }],
+    [normalizePenaltyModeToken, { none: "none", fixed_deduction: "fixed_deduction", deduction: "fixed_deduction" }],
+    [normalizeTieBreakerToken, { earliest_final_submission: "earliest_final_submission", earliest_submission: "earliest_final_submission", latest_submission: "earliest_final_submission", lowest_total_time: "lowest_total_time", average_time: "lowest_total_time" }],
+    [normalizeAttemptGradingModeToken, { highest_score: "highest_score", latest_score: "latest_score", average_score: "average_score" }],
+  ] as const;
+  for (const [normalize, aliases] of cases) {
+    for (const [alias, expected] of Object.entries(aliases)) {
+      expect(normalize(alias)).toBe(expected);
+      expect(normalize(` \t${alias.toUpperCase()}\n`)).toBe(expected);
+    }
+    for (const value of [undefined, null, false, 0, {}, [], "", "toString", "hasOwnProperty", "invalid"]) {
+      expect(normalize(value)).toBeNull();
+    }
+  }
 });
